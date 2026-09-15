@@ -1,0 +1,187 @@
+{
+  "_documentacion": "Configuracion del harness. Ver docs/harness-novela-suspense.md seccion 6.0. Los perfiles se fusionan en profundidad sobre 'base': un perfil solo declara lo que cambia.",
+  "version": 1,
+  "perfil_activo": "poc",
+
+  "base": {
+    "obra": {
+      "idioma": "es-ES",
+      "subgenero": "thriller_psicologico_domestico",
+      "punto_de_vista": "tercera_limitada",
+      "tiempo_verbal": "pasado",
+      "focalizadores_max": 3,
+      "personajes_max": 8
+    },
+
+    "capitulos": {
+      "total": 30,
+      "palabras_objetivo": 2000,
+      "tolerancia_palabras": 0.15,
+      "escenas_min": 2,
+      "escenas_max": 4
+    },
+
+    "actos": [
+      { "numero": 1, "desde": 1, "hasta": 8 },
+      { "numero": 2, "desde": 9, "hasta": 22 },
+      { "numero": 3, "desde": 23, "hasta": 30 }
+    ],
+
+    "entrevista": {
+      "rondas": 3,
+      "preguntas_por_ronda_max": 6,
+      "opciones_por_pregunta_min": 2,
+      "opciones_por_pregunta_max": 4
+    },
+
+    "evaluacion": {
+      "escala_max": 5,
+      "umbral_media": 4.0,
+      "umbral_criterio_bloqueante": 4,
+      "criterios_bloqueantes": ["tension", "escaleta"],
+      "max_reescrituras": 2,
+      "max_parches_por_iteracion": 4,
+      "al_agotar_iteraciones": "aceptar_mejor_con_deuda",
+      "seleccion_al_agotar": "mayor_media"
+    },
+
+    "continuidad": {
+      "auditoria_antes_de_capitulo": 30,
+      "max_capitulos_pista_sin_tocar": 6,
+      "reglas_bloqueantes": {
+        "no_resolver_sin_plantar": true,
+        "toda_pista_real_con_resolucion": true,
+        "todo_red_herring_desactivado": true,
+        "nadie_usa_informacion_que_no_tiene": true,
+        "cronologia_monotona": true
+      }
+    },
+
+    "contexto": {
+      "presupuesto_tokens_max": 16000,
+      "tokens_por_palabra": 1.5,
+      "capitulos_texto_integro": 2,
+      "capitulos_ficha_completa": 4,
+      "palabras_ficha": 120,
+      "palabras_resumen_acto": 150,
+      "dias_cronologia_visibles": 7,
+      "orden_de_recorte": ["cronologia", "fichas_antiguas", "texto_integro_n_menos_2"]
+    },
+
+    "puertas": {
+      "plan": true,
+      "cierre_de_acto": true,
+      "final": true,
+      "bloqueo_continuidad": true
+    },
+
+    "agentes": {
+      "arquitecto": {
+        "clase_modelo": "alta",
+        "temperatura": 0.4,
+        "temperatura_entrevista": 0.8,
+        "max_tokens": 8000,
+        "herramientas": []
+      },
+      "escritor": {
+        "clase_modelo": "alta",
+        "temperatura": 0.85,
+        "temperatura_parche": 0.6,
+        "max_tokens": 6000,
+        "herramientas": []
+      },
+      "evaluador": {
+        "clase_modelo": "equilibrada",
+        "temperatura": 0.2,
+        "max_tokens": 2000,
+        "herramientas": []
+      },
+      "continuista": {
+        "clase_modelo": "equilibrada",
+        "temperatura": 0.1,
+        "max_tokens": 3000,
+        "herramientas": []
+      },
+      "editor_acto": {
+        "clase_modelo": "alta",
+        "temperatura": 0.5,
+        "max_tokens": 3000,
+        "herramientas": []
+      }
+    },
+
+    "ejecucion": {
+      "capitulos_por_invocacion": 1,
+      "commit_por_capitulo": true,
+      "cuota": {
+        "limite_diario": 50,
+        "limite_por_minuto": 20,
+        "parar_si_no_cabe_un_capitulo": true
+      },
+      "reintentos": {
+        "max": 5,
+        "backoff_base_segundos": 2,
+        "backoff_max_segundos": 32
+      },
+      "truncamiento": {
+        "max_reintentos": 2,
+        "reduccion_objetivo_palabras": 0.2,
+        "marcador_fin_obligatorio": "<!-- FIN -->"
+      },
+      "json_malformado": { "max_reintentos": 1 },
+      "deriva_idioma": { "max_reintentos": 2 }
+    },
+
+    "rutas": {
+      "raiz": "novela",
+      "biblia": "novela/biblia",
+      "estado": "novela/estado",
+      "capitulos": "novela/capitulos",
+      "intentos": "novela/.intentos",
+      "informes": "novela/informes",
+      "archivo_estado": "novela/estado.json",
+      "notas_autor": "novela/notas-del-autor.md"
+    }
+  },
+
+  "perfiles": {
+    "poc": {
+      "_proposito": "Valida la maquinaria, no la calidad literaria. 3 capitulos de 4 lineas, un acto por capitulo para disparar las tres puertas de acto.",
+      "obra": {
+        "personajes_max": 3,
+        "focalizadores_max": 2
+      },
+      "capitulos": {
+        "total": 3,
+        "palabras_objetivo": 60,
+        "tolerancia_palabras": 0.5,
+        "escenas_min": 2,
+        "escenas_max": 2
+      },
+      "actos": [
+        { "numero": 1, "desde": 1, "hasta": 1 },
+        { "numero": 2, "desde": 2, "hasta": 2 },
+        { "numero": 3, "desde": 3, "hasta": 3 }
+      ],
+      "entrevista": {
+        "rondas": 1
+      },
+      "evaluacion": {
+        "umbral_media": 3.0,
+        "umbral_criterio_bloqueante": 3
+      },
+      "continuidad": {
+        "auditoria_antes_de_capitulo": 3,
+        "max_capitulos_pista_sin_tocar": 2
+      },
+      "contexto": {
+        "capitulos_texto_integro": 1,
+        "capitulos_ficha_completa": 1
+      }
+    },
+
+    "completo": {
+      "_proposito": "La novela real. Todos los valores son los de 'base'."
+    }
+  }
+}

@@ -53,6 +53,13 @@ an execution state file (`novel/state.json`) that allows the process to resume f
   per role. Inference does **not** use Anthropic models: Claude Code is pointed at OpenRouter via
   `ANTHROPIC_BASE_URL`, and OpenRouter serves the Messages format through its compatibility layer.
   No local proxy. Full configuration in **Annex A**.
+- **The first deliverable is a POC**, not the novel: 3 chapters of about 60 words that exercise the
+  whole machine in minutes rather than days (§15.1). It is not a separate mode or separate code: it
+  is a profile in `config.json` (§6.0). The full novel is launched once the POC passes twice in a
+  row.
+- **Every system parameter lives in `novel/config.json`**, not in the code and not in this document:
+  chapter count, length, thresholds, maximum rewrites, quota, temperatures. The document explains
+  the numbers; the file fixes them (§6.0).
 - **The runtime is isolated.** Sections 1 to 17 do not depend on it: they talk to it through the six
   ports of **Annex B**. Changing runtime means writing a new annex, not rewriting the
   specification.
@@ -172,7 +179,7 @@ sequenceDiagram
     R->>F: assemble context for chapter N
     R->>E: write chapter N
     E-->>R: draft with scene markers
-    R->>F: save NN-chapter.md
+    R->>F: save .attempts/NN-i0.md
     par Evaluation in parallel
         R->>V: assess literary quality
         V-->>R: 6 criteria 1-5 + proposed patches
@@ -181,15 +188,19 @@ sequenceDiagram
         C-->>R: verdict + conditional state deltas
     end
     alt Approved by both
+        R->>F: promote attempt to chapters/NN-chapter.md
         R->>F: apply deltas to clues, timeline, character-state
         R->>F: write NN-card.md and update rolling-summary.md
         R->>F: git commit
     else Rejected, iterations remaining
         R->>E: apply targeted patch to flagged scenes
         E-->>R: patched chapter
+        R->>F: save .attempts/NN-i1.md
         Note over R,C: evaluation repeats
     else Rejected, 2 iterations exhausted
-        R->>F: accept best attempt + log in narrative-debt.md
+        R->>F: promote best attempt by mean, not the last
+        R->>F: log defects in narrative-debt.md
+        R->>F: git commit
     end
 ```
 
@@ -612,6 +623,7 @@ Full tree. All paths are relative to the repository root.
 
 ```
 novel/
+├── config.json
 ├── state.json
 ├── author-notes.md
 ├── bible/
@@ -637,6 +649,91 @@ novel/
 The Markdown schemas below keep their Spanish headings and field names, because they are the
 literal shape of files the Spanish-writing agents produce and consume. Translating them would
 change the system, not describe it.
+
+### 6.0 `config.json`
+
+Authored by hand before the first run · Written by: **the person** · Read by: the runtime, on every
+invocation · **Mutable, but only between chapters.** It is the only file in `novel/` that a human
+writes and the system only reads.
+
+**The rule that governs this whole document**: every numeric constant appearing in sections 1 to 17
+— 30 chapters, 2,000 words, threshold 4.0, 2 rewrites, 16k tokens — is the default value of the
+`completo` profile in this file. **The document explains the numbers; `config.json` fixes them.** If
+the two disagree, the file wins and the document has an erratum.
+
+Structure: a `base` section holding every value, and a `perfiles` object where each profile declares
+**only what changes**. The active profile is **deep-merged** over `base`. This is what lets the POC
+(§15.1) be another profile rather than another codebase.
+
+Note: the shipped file uses Spanish key names, matching the Spanish document (see the translator's
+note at the top). The structure below is annotated in English; the keys are the file's.
+
+```json
+{
+  "version": 1,
+  "perfil_activo": "poc",
+  "base": {
+    "obra":        { language, subgenre, point of view, tense,
+                     max POV characters, max characters },
+    "capitulos":   { total, target words, word tolerance,
+                     min scenes, max scenes },
+    "actos":       [ { number, from, to } ],
+    "entrevista":  { rounds, max questions per round,
+                     min options per question, max options per question },
+    "evaluacion":  { scale max, mean threshold, blocking-criterion threshold,
+                     blocking criteria, max rewrites, max patches per iteration,
+                     behaviour on exhaustion, attempt-selection rule },
+    "continuidad": { audit-before-chapter, max chapters a clue may go untouched,
+                     five blocking-rule flags from §8.2 },
+    "contexto":    { max token budget, tokens per word,
+                     chapters kept in full, chapters kept as cards,
+                     card word count, act-summary word count,
+                     timeline days visible, trim order },
+    "puertas":     { plan, act close, final, continuity block },
+    "agentes":     { "<role>": { model class, temperature, max tokens, tools } },
+    "ejecucion":   { chapters per invocation, commit per chapter,
+                     quota: { daily limit, per-minute limit, stop if a chapter
+                              does not fit },
+                     retries: { max, backoff base seconds, backoff max seconds },
+                     truncation: { max retries, word-target reduction,
+                                   mandatory end marker },
+                     malformed JSON: { max retries },
+                     language drift: { max retries } },
+    "rutas":       { root, bible, state, chapters, attempts,
+                     reports, state file, author notes }
+  },
+  "perfiles": { "poc": { ...only what changes }, "completo": {} }
+}
+```
+
+How the groups map to the rest of the document: `obra` and `capitulos` to §2 · `actos` to §3 ·
+`entrevista` to §5.1 · `evaluacion` to §9 · `continuidad` to §8 · `contexto` to §7 · `puertas` to
+§11 · `agentes` to §5 · `ejecucion` to §12 · `rutas` to this §6.
+
+**What is deliberately NOT here**: the model identifiers. They live in environment variables (Annex
+A.4) because they belong to the binding, not the core, and freezing them here would break the
+portability of §4.5. `config.json` declares model *classes*; the binding resolves them.
+
+**Mutability**: it can be edited between chapters and the run picks the change up on the next
+invocation. Editing it mid-chapter-loop is unsupported and produces undefined behaviour. Changing
+`capitulos.total` or `actos` once the novel has started invalidates the approved outline and
+requires going back through Gate 1.
+
+**Real example** (the `poc` profile, which ships active):
+
+```json
+"poc": {
+  "capitulos": { "total": 3, "palabras_objetivo": 60, "tolerancia_palabras": 0.5,
+                 "escenas_min": 2, "escenas_max": 2 },
+  "actos": [ { "numero": 1, "desde": 1, "hasta": 1 },
+             { "numero": 2, "desde": 2, "hasta": 2 },
+             { "numero": 3, "desde": 3, "hasta": 3 } ],
+  "entrevista":  { "rondas": 1 },
+  "evaluacion":  { "umbral_media": 3.0, "umbral_criterio_bloqueante": 3 },
+  "continuidad": { "auditoria_antes_de_capitulo": 3, "max_capitulos_pista_sin_tocar": 2 },
+  "contexto":    { "capitulos_texto_integro": 1, "capitulos_ficha_completa": 1 }
+}
+```
 
 ### 6.1 `bible/interview.md`
 
@@ -1354,6 +1451,28 @@ it costs to execute has. The three levers for bringing that number down, in orde
 The 20 requests-per-minute limit is still not binding: what dominates is the latency of generating
 long chapters.
 
+### 13.5 Cost of the POC
+
+The `poc` profile (§6.0, §15.1) does not make requests cheaper, only tokens: a 60-word chapter costs
+the same orchestration turns as a 2,000-word one.
+
+| Phase | Requests |
+|---|--:|
+| Reduced planning (1 interview round, 3 outline entries) | ~12 |
+| 3 chapters × ~12 | ~36 |
+| 3 act editors and 3 gates | ~10 |
+| **Total per POC pass** | **~58** |
+
+**And here is the practical problem**: under the 50-requests-per-day cap, **a single POC pass does
+not fit in one day**, and the exit criterion in §15.1 requires two passes in a row. That means three
+to four days just to validate the machine, before a single line of real novel is written.
+
+A POC you can only run every other day is not a POC: it is a deployment. The point of iterating fast
+is entirely lost. So **if there is one moment in the whole project where loading the $10 of
+OpenRouter credit pays for itself, this is it**: it raises the cap to 1,000 requests a day and turns
+the POC into something you run several times in an afternoon. It is the difference between debugging
+and waiting.
+
 **Design consequence**: writing the novel takes several calendar days by construction, not through
 inefficiency. That is why persistence and resumption (§10) are v1 requirements and not a later
 improvement. Under the current binding that statement is more true than before, not less.
@@ -1369,15 +1488,68 @@ improvement. Under the current binding that statement is more true than before, 
 | **F2 — Planning** | Architect subagent, 3-round interview, generation of the four artifacts, schema validators, Gate 1. | Starting from a 3-line idea, the four artifacts are produced, all four pass their schema validators, the outline has exactly 30 entries with no empty fields, and execution halts at `GATE_PLAN`. |
 | **F3 — Writing** | Context assembler (§7), Writer subagent, truncation detection, scene-level recovery, commit per chapter. | `01-chapter.md` is generated at 1,700-2,300 words, with scene markers and `<!-- FIN -->`, in third person past tense. The assembler reports an input budget under 16k tokens. The cycle consumes ~10 requests, not ~25: if it consumes ~25, some subagent is using tools. |
 | **F4 — Quality** | Evaluator and Continuity Editor subagents, delta application, targeted patch with hash verification, narrative debt, deterministic blocking rules. | With a contradiction injected by hand into a chapter (e.g. changing the colour of an already-established object), the Continuity Editor detects it and the patch fixes it within 2 iterations without altering the unflagged scenes. A deliberately bad chapter exhausts its iterations and appears in `narrative-debt.md`. |
-| **F5 — Acts and closing** | Act Editor subagent, Gates 2 and 3, outline revision, final audit, `author-notes.md`. | The 3-chapter rehearsal in §15 passes in full. With an undefused red herring, the pre-chapter-30 audit halts execution. |
+| **F5 — Acts and closing** | Act Editor subagent, Gates 2 and 3, outline revision, final audit, `author-notes.md`. | **The POC in §15.1 passes in full, twice in a row.** This is the milestone that closes the first deliverable version: from here on, the machine is proven. |
+| **F5b — Real rehearsal** | No new functionality: just switch `perfil_activo` to `completo`. | The real-chapter rehearsal in §15.2 passes in full, and the probabilities in §13.1 are recalibrated against observed data. |
 | **F6 — Closing the port contract** | Verify that no core logic has leaked into the binding. | Each of the six functions in Annex B has exactly one implementation site in the binding. Searching the core artifacts for "Claude Code", "OpenRouter" and any model identifier: zero hits outside the annexes. |
 
 ---
 
 ## 15. How to test it
 
-Before launching all 30 chapters, run a **3-chapter rehearsal** with the outline cut down to 3
-entries. Launch the full novel only if all eleven points pass.
+There are **two levels of testing, in this order**. First the POC, which validates that the machine
+works. Then the rehearsal with real chapters, which validates that what it writes can be read.
+Skipping the first to get to the second is the classic mistake: you end up debugging the context
+assembler at ten minutes per chapter.
+
+### 15.1 POC — 3 chapters of 4 lines
+
+Run with `perfil_activo: "poc"` in `config.json` (§6.0). Three chapters of about 60 words, two
+scenes each, and **one act per chapter**, so that all three act gates fire across three chapters
+instead of thirty.
+
+**What it validates**: the machine. State, gates, resumption, delta application, ledger updates,
+rolling-summary regeneration, attempt promotion, the patch loop, quota accounting, commits.
+
+**What it does NOT validate, and worth being clear about so you draw no false conclusions**:
+literary quality. At 60 words there is no pacing, no tension and no prose to judge, which is why the
+profile lowers the threshold from 4.0 to 3.0. **Evaluator scores in POC mode are not a quality
+signal**: their only job here is to push the machine down both branches of the loop. It also does
+not validate the context budget of §7.4, which only comes under strain with real chapters.
+
+Checks, all verifiable in minutes:
+
+1. The outline has exactly 3 entries and no empty fields. Execution halts at `GATE_PLAN` and does
+   not advance until you answer.
+2. Chapter 1 comes out with 2 scenes, `<!-- ESCENA n -->` and `<!-- FIN -->` markers, between 30 and
+   90 words, in third person past tense.
+3. The draft appears in `novel/.attempts/01-i0.md` and **not** in `novel/chapters/`. Only on
+   approval is it promoted.
+4. On acceptance, `01-card.md` is created, `clues.md`, `timeline.md` and `character-state.md` are
+   updated, and `rolling-summary.md` is regenerated.
+5. There is one git commit per accepted chapter, and `.attempts/` never appears in history.
+6. **Force a second iteration**: temporarily raise `umbral_media` to 5.0. `01-i1.md` must be
+   generated, and the unflagged scenes must be byte-for-byte identical to those in `01-i0.md`.
+7. **Force exhaustion**: with the threshold at 5.0, the chapter must be accepted using the
+   highest-mean attempt and appear in `narrative-debt.md`.
+8. Finishing chapter 1 triggers the Act Editor and halts execution at `GATE_ACT`. Same after 2 and
+   3.
+9. **Inject a contradiction** into chapter 3 by hand: change an object already established in
+   chapter 1. The Continuity Editor must catch it and the patch must fix it.
+10. **Leave a red herring undefused**: the audit before chapter 3 must halt execution rather than
+    write it.
+11. **Close Claude Code midway through chapter 2** and resume in a new session: it continues without
+    duplicating work and with a correct quota counter.
+12. In chapter 3, the Writer's context includes chapter 2 in full and chapter 1 as a card, not both
+    in full. This is what proves the sliding window of §7.2 actually slides.
+13. **Count the actual requests** in the OpenRouter dashboard and compare against §13.5.
+
+**Exit criterion**: all thirteen points pass **and** the whole POC has run twice in a row without
+changing anything. A POC that only works the first time has validated nothing.
+
+### 15.2 Rehearsal with 3 real chapters
+
+Only after the POC. Run with `perfil_activo: "completo"` and `capitulos.total` temporarily reduced
+to 3. Here the text itself is judged.
 
 **On the plan**
 1. The outline has one entry per chapter, no empty fields and no "to be determined".
@@ -1427,6 +1599,8 @@ recommended option, following the author's instruction to resolve unanswered que
 | 1 | Runtime | **Claude Code: orchestrating skill + one subagent per role, with inference routed to OpenRouter** · *external requirement imposed on the author* | Python script with no framework: this was the previous decision and remains technically superior in quota consumption (a factor of 2.5, §13.3), but it is not available. It is documented as an alternative binding in Annex B.3 in case the requirement is lifted. LangGraph and n8n: rejected before, unchanged. |
 | 1b | Runtime isolation | **Agnostic core (§1-17) + binding annex (A) + port contract (B)** · *author's decision* | Writing for Claude Code with a migration note: easier to read today, but the runtime has already changed once in this document's lifetime and the next change would force a full review. Documenting both bindings in full now: the unused one ages without anyone noticing. |
 | 1c | Shape of the orchestration | **Orchestrating skill, one chapter per invocation** · *author's decision* | A skill that runs a whole act: early drift propagates across many chapters before you see it, and it also breaks the orchestrating session's context budget (§7.5). Separate per-phase slash commands: they leave state and transitions in the human's hands, which is precisely what the state machine exists to avoid. |
+| 1e | First deliverable | **A POC of 3 four-line chapters before the novel** · *author's decision* | Going straight to real chapters: every debug cycle would cost minutes of generation and dozens of requests, and the failures being hunted — state, deltas, attempt promotion, gates — do not depend on text length. The POC exposes them in minutes. |
+| 1f | System parameters | **Externalised in `config.json` with mergeable profiles** | Constants in code: would force touching the implementation to switch from POC to full novel, which is exactly what turns a POC into a throwaway prototype. One file per profile: they drift apart as soon as a shared value changes. |
 | 1d | Subagent tools | **None: the orchestrator does all I/O** | Giving them `Read` and `Write`: would keep the orchestrating session lighter, but multiplies actual requests by two or three and takes the novel from nine days to over twenty. With quota as the scarce resource, the orchestrating session is protected by limiting work to one chapter per invocation, not by handing out tools. |
 | 2 | Quota | **50 req/day** · *author's decision* | — A fact, not a preference. It conditions the whole document. |
 | 3 | Length | **30 × 2,000 ≈ 60,000** · *author's decision* | 40 × 2,500: more drift and ~270 calls. 15 × 2,500: would not have exercised the long-stretch problem. |

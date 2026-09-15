@@ -42,6 +42,13 @@ el proceso en cualquier punto.
   por rol. La inferencia **no** usa modelos de Anthropic: Claude Code se apunta a OpenRouter
   mediante `ANTHROPIC_BASE_URL`, y OpenRouter atiende el formato Messages a través de su capa de
   compatibilidad. Sin proxy local. Configuración completa en el **Anexo A**.
+- **La primera entrega es una POC**, no la novela: 3 capítulos de unas 60 palabras que ejercitan
+  toda la máquina en minutos en lugar de en días (§15.1). No es un modo aparte ni código aparte: es
+  un perfil de `config.json` (§6.0). La novela completa se lanza cuando la POC pasa dos veces
+  seguidas.
+- **Todos los parámetros del sistema viven en `novela/config.json`**, no en el código ni en este
+  documento: número de capítulos, longitud, umbrales, máximo de reescrituras, cuota, temperaturas.
+  El documento explica los números; el archivo los fija (§6.0).
 - **El runtime está aislado.** Las secciones 1 a 17 no dependen de él: se comunican con él a través
   de los seis puertos del **Anexo B**. Cambiar de runtime significa escribir un anexo nuevo, no
   reescribir la especificación.
@@ -164,7 +171,7 @@ sequenceDiagram
     R->>F: ensamblar contexto del capitulo N
     R->>E: escribir capitulo N
     E-->>R: borrador con marcadores de escena
-    R->>F: guardar NN-capitulo.md
+    R->>F: guardar .intentos/NN-i0.md
     par Evaluacion en paralelo
         R->>V: evaluar calidad literaria
         V-->>R: 6 criterios 1-5 + parches propuestos
@@ -173,15 +180,19 @@ sequenceDiagram
         C-->>R: veredicto + deltas de estado condicionales
     end
     alt Aprobado por ambos
+        R->>F: promover intento a capitulos/NN-capitulo.md
         R->>F: aplicar deltas a pistas, cronologia, personajes-estado
         R->>F: escribir NN-ficha.md y actualizar resumen-rodante.md
         R->>F: git commit
     else Rechazado y quedan iteraciones
         R->>E: aplicar parche dirigido a las escenas marcadas
         E-->>R: capitulo parcheado
+        R->>F: guardar .intentos/NN-i1.md
         Note over R,C: se repite la evaluacion
     else Rechazado y agotadas las 2 iteraciones
-        R->>F: aceptar mejor intento + anotar en deuda-narrativa.md
+        R->>F: promover mejor intento por media, no el ultimo
+        R->>F: anotar defectos en deuda-narrativa.md
+        R->>F: git commit
     end
 ```
 
@@ -599,6 +610,7 @@ REQUIERE DECISIÓN DEL AUTOR
 
 ```
 novela/
+├── config.json
 ├── estado.json
 ├── notas-del-autor.md
 ├── biblia/
@@ -619,6 +631,92 @@ novela/
 │   └── ...
 └── informes/
     └── acto-1.md
+```
+
+### 6.0 `config.json`
+
+Creado a mano antes de la primera ejecución · Escribe: **la persona** · Lee: el runtime, en cada
+invocación · **Mutable, pero solo entre capítulos.** Es el único archivo de `novela/` que un humano
+escribe y el sistema únicamente lee.
+
+**Regla que gobierna todo este documento**: cualquier constante numérica que aparezca en las
+secciones 1 a 17 —30 capítulos, 2.000 palabras, umbral 4,0, 2 reescrituras, 16k tokens— es el valor
+por defecto del perfil `completo` en este archivo. **El documento explica los números; `config.json`
+los fija.** Si los dos discrepan, manda el archivo, y el documento tiene una errata.
+
+Estructura: una sección `base` con todos los valores, y un objeto `perfiles` donde cada perfil
+declara **solo lo que cambia**. El perfil activo se fusiona **en profundidad** sobre `base`. Esto es
+lo que permite que la POC (§15.1) no sea otro código, sino otro perfil.
+
+```json
+{
+  "version": 1,
+  "perfil_activo": "poc",
+  "base": {
+    "obra":        { "idioma", "subgenero", "punto_de_vista", "tiempo_verbal",
+                     "focalizadores_max", "personajes_max" },
+    "capitulos":   { "total", "palabras_objetivo", "tolerancia_palabras",
+                     "escenas_min", "escenas_max" },
+    "actos":       [ { "numero", "desde", "hasta" } ],
+    "entrevista":  { "rondas", "preguntas_por_ronda_max",
+                     "opciones_por_pregunta_min", "opciones_por_pregunta_max" },
+    "evaluacion":  { "escala_max", "umbral_media", "umbral_criterio_bloqueante",
+                     "criterios_bloqueantes", "max_reescrituras",
+                     "max_parches_por_iteracion", "al_agotar_iteraciones",
+                     "seleccion_al_agotar" },
+    "continuidad": { "auditoria_antes_de_capitulo", "max_capitulos_pista_sin_tocar",
+                     "reglas_bloqueantes": { ...cinco banderas de §8.2 } },
+    "contexto":    { "presupuesto_tokens_max", "tokens_por_palabra",
+                     "capitulos_texto_integro", "capitulos_ficha_completa",
+                     "palabras_ficha", "palabras_resumen_acto",
+                     "dias_cronologia_visibles", "orden_de_recorte" },
+    "puertas":     { "plan", "cierre_de_acto", "final", "bloqueo_continuidad" },
+    "agentes":     { "<rol>": { "clase_modelo", "temperatura", "max_tokens",
+                                "herramientas" } },
+    "ejecucion":   { "capitulos_por_invocacion", "commit_por_capitulo",
+                     "cuota": { "limite_diario", "limite_por_minuto",
+                                "parar_si_no_cabe_un_capitulo" },
+                     "reintentos": { "max", "backoff_base_segundos",
+                                     "backoff_max_segundos" },
+                     "truncamiento": { "max_reintentos",
+                                       "reduccion_objetivo_palabras",
+                                       "marcador_fin_obligatorio" },
+                     "json_malformado": { "max_reintentos" },
+                     "deriva_idioma":   { "max_reintentos" } },
+    "rutas":       { "raiz", "biblia", "estado", "capitulos", "intentos",
+                     "informes", "archivo_estado", "notas_autor" }
+  },
+  "perfiles": { "poc": { ...solo lo que cambia }, "completo": {} }
+}
+```
+
+Correspondencia de los grupos con el resto del documento: `obra` y `capitulos` con §2 · `actos` con
+§3 · `entrevista` con §5.1 · `evaluacion` con §9 · `continuidad` con §8 · `contexto` con §7 ·
+`puertas` con §11 · `agentes` con §5 · `ejecucion` con §12 · `rutas` con este §6.
+
+**Lo que deliberadamente NO está aquí**: los identificadores de modelo. Viven en variables de
+entorno (Anexo A.4) porque son propiedad del binding, no del núcleo, y congelarlos aquí rompería la
+portabilidad de §4.5. `config.json` declara *clases* de modelo; el binding las resuelve.
+
+**Mutabilidad**: se puede editar entre capítulos y la ejecución lo recoge en la siguiente
+invocación. Editarlo a mitad del bucle de un capítulo no está soportado y produce comportamiento
+indefinido. Cambiar `capitulos.total` o `actos` con la novela empezada invalida la escaleta ya
+aprobada: exige volver a pasar por la Puerta 1.
+
+**Ejemplo real** (el perfil `poc`, que es el que viene activo):
+
+```json
+"poc": {
+  "capitulos": { "total": 3, "palabras_objetivo": 60, "tolerancia_palabras": 0.5,
+                 "escenas_min": 2, "escenas_max": 2 },
+  "actos": [ { "numero": 1, "desde": 1, "hasta": 1 },
+             { "numero": 2, "desde": 2, "hasta": 2 },
+             { "numero": 3, "desde": 3, "hasta": 3 } ],
+  "entrevista":  { "rondas": 1 },
+  "evaluacion":  { "umbral_media": 3.0, "umbral_criterio_bloqueante": 3 },
+  "continuidad": { "auditoria_antes_de_capitulo": 3, "max_capitulos_pista_sin_tocar": 2 },
+  "contexto":    { "capitulos_texto_integro": 1, "capitulos_ficha_completa": 1 }
+}
 ```
 
 ### 6.1 `biblia/entrevista.md`
@@ -1338,6 +1436,28 @@ cambiado lo que cuesta ejecutarla. Las tres palancas para bajar esa cifra, en or
 El límite de 20 peticiones por minuto sigue sin ser vinculante: lo que domina es la latencia de
 generar capítulos largos.
 
+### 13.5 Coste de la POC
+
+El perfil `poc` (§6.0, §15.1) no abarata las peticiones, solo los tokens: un capítulo de 60 palabras
+cuesta los mismos turnos de orquestación que uno de 2.000.
+
+| Fase | Peticiones |
+|---|--:|
+| Planificación reducida (1 ronda de entrevista, 3 entradas de escaleta) | ~12 |
+| 3 capítulos × ~12 | ~36 |
+| 3 editores de acto y 3 puertas | ~10 |
+| **Total por pasada de POC** | **~58** |
+
+**Y aquí está el problema práctico**: con el tope de 50 peticiones diarias, **una sola pasada de POC
+no cabe en un día**, y el criterio de salida de §15.1 exige dos pasadas seguidas. Es decir, entre
+tres y cuatro días para validar la máquina, antes de escribir una línea de novela de verdad.
+
+Una POC que solo se puede ejecutar cada dos días no es una POC: es un despliegue. El propósito de
+iterar rápido se pierde por completo. Por eso, **si hay un solo momento en todo el proyecto en que
+compensa cargar los 10 créditos de OpenRouter, es este**: sube el tope a 1.000 peticiones diarias y
+convierte la POC en algo que se ejecuta varias veces por tarde. Es la diferencia entre depurar y
+esperar.
+
 **Consecuencia de diseño**: escribir la novela ocupa varios días de reloj por construcción, no por
 ineficiencia. Por eso la persistencia y la reanudación (§10) son requisitos de la v1 y no una
 mejora posterior. Con el binding actual esa afirmación es más cierta que antes, no menos.
@@ -1353,15 +1473,69 @@ mejora posterior. Con el binding actual esa afirmación es más cierta que antes
 | **F2 — Planificación** | Subagente Arquitecto, entrevista de 3 rondas, generación de los cuatro artefactos, validadores de esquema, Puerta 1. | Partiendo de una idea de 3 líneas se producen los cuatro artefactos, los cuatro pasan sus validadores, la escaleta tiene exactamente 30 entradas sin campos vacíos, y la ejecución se detiene en `PUERTA_PLAN`. |
 | **F3 — Escritura** | Ensamblador de contexto (§7), subagente Escritor, detección de truncamiento, recuperación por escenas, commit por capítulo. | Se genera `01-capitulo.md` de 1.700-2.300 palabras, con marcadores de escena y `<!-- FIN -->`, en tercera persona y pasado. El ensamblador reporta un presupuesto de entrada inferior a 16k tokens. El ciclo consume ~10 peticiones, no ~25: si consume ~25, algún subagente está usando herramientas. |
 | **F4 — Calidad** | Subagentes Evaluador y Continuista, aplicación de deltas, parche dirigido con verificación de hashes, deuda narrativa, reglas bloqueantes deterministas. | Inyectando a mano una contradicción en un capítulo (p. ej. cambiar el color de un objeto ya establecido), el Continuista la detecta y el parche la corrige en ≤ 2 iteraciones sin alterar las escenas no señaladas. Un capítulo deliberadamente malo agota iteraciones y aparece en `deuda-narrativa.md`. |
-| **F5 — Actos y cierre** | Subagente Editor de acto, Puertas 2 y 3, revisión de escaleta, auditoría final, `notas-del-autor.md`. | El ensayo de 3 capítulos de §15 pasa entero. Con un red herring sin desactivar, la auditoría previa al capítulo 30 detiene la ejecución. |
+| **F5 — Actos y cierre** | Subagente Editor de acto, Puertas 2 y 3, revisión de escaleta, auditoría final, `notas-del-autor.md`. | **La POC de §15.1 pasa entera, dos veces seguidas.** Este es el hito que cierra la primera versión entregable: a partir de aquí la máquina está probada. |
+| **F5b — Ensayo real** | Ninguna funcionalidad nueva: solo cambiar `perfil_activo` a `completo`. | El ensayo con capítulos reales de §15.2 pasa entero, y las probabilidades de §13.1 quedan recalibradas con datos observados. |
 | **F6 — Cierre del contrato de puertos** | Verificar que ninguna lógica del núcleo ha sangrado al binding. | Cada una de las seis funciones del Anexo B tiene un único punto de implementación en el binding. Búsqueda de "Claude Code", "OpenRouter" y de cualquier identificador de modelo dentro de los artefactos del núcleo: cero resultados fuera de los anexos. |
 
 ---
 
 ## 15. Cómo probarlo
 
-Antes de lanzar los 30 capítulos, se ejecuta un **ensayo de 3 capítulos** con una escaleta reducida
-a 3 entradas. Se lanza la novela completa solo si pasan los once puntos.
+Hay **dos niveles de prueba y en este orden**. Primero la POC, que valida que la máquina funciona.
+Después el ensayo con capítulos reales, que valida que lo que escribe se puede leer. Saltarse el
+primero para ir al segundo es el error típico: se acaba depurando el ensamblador de contexto a base
+de esperar diez minutos por capítulo.
+
+### 15.1 POC — 3 capítulos de 4 líneas
+
+Se ejecuta con `perfil_activo: "poc"` en `config.json` (§6.0). Tres capítulos de unas 60 palabras,
+dos escenas cada uno, y **un acto por capítulo**, de modo que las tres puertas de acto se disparan
+en tres capítulos en lugar de en treinta.
+
+**Qué valida**: la máquina. Estado, puertas, reanudación, aplicación de deltas, actualización del
+ledger, regeneración del resumen rodante, promoción de intentos, bucle de parches, contabilidad de
+cuota, commits.
+
+**Qué NO valida, y conviene tenerlo claro para no sacar conclusiones falsas**: la calidad
+literaria. Con 60 palabras no hay ritmo, ni tensión, ni prosa que juzgar, y por eso el perfil baja
+el umbral de 4,0 a 3,0. **Las notas del Evaluador en modo POC no son una señal de calidad**: su
+único trabajo aquí es empujar la máquina por las dos ramas del bucle. Tampoco valida el presupuesto
+de contexto de §7.4, que solo se tensa con capítulos de verdad.
+
+Comprobaciones, todas verificables en minutos:
+
+1. La escaleta tiene exactamente 3 entradas y ningún campo vacío. La ejecución se detiene en
+   `PUERTA_PLAN` y no avanza hasta que respondes.
+2. El capítulo 1 sale con 2 escenas, marcadores `<!-- ESCENA n -->` y `<!-- FIN -->`, entre 30 y 90
+   palabras, en tercera persona y pasado.
+3. El borrador aparece en `novela/.intentos/01-i0.md` y **no** en `novela/capitulos/`. Solo al
+   aprobar se promueve.
+4. Al aceptar, se crea `01-ficha.md`, se actualizan `pistas.md`, `cronologia.md` y
+   `personajes-estado.md`, y se regenera `resumen-rodante.md`.
+5. Hay un commit de git por capítulo aceptado, y `.intentos/` no aparece en el historial.
+6. **Fuerza una segunda iteración**: sube temporalmente `umbral_media` a 5.0. Debe generarse
+   `01-i1.md`, y las escenas no señaladas deben quedar idénticas byte a byte a las de `01-i0.md`.
+7. **Fuerza el agotamiento**: con el umbral en 5.0, el capítulo debe aceptarse con el intento de
+   mayor media y aparecer en `deuda-narrativa.md`.
+8. Al terminar el capítulo 1 se dispara el Editor de acto y la ejecución se detiene en
+   `PUERTA_ACTO`. Igual tras el 2 y el 3.
+9. **Inyecta una contradicción** en el capítulo 3 a mano: cambia un objeto ya establecido en el 1.
+   El Continuista debe detectarla y el parche corregirla.
+10. **Deja un red herring sin desactivar**: la auditoría previa al capítulo 3 debe detener la
+    ejecución en lugar de escribirlo.
+11. **Cierra Claude Code a mitad del capítulo 2** y reanuda en sesión nueva: continúa sin duplicar
+    trabajo y con el contador de cuota correcto.
+12. En el capítulo 3, el contexto del Escritor incluye el 2 íntegro y el 1 como ficha, no los dos
+    íntegros. Es lo que prueba que la ventana deslizante de §7.2 desliza de verdad.
+13. **Cuenta las peticiones reales** en el panel de OpenRouter y compáralas con §13.5.
+
+**Criterio de salida**: los trece puntos pasan **y** se ha ejecutado la POC entera al menos dos
+veces seguidas sin tocar nada. Una POC que solo funciona la primera vez no ha validado nada.
+
+### 15.2 Ensayo con 3 capítulos reales
+
+Solo después de la POC. Se ejecuta con `perfil_activo: "completo"` y `capitulos.total` reducido
+temporalmente a 3. Aquí ya se juzga el texto.
 
 **Sobre el plan**
 1. La escaleta tiene una entrada por capítulo, ningún campo vacío y ningún "por determinar".
@@ -1410,6 +1584,8 @@ tomando la opción recomendada, según su instrucción de resolver así lo no co
 | 1 | Runtime | **Claude Code: skill orquestadora + un subagente por rol, con la inferencia enrutada a OpenRouter** · *requisito externo impuesto al autor* | Script Python sin framework: era la decisión anterior y sigue siendo técnicamente superior en consumo de cuota (factor 2,5, §13.3), pero no está disponible. Queda documentada como binding alternativo en el Anexo B.2 por si el requisito se levanta. LangGraph y n8n: descartados antes y sin cambios. |
 | 1b | Aislamiento del runtime | **Núcleo agnóstico (§1-17) + anexo de binding (A) + contrato de puertos (B)** · *decisión del autor* | Escribir para Claude Code y añadir una nota de migración: más fácil de leer hoy, pero el runtime ya ha cambiado una vez en la vida de este documento y el próximo cambio obligaría a revisarlo entero. Documentar los dos bindings completos ya: el no usado envejece sin que nadie lo note. |
 | 1c | Forma de la orquestación | **Skill orquestadora, un capítulo por invocación** · *decisión del autor* | Una skill que corre un acto entero: una deriva temprana se propaga muchos capítulos antes de verla, y además rompe el presupuesto de contexto de la sesión orquestadora (§7.5). Slash commands sueltos por fase: dejan el estado y las transiciones en manos del humano, que es justo lo que la máquina de estados existe para evitar. |
+| 1e | Primera entrega | **POC de 3 capítulos de 4 líneas antes que la novela** · *decisión del autor* | Ir directo a capítulos reales: cada vuelta de depuración costaría minutos de generación y decenas de peticiones, y los fallos que se buscan —estado, deltas, promoción de intentos, puertas— no dependen de la longitud del texto. La POC los expone en minutos. |
+| 1f | Parámetros del sistema | **Externalizados en `config.json` con perfiles fusionables** | Constantes en el código: obligaría a tocar la implementación para cambiar de POC a novela completa, que es justo lo que convierte una POC en un prototipo desechable. Un archivo por perfil: se desincronizan en cuanto cambia un valor común. |
 | 1d | Herramientas de los subagentes | **Ninguna: el orquestador hace toda la E/S** | Darles `Read` y `Write`: dejaría la sesión orquestadora más ligera, pero multiplica por dos o tres las peticiones reales y lleva la novela de nueve días a más de veinte. Con la cuota como recurso escaso, la sesión orquestadora se protege limitando el trabajo a un capítulo por invocación, no repartiendo herramientas. |
 | 2 | Cuota | **50 req/día** · *decisión del autor* | — Es un dato, no una preferencia. Condiciona todo el documento. |
 | 3 | Extensión | **30 × 2.000 ≈ 60.000** · *decisión del autor* | 40 × 2.500: más deriva y ~270 llamadas. 15 × 2.500: no habría validado el problema del tramo largo. |
