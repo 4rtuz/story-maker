@@ -7,10 +7,13 @@
 
 ## 1. Resumen ejecutivo
 
-El sistema es un script de Python que orquesta cinco agentes LLM —accesibles a través de la API
-de OpenRouter en su tier gratuito— para escribir una novela de suspense psicológico de unas
-60.000 palabras repartidas en 30 capítulos, a partir de una idea inicial de dos o tres frases
-aportada por una persona. El sistema entrevista a esa persona para refinar la idea, construye una
+El sistema orquesta cinco agentes LLM —accesibles a través de la API de OpenRouter en su tier
+gratuito— para escribir una novela de suspense psicológico de unas 60.000 palabras repartidas en 30
+capítulos, a partir de una idea inicial de dos o tres frases aportada por una persona. El runtime
+de orquestación de la v1 es **Claude Code**, con una skill que conduce el ciclo y un subagente por
+rol, pero el diseño no depende de esa elección: las secciones 1 a 17 son agnósticas del runtime y
+se comunican con él por los seis puertos del Anexo B, de modo que sustituirlo consiste en escribir
+un anexo nuevo (§4.5). El sistema entrevista a esa persona para refinar la idea, construye una
 biblia narrativa y una escaleta capítulo a capítulo, y después escribe los capítulos en orden;
 cada capítulo pasa por un evaluador de calidad literaria y por un continuista que lo contrasta
 contra un registro acumulativo de hechos, pistas, cronología y estado de los personajes. Solo se
@@ -35,8 +38,13 @@ el proceso en cualquier punto.
 - Subgénero: **thriller psicológico doméstico**.
 - Punto de vista: **tercera persona limitada**, alternando entre 2 y 3 focalizadores; tiempo
   verbal **pasado**.
-- Orquestación: **script de Python sin framework de agentes**, con llamadas HTTP directas al
-  endpoint `/api/v1/chat/completions` de OpenRouter.
+- Orquestación: **Claude Code**, con una skill orquestadora en la sesión principal y un subagente
+  por rol. La inferencia **no** usa modelos de Anthropic: Claude Code se apunta a OpenRouter
+  mediante `ANTHROPIC_BASE_URL`, y OpenRouter atiende el formato Messages a través de su capa de
+  compatibilidad. Sin proxy local. Configuración completa en el **Anexo A**.
+- **El runtime está aislado.** Las secciones 1 a 17 no dependen de él: se comunican con él a través
+  de los seis puertos del **Anexo B**. Cambiar de runtime significa escribir un anexo nuevo, no
+  reescribir la especificación.
 - Ejecución interrumpible y reanudable, diseñada para operar bajo un tope de **50 peticiones
   diarias**.
 - Control de versiones con git: un commit por capítulo aceptado.
@@ -48,7 +56,9 @@ el proceso en cualquier punto.
 | Agente **Lector-cebo** (lee un acto sin conocer el plan y reporta dónde decae la tensión) | Alto valor para validar el misterio, pero consume cuota que la v1 no tiene. Candidato número 1 para la v2. |
 | Agente **Editor de estilo final** (pasada de pulido sobre el manuscrito completo) | Ídem. |
 | Generación **escena a escena** como modo por defecto | Triplica el consumo de cuota. Queda implementada solo como mecanismo de recuperación ante truncamiento (§12). |
-| Interfaz gráfica | El sistema es una CLI. |
+| Interfaz gráfica | El sistema se opera desde Claude Code. |
+| Pasarela local de traducción Messages↔OpenAI | No hace falta: OpenRouter ya atiende el formato Messages. Solo entra en juego como plan de contingencia (§2, riesgo abierto). |
+| Bindings de runtime distintos del de Claude Code | El Anexo B define el contrato para escribirlos; la v1 implementa uno solo. |
 | Exportación a EPUB / maquetación | El entregable es Markdown. |
 | Multi-idioma, traducción | La novela se escribe directamente en español. |
 | Reescritura de capítulos ya aceptados a raíz de decisiones posteriores | La v1 solo escribe hacia delante. Las inconsistencias detectadas a posteriori se registran en `deuda-narrativa.md` para revisión humana. |
@@ -61,6 +71,26 @@ novela, la biblia y la idea original serán material de entrenamiento de tercero
 consecuencia inherente al stack elegido, no un defecto del diseño. Si esto deja de ser aceptable,
 la única mitigación es migrar a variantes de pago de los mismos modelos, lo que no requiere
 cambios de arquitectura: solo editar los identificadores de modelo en la configuración.
+
+### Riesgo abierto del stack elegido
+
+OpenRouter documenta que su integración nativa con Claude Code está garantizada **solo con los
+modelos Anthropic de primera parte**, que son de pago. Los modelos `:free` de otros proveedores
+atraviesan la misma capa de compatibilidad, pero sin garantía de que respeten el formato Messages
+ni el uso nativo de herramientas, y con ventanas de contexto menores. Dicho de forma directa: **la
+combinación "Claude Code + OpenRouter + modelos gratuitos" no está soportada oficialmente y puede
+no funcionar.**
+
+Esto no invalida el diseño, precisamente porque el runtime está aislado (Anexo B), pero obliga a
+una prueba de humo **antes** de empezar la fase F1: ver §17, `[PENDIENTE: viabilidad del stack]`.
+Si los modelos `:free` no funcionan por esta vía, las salidas son, de menor a mayor coste de
+cambio:
+
+1. Usar modelos Anthropic de pago a través de OpenRouter. Funciona, cuesta dinero, y el resto del
+   documento no cambia ni una línea.
+2. Intercalar una pasarela local de traducción Messages↔OpenAI delante de OpenRouter, que sí
+   permite modelos `:free` arbitrarios a cambio de mantener un componente más.
+3. Cambiar el binding de runtime (Anexo B.2) y salir de Claude Code.
 
 ---
 
@@ -82,6 +112,13 @@ cambios de arquitectura: solo editar los identificadores de modelo en la configu
 | **Puerta** | Punto en que la ejecución se detiene y espera aprobación humana explícita. |
 | **Gobernador de cuota** | Componente del runtime que contabiliza las peticiones diarias, impide superar el tope y pausa la ejecución de forma limpia al alcanzarlo. |
 | **Cadena de respaldo** | Lista ordenada de identificadores de modelo por rol. Si el primero falla o desaparece, se pasa al siguiente. |
+| **Núcleo** | Las secciones 1-17 de este documento: agentes, artefactos, rúbrica, máquina de estados y reglas de contexto. No depende del runtime. |
+| **Binding de runtime** | Anexo que ata el núcleo a una tecnología de ejecución concreta. La v1 tiene uno: Claude Code (Anexo A). |
+| **Puerto** | Una de las seis capacidades que el núcleo exige a cualquier runtime (Anexo B). El núcleo no sabe cómo se implementan. |
+| **Subagente** | Agente de Claude Code definido en `.claude/agents/<nombre>.md`. Se invoca desde la sesión principal, corre en su propio contexto aislado y devuelve texto. |
+| **Skill orquestadora** | Skill de Claude Code que conduce el ciclo de un capítulo desde la sesión principal. Es el único componente que lanza subagentes, porque un subagente no puede lanzar otro. |
+| **Llamada lógica** | Una invocación conceptual de un agente ("escribe el capítulo 14"). Unidad de razonamiento del núcleo. |
+| **Petición** | Una petición HTTP real contra OpenRouter. Unidad de cuota. **Una llamada lógica cuesta varias peticiones** en Claude Code; ver §13. |
 
 ---
 
@@ -151,8 +188,9 @@ sequenceDiagram
 ### 4.3 Explicación
 
 El sistema tiene **dos fases muy distintas**. La fase de planificación es conversacional, cara en
-atención humana y barata en cuota (unas 12 llamadas). La fase de escritura es autónoma, barata en
-atención humana y cara en cuota (unas 150 llamadas). El diseño concentra deliberadamente la
+atención humana y barata en cuota (unas 12 llamadas lógicas). La fase de escritura es autónoma,
+barata en atención humana y cara en cuota (unas 150 llamadas lógicas, que en Claude Code se
+traducen en bastantes más peticiones reales: §13). El diseño concentra deliberadamente la
 intervención humana en la primera, porque un error en la escaleta cuesta 30 capítulos y un error
 en un capítulo cuesta un capítulo.
 
@@ -176,16 +214,71 @@ coherencia en el tramo largo de la novela.
 | Agente Evaluador con "arregla esto" | **Evaluador** (§5.3) con rúbrica numérica + **Continuista** (§5.4), separados |
 | *(no existía)* | **Editor de acto** (§5.5), `estado/` completo, `estado.json`, `notas-del-autor.md` |
 
+### 4.5 Separación núcleo / binding de runtime
+
+El runtime de orquestación ya ha cambiado una vez y puede volver a cambiar. Para que ese cambio
+cueste un anexo y no una reescritura, el sistema está partido en dos capas con una frontera
+explícita.
+
+```mermaid
+flowchart TD
+    subgraph NUCLEO["NUCLEO - secciones 1 a 17, agnostico del runtime"]
+        N1["Catalogo de agentes<br/>y system prompts"]
+        N2["Catalogo de artefactos<br/>y esquemas"]
+        N3["Reglas de ensamblado<br/>de contexto"]
+        N4["Rubrica, umbral<br/>y bucle de calidad"]
+        N5["Maquina de estados<br/>y puertas"]
+    end
+    subgraph PUERTOS["CONTRATO DE PUERTOS - anexo B"]
+        P1["P1 invocar"]
+        P2["P2 artefactos"]
+        P3["P3 estado"]
+        P4["P4 humano"]
+        P5["P5 version"]
+        P6["P6 presupuesto"]
+    end
+    subgraph BINDING["BINDING - anexo A, Claude Code sobre OpenRouter"]
+        B1["Skill orquestadora"]
+        B2["Subagentes .claude/agents"]
+        B3["Herramientas Read y Write"]
+        B4["Variables de entorno<br/>y mapeo de modelos"]
+    end
+    NUCLEO --> PUERTOS
+    PUERTOS --> BINDING
+```
+
+El núcleo **nunca** nombra a Claude Code, ni a OpenRouter, ni a un modelo concreto. Cuando necesita
+algo del mundo exterior, lo pide por un puerto. Las tres consecuencias prácticas:
+
+1. **Los system prompts de §5 son portables tal cual.** Son texto; no dependen de quién los envíe.
+2. **Los esquemas de artefactos de §6 son portables tal cual.** Son archivos en disco.
+3. **Lo único que hay que reescribir al cambiar de runtime es el Anexo A.** El Anexo B define qué
+   tiene que cumplir el sustituto.
+
+Las dos cosas que sí cambian con el runtime, y que por eso están fuera del núcleo, son **la
+asignación de modelo concreto a cada rol** (§5 habla de clases de modelo, no de identificadores) y
+**la contabilidad de peticiones** (§13, que tiene una tabla por binding).
+
 ---
 
 ## 5. Catálogo de agentes
 
 Convenciones comunes a los cinco: `temperature` indicada por agente; `max_tokens` indicada por
 agente; todos reciben su system prompt en el mensaje `system` y el contexto ensamblado en un único
-mensaje `user`. Ninguno tiene acceso a herramientas ni a internet: **el runtime lee y escribe todos
-los archivos**; los agentes solo reciben texto y devuelven texto. Esto es deliberado: elimina una
-clase entera de fallos y es la única opción realista con modelos `:free`, cuyo soporte de
-*function calling* es irregular.
+mensaje `user`.
+
+**Ninguno tiene acceso a herramientas ni a internet**: el runtime lee y escribe todos los archivos
+(puertos P2 y P3 del Anexo B); los agentes solo reciben texto y devuelven texto. Esta decisión ya
+era deliberada en el diseño anterior, porque elimina una clase entera de fallos y porque el soporte
+de *function calling* de los modelos `:free` es irregular. Con Claude Code como runtime pasa además
+a ser **la palanca principal de control de cuota**: un subagente sin herramientas resuelve su tarea
+en un solo turno y, por tanto, en una sola petición; un subagente con `Read` y `Write` gasta entre
+tres y seis. Con un tope de 50 peticiones al día, esa diferencia decide si la novela tarda ocho
+días o veinticinco. Ver §13 y Anexo A.3.
+
+**Sobre el modelo**: cada agente declara una *clase* de modelo (alta capacidad, equilibrada o
+rápida), nunca un identificador concreto. La correspondencia entre clase e identificador vive en el
+binding, porque es lo único de §5 que cambia al cambiar de runtime. Ver Anexo A.4.
 
 ### 5.1 Arquitecto
 
@@ -195,8 +288,9 @@ clase entera de fallos y es la única opción realista con modelos `:free`, cuyo
   ledger de pistas y `notas-del-autor.md`.
 - **Salidas**: `biblia/entrevista.md`, `biblia/premisa.md`, `biblia/personajes.md`,
   `biblia/voz-y-estilo.md`, `biblia/escaleta.md`.
-- **Modelo sugerido**: el de mayor capacidad de razonamiento de la cadena disponible; la calidad de
-  la escaleta determina la de los 30 capítulos.
+- **Clase de modelo**: **alta capacidad**. La calidad de la escaleta determina la de los 30
+  capítulos, así que es el rol donde menos conviene ahorrar.
+- **Herramientas**: ninguna.
 - **Parámetros**: `temperature` 0.8 en entrevista y premisa, 0.4 en escaleta; `max_tokens` 8000.
 - **Condición de parada**: ha emitido los cinco artefactos con el esquema de §6 y ha superado la
   Puerta 1. En revisiones de acto, cuando emite la escaleta revisada de los capítulos restantes.
@@ -250,8 +344,9 @@ REGLAS DE SALIDA:
   aplicar parches dirigidos cuando se le señalen defectos localizados.
 - **Entradas**: el contexto ensamblado según §7.
 - **Salidas**: `capitulos/NN-capitulo.md` con marcadores de escena.
-- **Modelo sugerido**: el de mejor prosa en español de la cadena. **Debe ser distinto del usado
-  por Evaluador y Continuista.**
+- **Clase de modelo**: **alta capacidad**, priorizando prosa en español. **Debe resolverse a un
+  identificador distinto del de Evaluador y Continuista** (§5 preámbulo y Anexo A.4).
+- **Herramientas**: ninguna.
 - **Parámetros**: `temperature` 0.85 en borrador, 0.6 en parche; `max_tokens` 6000.
 - **Condición de parada**: ha emitido el capítulo completo terminado en `<!-- FIN -->`.
 
@@ -314,7 +409,9 @@ las escenas no señaladas copiadas literalmente sin un solo cambio.
 - **Entradas**: el capítulo, su entrada de escaleta, `voz-y-estilo.md`, la ficha del capítulo
   anterior.
 - **Salidas**: un objeto JSON con la estructura de §9.
-- **Modelo sugerido**: distinto del Escritor, con buen seguimiento de instrucciones de formato.
+- **Clase de modelo**: **equilibrada**, priorizando seguimiento de instrucciones de formato sobre
+  capacidad literaria. Distinto del Escritor.
+- **Herramientas**: ninguna.
 - **Parámetros**: `temperature` 0.2; `max_tokens` 2000.
 - **Condición de parada**: ha emitido un JSON válido con los seis criterios.
 
@@ -376,7 +473,8 @@ cualquier otro caso, "CORREGIR". Calcula tú la media y aplica tú la regla; no 
 - **Entradas**: el capítulo, el resumen rodante, el ledger de pistas filtrado, la cronología, el
   estado de personajes, la entrada de escaleta.
 - **Salidas**: un objeto JSON con veredicto y, condicionalmente, los deltas de estado.
-- **Modelo sugerido**: el mismo que el Evaluador o uno equivalente; nunca el del Escritor.
+- **Clase de modelo**: **equilibrada**, la misma que el Evaluador; nunca la del Escritor.
+- **Herramientas**: ninguna.
 - **Parámetros**: `temperature` 0.1; `max_tokens` 3000.
 - **Condición de parada**: JSON válido emitido.
 
@@ -449,7 +547,8 @@ FORMATO DE SALIDA: exclusivamente un objeto JSON válido, sin texto antes ni des
 - **Entradas**: las fichas de los capítulos del acto, el ledger de pistas, la escaleta del acto.
   **No recibe el texto íntegro**: no cabría en cuota ni en contexto.
 - **Salidas**: informe en Markdown que alimenta la Puerta 2 y, si procede, la revisión de escaleta.
-- **Modelo sugerido**: el mismo que el Arquitecto.
+- **Clase de modelo**: **alta capacidad**, la misma que el Arquitecto.
+- **Herramientas**: ninguna.
 - **Parámetros**: `temperature` 0.5; `max_tokens` 3000.
 - **Condición de parada**: informe emitido.
 
@@ -869,6 +968,25 @@ porque el catálogo de modelos gratuitos rota y no se puede depender de ninguno 
 runtime debe comprobar este presupuesto antes de cada llamada y, si se excede, recortar por este
 orden: cronología → fichas antiguas → texto íntegro de N-2.
 
+### 7.5 El contexto del orquestador
+
+Con un runtime de tipo agente conversacional —Claude Code hoy, quizá otro mañana— hay una segunda
+ventana que vigilar además de la del Escritor: **la de la propia sesión orquestadora**, que acumula
+todo lo que pasa por ella. Como los subagentes no tienen herramientas, el orquestador lee los
+archivos y les pasa el contenido, de modo que el texto de los capítulos atraviesa su contexto dos
+veces: al enviarlo y al recibirlo.
+
+Por capítulo eso son unos 12k tokens de entrada ensamblada más unos 3k de borrador, más los
+informes del Evaluador y el Continuista: del orden de **35k tokens de sesión por capítulo**,
+contando el ciclo completo con un parche. Es perfectamente asumible para un capítulo y claramente
+inasumible para treinta seguidos.
+
+De ahí la regla de operación: **una invocación de la skill orquestadora escribe exactamente un
+capítulo y termina**. El estado vive en `estado.json`, no en la conversación, así que la sesión
+siguiente arranca limpia. Esta regla es la que hace que §7.4 siga siendo suficiente: sin ella, el
+presupuesto de 16k del Escritor estaría bien calculado y aun así el sistema reventaría por el otro
+lado.
+
 ---
 
 ## 8. Continuidad y suspense
@@ -1037,24 +1155,31 @@ transición de estado y después de cada llamada al LLM**, sin excepción.
     "limite_por_minuto": 20,
     "ultima_llamada_ts": 1789200000.0
   },
-  "modelos": {
-    "arquitecto":  {"activo": null, "cadena": []},
-    "escritor":    {"activo": null, "cadena": []},
-    "evaluador":   {"activo": null, "cadena": []},
-    "continuista": {"activo": null, "cadena": []},
-    "editor_acto": {"activo": null, "cadena": []}
+  "clases_modelo": {
+    "arquitecto":  "alta",
+    "escritor":    "alta",
+    "evaluador":   "equilibrada",
+    "continuista": "equilibrada",
+    "editor_acto": "alta"
   },
+  "binding": "claude-code",
   "ultimo_error": null
 }
 ```
 
-Las cadenas de modelos se dejan vacías en la plantilla a propósito: se rellenan desde
-`config.toml` en el arranque. Ver `[PENDIENTE: modelos]` en §17.
+El estado guarda **clases** de modelo, no identificadores: la correspondencia concreta la resuelve
+el binding (Anexo A.4) y por tanto no debe quedar congelada en el estado de una ejecución que
+podría reanudarse bajo otro runtime. El campo `binding` se registra solo para diagnóstico, al
+reanudar una ejecución iniciada con otro. Ver `[PENDIENTE: modelos]` en §17.
 
 ### 10.2 Reanudación
 
 Reanudar es leer `estado.json` y saltar al manejador del estado indicado. No hay ninguna otra
-fuente de verdad: los archivos del disco son consecuencia del estado, nunca al revés. Reglas:
+fuente de verdad: los archivos del disco son consecuencia del estado, nunca al revés. **Esto es lo
+que hace que el runtime sea intercambiable incluso a mitad de novela**: una ejecución empezada bajo
+un binding puede continuar bajo otro, porque todo lo que la define está en disco y nada en la
+memoria del orquestador. En el binding de Claude Code, reanudar es simplemente abrir una sesión
+nueva e invocar la skill; no hay proceso que rearrancar. Reglas:
 
 - Si `estado == "PAUSA_CUOTA"` y la fecha UTC actual es posterior a `cuota.fecha_utc`, se pone el
   contador a cero y se continúa automáticamente.
@@ -1128,54 +1253,94 @@ detener la ejecución ni esperar a una puerta.
 | **El Escritor no puede cumplir un beat** | Evaluador puntúa `escaleta` con 1 o 2 dos iteraciones seguidas | Se acepta con deuda y se marca el beat como incumplido; el Editor de acto lo recoge en su informe. |
 | **Auditoría final falla** | Pistas sin resolver antes del capítulo 30 | La ejecución se detiene y se abre puerta. Nunca se escribe el capítulo 30 con cabos sueltos conocidos. |
 | **Corte de red o proceso matado** | — | El estado ya estaba persistido antes de la llamada; se reanuda repitiendo la última llamada. |
+| **La capa de compatibilidad rechaza un modelo `:free`** | Error de formato, herramientas no soportadas, o respuesta vacía nada más arrancar | Es el riesgo abierto de §2. No es recuperable en caliente: se detiene, se registra el modelo culpable y se aplica una de las tres salidas de §2. La prueba de humo de §14 F0 existe para descubrirlo antes de escribir una sola línea de novela. |
+| **Un subagente devuelve prosa en vez de JSON** | Igual que "JSON mal formado", pero con causa distinta: el subagente ha "conversado" en lugar de responder | Mismo tratamiento. Como prevención, el system prompt exige JSON puro y el orquestador no muestra el resultado crudo al humano. |
+| **Un subagente usa herramientas y consume varios turnos** | El binding registra más peticiones de las previstas para ese rol | Defecto de configuración, no de ejecución: el subagente se declara sin herramientas (Anexo A.3). Se detecta comparando peticiones reales contra el modelo de §13. |
+| **La sesión orquestadora se queda sin contexto** | La sesión se compacta o avisa a mitad de capítulo | No debería ocurrir con un capítulo por invocación (§7.5). Si ocurre, es señal de que se está intentando encadenar capítulos en una sola sesión: hay que volver a un capítulo por invocación. El estado en disco garantiza que no se pierde nada. |
+| **429 en mitad del bucle de un subagente** | El subagente falla a medias | El orquestador lo trata como llamada lógica fallida y la repite entera; las llamadas son idempotentes (§10.2). El coste es que la parte ya consumida de la cuota no se recupera. |
 
 ---
 
 ## 13. Coste y rendimiento
 
-### Supuestos declarados
+Esta sección tiene dos niveles. El primero, **llamadas lógicas**, es parte del núcleo y no cambia
+si cambia el runtime. El segundo, **peticiones reales**, depende del binding y hay que rehacerlo
+cada vez que el runtime cambie.
+
+### 13.1 Supuestos declarados
 
 - 30 capítulos, 2.000 palabras por capítulo, 1,5 tokens por palabra.
 - Probabilidad de aprobación a la primera: **0,5**. Con una reescritura: **0,4**. Con dos: **0,1**.
   Son estimaciones de partida; deben recalibrarse tras el ensayo de 3 capítulos (§15).
 - La verificación de continuidad y la extracción de estado van en **una sola llamada** (§5.4).
 - El resumen rodante se regenera **sin llamar al LLM**.
-- Cuota: 50 peticiones/día, 20/minuto. Coste monetario: **0 €**.
+- Cuota: 50 peticiones/día, 20/minuto. Coste monetario: **0 €** si los modelos `:free` resultan
+  viables (§2, riesgo abierto).
 
-### Llamadas por capítulo
+### 13.2 Llamadas lógicas (agnóstico del runtime)
 
 | Camino | Probabilidad | Llamadas | Desglose |
 |---|--:|--:|---|
 | Aprobado a la primera | 0,5 | 3 | escritor + evaluador + continuista |
 | Una reescritura | 0,4 | 6 | 3 + parche + evaluador + continuista |
 | Dos reescrituras | 0,1 | 9 | 3 + 2 × (parche + evaluador + continuista) |
-| **Esperanza** | | **4,8** | 0,5·3 + 0,4·6 + 0,1·9 |
+| **Esperanza por capítulo** | | **4,8** | 0,5·3 + 0,4·6 + 0,1·9 |
 
-### Total de la novela
-
-| Fase | Llamadas |
+| Fase | Llamadas lógicas |
 |---|--:|
 | Entrevista (3 rondas) | 3 |
 | Premisa + personajes + voz | 3 |
-| Escaleta (una llamada por acto) | 3 |
+| Escaleta (una por acto) | 3 |
 | Reajustes tras la Puerta 1 | 3 |
 | 30 capítulos × 4,8 | 144 |
 | Editor de acto (3 actos, con margen) | 4 |
 | Revisiones de escaleta en puertas de acto | 2 |
 | **Total** | **~162** |
 
-### Tokens y tiempo de reloj
+### 13.3 Peticiones reales en el binding de Claude Code
 
-- Entrada acumulada: ~162 × 10.000 ≈ **1,6 M tokens**.
-- Salida acumulada: ~162 × 2.000 ≈ **0,32 M tokens**.
-- **Tiempo de reloj: 162 / 50 = 3,24 → 4 días naturales**, asumiendo que no se aprovecha la cuota
-  completa el primer día. El límite de 20 req/min nunca es vinculante: con 50 llamadas diarias, el
-  proceso podría despacharlas en menos de tres minutos de emisión, y lo que domina es la latencia
-  de generación de capítulos largos en endpoints gratuitos.
+Aquí es donde el cambio de runtime duele, y conviene decirlo sin adornos: **en Claude Code una
+llamada lógica no cuesta una petición.** La sesión orquestadora es a su vez un agente, y cada turno
+suyo —decidir qué hacer, invocar un subagente, procesar lo que devuelve, escribir un archivo— es
+una petición contra OpenRouter. Un subagente es una sesión propia con su propio bucle.
+
+Factores de conversión, con subagentes **sin herramientas** (Anexo A.3):
+
+| Concepto | Peticiones | Por qué |
+|---|--:|---|
+| Una llamada lógica a un subagente | 1 | Sin herramientas, resuelve en un turno |
+| Turnos del orquestador por capítulo | 6 a 8 | Leer estado, ensamblar contexto, despachar tres subagentes, aplicar deltas, escribir ficha y resumen, commitear |
+| **Ciclo de un capítulo aprobado a la primera** | **~10** | 3 subagentes + ~7 turnos de orquestación |
+| **Ciclo con una reescritura** | **~15** | 6 subagentes + ~9 turnos |
+| **Esperanza por capítulo** | **~12** | frente a 4,8 llamadas lógicas: **factor 2,5** |
+
+| Fase | Peticiones reales |
+|---|--:|
+| Planificación completa (12 llamadas lógicas) | ~30 |
+| 30 capítulos × 12 | ~360 |
+| Editores de acto y revisiones de escaleta | ~20 |
+| **Total** | **~410** |
+
+### 13.4 Tiempo de reloj
+
+**410 / 50 ≈ 9 días naturales**, frente a los 4 del diseño anterior. La novela no ha cambiado; ha
+cambiado lo que cuesta ejecutarla. Las tres palancas para bajar esa cifra, en orden de eficacia:
+
+1. **Subagentes sin herramientas** (ya asumido en el diseño). Darles `Read` y `Write` multiplicaría
+   las peticiones por dos o por tres y llevaría la novela a más de veinte días. Es la decisión
+   individual de mayor impacto de todo el binding.
+2. **No encadenar capítulos en una sesión.** Además de proteger el contexto (§7.5), evita turnos de
+   orquestación redundantes.
+3. **Cargar 10 créditos en OpenRouter**, lo que sube el tope de 50 a 1.000 peticiones diarias y
+   reduce el tiempo de reloj de nueve días a menos de uno. Es, con diferencia, la forma más barata
+   de comprar velocidad en este sistema, y conviene tenerlo presente antes de optimizar nada más.
+
+El límite de 20 peticiones por minuto sigue sin ser vinculante: lo que domina es la latencia de
+generar capítulos largos.
 
 **Consecuencia de diseño**: escribir la novela ocupa varios días de reloj por construcción, no por
 ineficiencia. Por eso la persistencia y la reanudación (§10) son requisitos de la v1 y no una
-mejora posterior.
+mejora posterior. Con el binding actual esa afirmación es más cierta que antes, no menos.
 
 ---
 
@@ -1183,11 +1348,13 @@ mejora posterior.
 
 | Fase | Contenido | Criterio de "hecho" verificable |
 |---|---|---|
-| **F1 — Esqueleto** | Cliente HTTP de OpenRouter, cadena de respaldo, backoff, gobernador de cuota, `estado.json` atómico, CLI (`init`, `run`, `status`, `resume`). | `python -m harness status` imprime el estado. Una llamada de prueba incrementa `llamadas_hoy`. Matar el proceso con SIGKILL y relanzar `resume` continúa sin pérdida. Simular un 429 hace esperar y reintentar. |
-| **F2 — Planificación** | Arquitecto, entrevista de 3 rondas, generación de los cuatro artefactos, validadores de esquema, Puerta 1. | Partiendo de una idea de 3 líneas, se producen los cuatro artefactos, los cuatro pasan sus validadores de esquema, la escaleta tiene exactamente 30 entradas sin campos vacíos, y la ejecución se detiene en `PUERTA_PLAN`. |
-| **F3 — Escritura** | Ensamblador de contexto (§7), Escritor, detección de truncamiento, recuperación por escenas, commit por capítulo. | Se genera `01-capitulo.md` de 1.700-2.300 palabras, con marcadores de escena y `<!-- FIN -->`, en tercera persona y pasado. El ensamblador reporta un presupuesto de entrada inferior a 16k tokens. |
-| **F4 — Calidad** | Evaluador, Continuista, aplicación de deltas, parche dirigido con verificación de hashes, deuda narrativa, reglas bloqueantes en código. | Inyectando a mano una contradicción en un capítulo (p. ej. cambiar el color de un objeto ya establecido), el Continuista la detecta y el parche la corrige en ≤ 2 iteraciones sin alterar las escenas no señaladas. Un capítulo deliberadamente malo agota iteraciones y aparece en `deuda-narrativa.md`. |
-| **F5 — Actos y cierre** | Editor de acto, Puertas 2 y 3, revisión de escaleta, auditoría final, `notas-del-autor.md`. | El ensayo de 3 capítulos de §15 pasa entero. Con un red herring sin desactivar, la auditoría previa al capítulo 30 detiene la ejecución. |
+| **F0 — Viabilidad del stack** | Apuntar Claude Code a OpenRouter (Anexo A.1) y probar los modelos `:free` candidatos. **Nada más empieza hasta que esta fase pasa.** | Una sesión de Claude Code enrutada a OpenRouter responde correctamente; `/status` confirma el enrutado. Un subagente de prueba sin herramientas devuelve JSON válido 10 veces de 10. El panel de OpenRouter registra las peticiones. Si falla, se aplica una de las tres salidas de §2 **antes** de seguir. |
+| **F1 — Esqueleto** | Estructura de `.claude/agents/` y `.claude/skills/`, skill orquestadora mínima, `estado.json` atómico, gobernador de cuota, comandos de estado y reanudación. | Invocar la skill imprime el estado actual. Una invocación de prueba incrementa `llamadas_hoy` en `estado.json`. Cerrar Claude Code a mitad y abrir una sesión nueva reanuda desde el estado persistido. Un 429 simulado produce espera y reintento. |
+| **F2 — Planificación** | Subagente Arquitecto, entrevista de 3 rondas, generación de los cuatro artefactos, validadores de esquema, Puerta 1. | Partiendo de una idea de 3 líneas se producen los cuatro artefactos, los cuatro pasan sus validadores, la escaleta tiene exactamente 30 entradas sin campos vacíos, y la ejecución se detiene en `PUERTA_PLAN`. |
+| **F3 — Escritura** | Ensamblador de contexto (§7), subagente Escritor, detección de truncamiento, recuperación por escenas, commit por capítulo. | Se genera `01-capitulo.md` de 1.700-2.300 palabras, con marcadores de escena y `<!-- FIN -->`, en tercera persona y pasado. El ensamblador reporta un presupuesto de entrada inferior a 16k tokens. El ciclo consume ~10 peticiones, no ~25: si consume ~25, algún subagente está usando herramientas. |
+| **F4 — Calidad** | Subagentes Evaluador y Continuista, aplicación de deltas, parche dirigido con verificación de hashes, deuda narrativa, reglas bloqueantes deterministas. | Inyectando a mano una contradicción en un capítulo (p. ej. cambiar el color de un objeto ya establecido), el Continuista la detecta y el parche la corrige en ≤ 2 iteraciones sin alterar las escenas no señaladas. Un capítulo deliberadamente malo agota iteraciones y aparece en `deuda-narrativa.md`. |
+| **F5 — Actos y cierre** | Subagente Editor de acto, Puertas 2 y 3, revisión de escaleta, auditoría final, `notas-del-autor.md`. | El ensayo de 3 capítulos de §15 pasa entero. Con un red herring sin desactivar, la auditoría previa al capítulo 30 detiene la ejecución. |
+| **F6 — Cierre del contrato de puertos** | Verificar que ninguna lógica del núcleo ha sangrado al binding. | Cada una de las seis funciones del Anexo B tiene un único punto de implementación en el binding. Búsqueda de "Claude Code", "OpenRouter" y de cualquier identificador de modelo dentro de los artefactos del núcleo: cero resultados fuera de los anexos. |
 
 ---
 
@@ -1220,8 +1387,12 @@ a 3 entradas. Se lanza la novela completa solo si pasan los once puntos.
     las 2 iteraciones, se acepta el mejor intento y aparece en `deuda-narrativa.md`.
 
 **Sobre la operación**
-11. Matar el proceso a mitad del capítulo 2 y relanzar `resume`: debe continuar sin duplicar
-    trabajo ni corromper el estado. Verificar además que el contador de cuota es correcto.
+11. Cerrar Claude Code a mitad del capítulo 2 y reanudar en una sesión nueva: debe continuar sin
+    duplicar trabajo ni corromper el estado. Verificar además que el contador de cuota es correcto.
+12. **Contar las peticiones reales de los 3 capítulos en el panel de OpenRouter** y compararlas con
+    la previsión de §13.3 (~12 por capítulo). Una desviación al alza significa casi siempre que
+    algún subagente está usando herramientas y gastando turnos. Es la comprobación que decide si la
+    novela completa tarda nueve días o veinticinco, así que no es opcional.
 
 **Recalibración**: anotar cuántos de los 3 capítulos aprobaron a la primera y ajustar las
 probabilidades de §13. Si aprueba menos de 1 de cada 3, el problema está casi siempre en la
@@ -1236,7 +1407,10 @@ tomando la opción recomendada, según su instrucción de resolver así lo no co
 
 | # | Decisión | Elegido | Descartado y por qué |
 |---|---|---|---|
-| 1 | Runtime | **Script Python sin framework** · *decisión del autor* | LangGraph y similares: añaden una capa que aprender y depurar para un grafo que cabe en una función. n8n: gestiona mal prompts largos y estado acumulativo. Claude Code: cambiaría por completo el modelo de despliegue. |
+| 1 | Runtime | **Claude Code: skill orquestadora + un subagente por rol, con la inferencia enrutada a OpenRouter** · *requisito externo impuesto al autor* | Script Python sin framework: era la decisión anterior y sigue siendo técnicamente superior en consumo de cuota (factor 2,5, §13.3), pero no está disponible. Queda documentada como binding alternativo en el Anexo B.2 por si el requisito se levanta. LangGraph y n8n: descartados antes y sin cambios. |
+| 1b | Aislamiento del runtime | **Núcleo agnóstico (§1-17) + anexo de binding (A) + contrato de puertos (B)** · *decisión del autor* | Escribir para Claude Code y añadir una nota de migración: más fácil de leer hoy, pero el runtime ya ha cambiado una vez en la vida de este documento y el próximo cambio obligaría a revisarlo entero. Documentar los dos bindings completos ya: el no usado envejece sin que nadie lo note. |
+| 1c | Forma de la orquestación | **Skill orquestadora, un capítulo por invocación** · *decisión del autor* | Una skill que corre un acto entero: una deriva temprana se propaga muchos capítulos antes de verla, y además rompe el presupuesto de contexto de la sesión orquestadora (§7.5). Slash commands sueltos por fase: dejan el estado y las transiciones en manos del humano, que es justo lo que la máquina de estados existe para evitar. |
+| 1d | Herramientas de los subagentes | **Ninguna: el orquestador hace toda la E/S** | Darles `Read` y `Write`: dejaría la sesión orquestadora más ligera, pero multiplica por dos o tres las peticiones reales y lleva la novela de nueve días a más de veinte. Con la cuota como recurso escaso, la sesión orquestadora se protege limitando el trabajo a un capítulo por invocación, no repartiendo herramientas. |
 | 2 | Cuota | **50 req/día** · *decisión del autor* | — Es un dato, no una preferencia. Condiciona todo el documento. |
 | 3 | Extensión | **30 × 2.000 ≈ 60.000** · *decisión del autor* | 40 × 2.500: más deriva y ~270 llamadas. 15 × 2.500: no habría validado el problema del tramo largo. |
 | 4 | Agentes | **5** · *decisión del autor* | 3 (diagrama original): el Escritor sería su propio continuista, el fallo raíz. 7: Lector-cebo y Editor de estilo final no caben en 50 req/día. |
@@ -1263,10 +1437,20 @@ previa al capítulo 30. Todos están integrados en el flujo de §4, no anexados.
 
 ## 17. Preguntas abiertas pendientes
 
+- **[PENDIENTE: viabilidad del stack]** — *bloqueante, resolver antes que nada.* Está por confirmar
+  que Claude Code enrutado a OpenRouter funcione con modelos `:free` de terceros. OpenRouter
+  garantiza su capa de compatibilidad solo con modelos Anthropic de primera parte (§2, riesgo
+  abierto). La fase F0 de §14 existe exactamente para responder a esto, y ninguna otra fase debe
+  empezar antes. Si la respuesta es que no, hay que elegir una de las tres salidas de §2, y esa
+  elección es del autor, no del implementador.
+
 - **[PENDIENTE: modelos]** Qué identificadores de modelo `:free` concretos se usan en cada rol.
   El catálogo gratuito de OpenRouter rota con frecuencia y no puede fijarse desde este documento.
-  El implementador debe consultar el catálogo vigente y rellenar `config.toml` con, para cada rol,
-  un modelo activo y al menos dos de respaldo. Criterios de selección: para el **Escritor**,
+  El implementador debe consultar el catálogo vigente y rellenar las variables de entorno del
+  Anexo A.4. Nótese la restricción que impone el binding actual: Claude Code ofrece **tres ranuras
+  de modelo** (las clases alta, equilibrada y rápida), no una por agente, de modo que los cinco
+  roles se reparten entre tres identificadores como máximo. Criterios de selección: para el
+  **Escritor**,
   calidad de prosa en español y ventana ≥ 32k; para **Evaluador** y **Continuista**, fiabilidad
   emitiendo JSON válido, que es más determinante que la capacidad literaria; para el
   **Arquitecto**, capacidad de razonamiento estructurado. Antes del primer lanzamiento debe
@@ -1286,3 +1470,245 @@ previa al capítulo 30. Todos están integrados en el flujo de §4, no anexados.
 - **[PENDIENTE: destino del manuscrito]** No se ha indicado qué se hace con los 30 archivos al
   terminar. La v1 los deja en `novela/capitulos/`. Si se quiere un archivo único ensamblado o una
   exportación, es trabajo de v2 y hoy está fuera de alcance (§2).
+
+---
+
+# Anexo A — Binding de runtime: Claude Code sobre OpenRouter
+
+Este anexo es **la única parte del documento que hay que reescribir si cambia el runtime**. Todo lo
+anterior es independiente de él.
+
+## A.1 Enrutado de Claude Code a OpenRouter
+
+Claude Code habla el formato Messages de Anthropic. OpenRouter expone una capa de compatibilidad
+con ese formato, de modo que **no hace falta ninguna pasarela local**: ni proxy, ni Docker, ni
+puerto a la escucha. Basta con apuntar Claude Code al endpoint de OpenRouter.
+
+```bash
+export OPENROUTER_API_KEY="<tu clave de OpenRouter>"
+export ANTHROPIC_BASE_URL="https://openrouter.ai/api"
+export ANTHROPIC_AUTH_TOKEN="$OPENROUTER_API_KEY"
+export ANTHROPIC_API_KEY=""
+```
+
+Tres detalles que son causa habitual de fallos silenciosos:
+
+- `OPENROUTER_API_KEY` debe definirse **antes** que `ANTHROPIC_AUTH_TOKEN`, o la expansión queda
+  vacía y la autenticación cae en un camino que no es el previsto.
+- `ANTHROPIC_API_KEY` debe ser **cadena vacía, no estar sin definir**. Si queda sin definir, Claude
+  Code puede autenticarse contra Anthropic y la ejecución funcionará sin usar OpenRouter en
+  absoluto, que es justo lo contrario del requisito.
+- Verificar con `/status` dentro de Claude Code que el enrutado apunta a OpenRouter, y contrastarlo
+  con el panel de actividad de OpenRouter. Que una sesión responda no demuestra que esté enrutada.
+
+Estas variables van en `.claude/settings.local.json` o en el perfil del shell.
+**`.claude/settings.local.json` no debe subirse al repositorio**: contiene la clave.
+
+## A.2 Estructura de archivos del binding
+
+```
+.claude/
+├── settings.local.json          # variables de A.1 — NO se versiona
+├── agents/
+│   ├── arquitecto.md
+│   ├── escritor.md
+│   ├── evaluador.md
+│   ├── continuista.md
+│   └── editor-acto.md
+└── skills/
+    └── novela/
+        └── SKILL.md             # skill orquestadora
+```
+
+Cada archivo de `agents/` contiene, como cuerpo, el **system prompt literal** del agente
+correspondiente de §5, copiado sin modificar. El anexo no reescribe los prompts: los referencia.
+
+## A.3 Definición de un subagente
+
+Plantilla, con el Escritor como ejemplo. Los otros cuatro son idénticos en forma y cambian nombre,
+descripción, clase de modelo y cuerpo.
+
+```markdown
+---
+name: escritor
+description: Escribe el borrador de un capítulo de la novela a partir del contexto ensamblado que
+  se le entrega. Devuelve únicamente el texto del capítulo con marcadores de escena.
+tools: []
+model: opus
+---
+
+<aquí va, literal y completo, el system prompt de §5.2>
+```
+
+**`tools: []` es la línea más importante de todo el anexo.** Un subagente sin herramientas resuelve
+su tarea en un solo turno y cuesta una petición; uno con `Read` y `Write` entra en un bucle de
+herramientas y cuesta entre tres y seis. Con el tope de 50 peticiones diarias, esa diferencia
+decide si la novela tarda nueve días o más de veinte (§13.3).
+
+La contrapartida es que **el orquestador tiene que pasarle todo el contexto en el prompt**, ya que
+el subagente no puede leer archivos. Eso es precisamente lo que el ensamblador de §7 hace, y es la
+razón de que el presupuesto de 16k tokens de §7.4 sea un requisito y no una recomendación.
+
+> `[PENDIENTE: sintaxis exacta]` Confirmar contra la versión instalada de Claude Code la forma
+> exacta de declarar un subagente sin herramientas: si `tools: []` es la sintaxis válida o si hay
+> que omitir el campo y restringir por otra vía. La intención de diseño —cero herramientas— no
+> cambia; solo cómo se escribe. Verificable en un minuto durante la fase F0.
+
+## A.4 Clases de modelo e identificadores
+
+Claude Code no permite un identificador arbitrario por subagente: ofrece **tres ranuras**, que el
+frontmatter de cada agente selecciona con `model: opus | sonnet | haiku`, más una ranura específica
+para subagentes. Las ranuras se resuelven a identificadores de OpenRouter por variable de entorno.
+
+```bash
+export ANTHROPIC_DEFAULT_OPUS_MODEL="<id del modelo de alta capacidad>"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="<id del modelo equilibrado>"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="<id del modelo rápido>"
+export CLAUDE_CODE_SUBAGENT_MODEL="<id por defecto para subagentes>"
+```
+
+Correspondencia entre los roles del núcleo y las ranuras:
+
+| Rol (§5) | Clase declarada | Ranura | Identificador |
+|---|---|---|---|
+| Arquitecto | alta capacidad | `opus` | `[PENDIENTE: modelos]` |
+| Escritor | alta capacidad | `opus` | `[PENDIENTE: modelos]` |
+| Evaluador | equilibrada | `sonnet` | `[PENDIENTE: modelos]` |
+| Continuista | equilibrada | `sonnet` | `[PENDIENTE: modelos]` |
+| Editor de acto | alta capacidad | `opus` | `[PENDIENTE: modelos]` |
+
+El requisito de §5.2 —que Escritor y Evaluador no compartan modelo— se cumple porque caen en
+ranuras distintas. El requisito no se cumpliría si alguien apuntase las tres ranuras al mismo
+identificador, cosa que la configuración permite y que hay que evitar de forma explícita.
+
+**Limitación heredada del binding**: Arquitecto, Escritor y Editor de acto comparten ranura y por
+tanto identificador. El núcleo no lo exige ni lo prohíbe; es una consecuencia de que solo haya tres
+ranuras. Si en el futuro importara separarlos, habría que cambiar de binding.
+
+La cadena de respaldo de §12 se implementa reasignando la variable de entorno correspondiente y
+reanudando: como el estado vive en disco y no guarda identificadores (§10.1), el cambio de modelo a
+mitad de novela no requiere nada más.
+
+## A.5 La skill orquestadora
+
+Vive en `.claude/skills/novela/SKILL.md` y se invoca desde la sesión principal. Es el único
+componente que lanza subagentes, porque **un subagente no puede lanzar otro**: el bucle tiene que
+vivir en la sesión principal, y eso no es una preferencia de diseño sino una restricción del
+runtime.
+
+Cada invocación **escribe exactamente un capítulo y termina** (§7.5). El estado vive en
+`novela/estado.json`, nunca en la conversación.
+
+Cuerpo de la skill, en pseudocódigo. No es código a copiar: es el orden de operaciones que la skill
+debe describir en prosa para el agente que la ejecute.
+
+```
+1.  estado = leer(novela/estado.json)
+2.  si estado.estado es una PUERTA_*: presentar la puerta al humano (§11) y terminar.
+3.  si cuota_agotada(estado): informar y terminar. No iniciar un capítulo que no cabe.
+4.  N = estado.capitulo_actual
+5.  contexto = ensamblar_contexto(N)          # reglas de §7; presupuesto máx. 16k tokens
+6.  borrador = subagente("escritor", contexto)
+7.  guardar(novela/.intentos/NN-i0.md, borrador)
+8.  evaluacion  = subagente("evaluador",   borrador + entrada de escaleta + voz-y-estilo)
+    continuidad = subagente("continuista", borrador + estado filtrado)
+9.  si ambos aprueban  -> ir a 13
+10. si quedan iteraciones:
+        parches = fusionar(evaluacion.parches, continuidad.contradicciones)
+        borrador = subagente("escritor", borrador + parches)
+        verificar_hashes_de_escenas_no_parcheadas()      # §9.5
+        volver a 8
+11. si se agotaron las iteraciones:
+        borrador = mejor_intento_por_media()             # §9.4
+        anotar en novela/estado/deuda-narrativa.md
+12. si continuidad.veredicto == "BLOQUEO": abrir puerta de bloqueo (§11) y terminar.
+13. promover borrador a novela/capitulos/NN-capitulo.md
+14. aplicar continuidad.deltas a pistas, cronologia, personajes-estado
+15. escribir novela/capitulos/NN-ficha.md
+16. regenerar novela/estado/resumen-rodante.md          # determinista, sin LLM
+17. mover notas aplicadas en novela/notas-del-autor.md
+18. git commit -m "feat(novela): capitulo NN — <titulo>"
+19. estado.capitulo_actual = N + 1; persistir estado.json
+20. si N era fin de acto: lanzar subagente("editor-acto") y dejar el estado en PUERTA_ACTO
+21. si N == 29: ejecutar la auditoría final de §8.3 antes de permitir el capítulo 30
+```
+
+Los pasos 5, 14, 16 y 21 son **deterministas y no deben delegarse a un subagente**: son
+manipulación de archivos y comprobaciones de reglas, no juicio. Delegarlos gastaría cuota y
+añadiría una fuente de alucinación donde hoy no la hay.
+
+## A.6 Los seis puertos en este binding
+
+| Puerto (Anexo B) | Implementación en Claude Code |
+|---|---|
+| **P1 invocar** | Herramienta `Agent` sobre los subagentes de `.claude/agents/`, sin herramientas |
+| **P2 artefactos** | Herramientas `Read` y `Write` de la sesión orquestadora |
+| **P3 estado** | `Write` sobre `novela/estado.json`, reescritura completa tras cada transición |
+| **P4 humano** | La propia conversación de Claude Code: la skill presenta la puerta y termina el turno |
+| **P5 versión** | `Bash` con `git commit` |
+| **P6 presupuesto** | Contador en `estado.json` más el panel de actividad de OpenRouter como contraste |
+
+El puerto **P4 es el que mejor sale ganando con este runtime**: en un script habría que construir
+un diálogo de consola, y aquí la puerta es simplemente el final de un turno, con el humano ya
+presente y con capacidad de responder en lenguaje natural en vez de con un comando fijo.
+
+El puerto **P6 es el que peor sale**: el contador de `estado.json` cuenta llamadas lógicas, pero la
+cuota se gasta en peticiones, y el orquestador no tiene visibilidad directa de cuántas peticiones
+ha consumido su propio bucle. Por eso §15 exige contrastar contra el panel de OpenRouter en el
+ensayo de 3 capítulos, en lugar de fiarse del contador interno.
+
+---
+
+# Anexo B — Contrato de puertos y cómo escribir otro binding
+
+## B.1 Los seis puertos
+
+El núcleo (§1-17) solo puede pedirle seis cosas al mundo exterior. Cualquier runtime que las
+proporcione puede ejecutar esta especificación sin tocarla.
+
+| Puerto | Firma conceptual | Semántica exigida |
+|---|---|---|
+| **P1 invocar** | `invocar(rol, prompt) -> texto` | Envía `prompt` al modelo de la clase que ese rol declara en §5 y devuelve texto plano. **Sin estado**: dos invocaciones del mismo rol no comparten memoria. Si el rol devuelve JSON, el puerto no lo interpreta; solo transporta. |
+| **P2 artefactos** | `leer(ruta) -> texto`<br>`escribir(ruta, texto)` | Almacenamiento de los `.md` de §6. Debe preservar el texto byte a byte: los marcadores de escena y los hashes de §9.5 dependen de ello. |
+| **P3 estado** | `leer_estado() -> objeto`<br>`escribir_estado(objeto)` | Persistencia **atómica** de `estado.json`. Una escritura interrumpida no puede dejar un archivo a medias. Es el único punto de verdad de la ejecución (§10.2). |
+| **P4 humano** | `preguntar(texto, opciones) -> respuesta` | Presenta una puerta (§11) y **bloquea** hasta obtener respuesta. Puede ser síncrono o diferido a otra sesión; el núcleo solo exige que no se avance sin respuesta. |
+| **P5 versión** | `commit(mensaje)` | Registra un punto de retorno tras cada capítulo aceptado. **Opcional**: un binding sin control de versiones puede implementarlo como no-op, a costa de perder la segunda red de seguridad de §10.2. |
+| **P6 presupuesto** | `hay_presupuesto() -> bool`<br>`registrar_consumo(n)` | Decide si se puede iniciar una llamada lógica más. Encapsula el tope diario, el límite por minuto y el backoff. **La unidad de consumo la define el binding**, no el núcleo: en Claude Code son peticiones HTTP; en otro podrían ser tokens o euros. |
+
+Lo que el núcleo **nunca** hace, y que por tanto ningún binding necesita exponer: elegir un modelo
+concreto, conocer un protocolo de red, saber si hay subagentes o hilos, ni gestionar el contexto de
+un orquestador conversacional.
+
+## B.2 Escribir un binding nuevo
+
+Comprobaciones para dar por bueno un binding alternativo. Sirven tanto para el Anexo A como para
+cualquier sustituto:
+
+1. **Los seis puertos están implementados**, y cada uno en un único sitio. Si la lógica de un
+   puerto aparece en dos lugares, el siguiente cambio de runtime volverá a doler.
+2. **Los cinco system prompts de §5 se usan literalmente**, sin reescribir, sin resumir y sin
+   añadidos específicos del runtime. Si un binding necesita añadir instrucciones al prompt, esas
+   instrucciones van en el prompt de invocación, no en el system prompt.
+3. **Los esquemas de artefactos de §6 se respetan byte a byte.** Un binding que cambie
+   `novela/estado/pistas.md` de sitio o de forma rompe la compatibilidad de una ejecución a medias.
+4. **Se publica una tabla de peticiones reales equivalente a §13.3.** Es lo que cambia siempre y lo
+   que nadie recuerda recalcular. Sin esa tabla, el tiempo de reloj previsto es ficción.
+5. **Una ejecución iniciada bajo el binding anterior puede continuar bajo el nuevo.** Esta es la
+   prueba de fuego, y se aprueba gratis si se ha respetado el punto 3: basta con copiar `novela/` y
+   reanudar. Merece la pena probarla de verdad y no darla por hecha.
+
+### B.3 Binding alternativo documentado: script de Python
+
+Fue el runtime de la versión anterior de esta especificación y se conserva aquí porque sigue siendo
+la opción de menor consumo de cuota, por si el requisito de usar Claude Code se levanta. Resumen:
+script de Python sin framework, llamadas HTTP directas a `/api/v1/chat/completions` de OpenRouter,
+cada llamada lógica igual a exactamente **una** petición, factor de conversión 1,0 en lugar de 2,5.
+Con él, la novela completa son ~162 peticiones y unos **4 días** de reloj en vez de nueve.
+
+Los puertos se implementarían así: P1 con `requests` o `httpx`; P2 y P3 con el sistema de archivos
+y `os.replace` para la atomicidad; P4 con `input()` en consola; P5 con `subprocess` sobre git; P6
+con un contador en el propio `estado.json`, que en ese binding sí es exacto porque una llamada
+lógica es una petición.
+
+`[PENDIENTE: decisión del autor]` Este binding **no se implementa en la v1**. Queda documentado a
+este nivel de detalle y no más, para que no envejezca sin que nadie lo note (§16, decisión 1b).
