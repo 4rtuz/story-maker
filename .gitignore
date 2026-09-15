@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Docs
+
+docs/Diagrama inicial.drawio 1.png
