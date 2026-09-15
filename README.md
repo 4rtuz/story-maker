@@ -1,2 +1,4 @@
 # story-maker
-Generador de novelas con IA
+Generador de novelas de suspense con IA
+
+
