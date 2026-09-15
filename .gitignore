@@ -220,3 +220,10 @@ __marimo__/
 # Docs
 
 docs/Diagrama inicial.drawio 1.png
+
+# --- harness de novela ---
+# Borradores intermedios: viven hasta que uno se acepta y se promueve (10.2).
+novela/.intentos/
+
+# Claves de OpenRouter (Anexo A.1). NO se versiona.
+.claude/settings.local.json

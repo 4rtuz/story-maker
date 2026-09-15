@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "estado": "INIT",
+  "capitulo_actual": 1,
+  "acto_actual": 1,
+  "iteracion": 0,
+  "intentos": [],
+  "capitulos_aceptados": [],
+  "puerta_pendiente": null,
+  "cuota": {
+    "fecha_utc": "2026-09-15",
+    "llamadas_hoy": 0,
+    "limite_diario": 50,
+    "limite_por_minuto": 20,
+    "ts_ultima_llamada": null
+  },
+  "clases_modelo": {
+    "arquitecto": "alta",
+    "escritor": "alta",
+    "evaluador": "equilibrada",
+    "continuista": "equilibrada",
+    "editor_acto": "alta"
+  },
+  "binding": "claude-code",
+  "perfil": "poc",
+  "ultimo_error": null
+}
