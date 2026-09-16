@@ -71,3 +71,16 @@ POC en curso: `biblia/` generada, `estado.json` en `INIT`. El riesgo abierto de 
 abierto — "Claude Code + OpenRouter + modelos `:free`" no es una combinación soportada; el
 smoke test de fase F0 (`docs/SETUP.md` §3) decide en diez minutos si funciona. Fuera de v1:
 agente lector-de-prueba, editor de estilo final, generación escena a escena, EPUB.
+
+## Carga de contexto de la spec
+
+`docs/suspense-novel-harness.md` (1.899 líneas) **no se carga entero, nunca**. Está troceada en
+`docs/context/`:
+
+1. Lee siempre `docs/context/index.md` primero.
+2. Carga solo los ficheros cuya columna "Load when…" coincida con la tarea en curso. La tabla
+   "Common task → files" del índice ya resuelve los casos habituales.
+3. Ante una contradicción o un hueco, consulta `conflicts.md` y `open-questions.md` antes de
+   decidir nada por tu cuenta: ninguno de los dos está resuelto y resolverlos no te toca a ti.
+4. Es una traducción: la spec canónica sigue siendo `docs/harness-novela-suspense.md` y el árbol
+   real es `novela/`, no `novel/` (ver `conflicts.md` C-07).
