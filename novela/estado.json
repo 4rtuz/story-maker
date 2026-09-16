@@ -1,21 +1,22 @@
 {
   "version": 1,
   "estado": "EDITANDO_ACTO",
-  "capitulo_actual": 3,
+  "capitulo_actual": 4,
   "acto_actual": 3,
   "iteracion": 0,
   "intentos": [],
   "capitulos_aceptados": [
     1,
-    2
+    2,
+    3
   ],
-  "puerta_pendiente": null,
+  "puerta_pendiente": "final",
   "cuota": {
     "fecha_utc": "2026-09-16",
-    "llamadas_hoy": 15,
+    "llamadas_hoy": 19,
     "limite_diario": 50,
     "limite_por_minuto": 20,
-    "ts_ultima_llamada": 1789548847.6358798
+    "ts_ultima_llamada": 1789549217.7721477
   },
   "clases_modelo": {
     "arquitecto": "alta",

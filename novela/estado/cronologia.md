@@ -4,3 +4,4 @@
 |----------------|----------------|-------------|---------|
 | 0 | - | 1 | Nuria descubre en las domiciliaciones de Dani un cargo mensual activo por un piso en la calle Montesa.; Nuria entra en el piso de la calle Montesa con la llave del llavero del taller de Dani y encuentra el piso habitado. |
 | 1 | - | 2 | Nuria averigua en el bar que la vecina del rellano abrió con llave de urgencias y relee el contrato de suministros: apellido Berlanga; descarta la hipótesis de la amante.; Elsa vuelve sola al piso de Montesa, retira dos fotos del imán de la nevera, las guarda en un sobre y descubre que falta una. |
+| 2 | - | 3 | Nuria confronta a Elsa en el piso de Montesa con la fotografía anotada, no la denuncia y se marcha con la llave de repuesto; después retira las fotos de su boda de la nevera de su cocina. |
