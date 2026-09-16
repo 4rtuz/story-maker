@@ -46,7 +46,8 @@ def _out(*lines: str) -> None:
 
 
 def _cfg_state(args) -> tuple[Config, State]:
-    cfg = load(Path(args.root) if args.root else None)
+    _root = getattr(args, "root", None)   # SUPPRESS: puede no estar
+    cfg = load(Path(_root) if _root else None)
     return cfg, State(cfg)
 
 
@@ -76,7 +77,8 @@ NOTES_SEED = """# Notas del autor
 
 
 def cmd_init(args) -> int:
-    cfg = load(Path(args.root) if args.root else None)
+    _root = getattr(args, "root", None)   # SUPPRESS: puede no estar
+    cfg = load(Path(_root) if _root else None)
     for key in ("biblia", "estado", "capitulos", "intentos", "informes"):
         cfg.path(key).mkdir(parents=True, exist_ok=True)
 
@@ -746,23 +748,34 @@ def cmd_commit(args) -> int:
 # parser
 # ==========================================================================
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="python -m harness",
+    # `--root` se hereda en cada subcomando para que valga antes y después de
+    # él: escrito detrás fallaba con exit 2, y quien invoca el núcleo es un
+    # modelo que no tiene por qué acertar el orden. El `SUPPRESS` es necesario —
+    # sin él, el subparser copiaría su propio `None` sobre el valor que ya
+    # hubiera puesto el parser raíz.
+    comun = argparse.ArgumentParser(add_help=False)
+    comun.add_argument("--root", default=argparse.SUPPRESS,
+                       help="Raíz del repositorio (por defecto, el cwd).")
+
+    p = argparse.ArgumentParser(prog="python -m harness", parents=[comun],
                                 description="Núcleo determinista del harness de novela.")
-    p.add_argument("--root", help="Raíz del repositorio (por defecto, el cwd).")
     sub = p.add_subparsers(dest="command", required=True)
 
-    s = sub.add_parser("init", help="Crea la estructura de novela/ y estado.json.")
+    def add(nombre: str, **kw):
+        return sub.add_parser(nombre, parents=[comun], **kw)
+
+    s = add("init", help="Crea la estructura de novela/ y estado.json.")
     s.add_argument("--force", action="store_true")
     s.set_defaults(func=cmd_init)
 
-    s = sub.add_parser("status", help="Imprime el estado actual.")
+    s = add("status", help="Imprime el estado actual.")
     s.set_defaults(func=cmd_status)
 
-    s = sub.add_parser("next", help="Dice qué acción toca a continuación.")
+    s = add("next", help="Dice qué acción toca a continuación.")
     s.add_argument("--skip-audit", action="store_true")
     s.set_defaults(func=cmd_next)
 
-    s = sub.add_parser("prompt", help="Ensambla el contexto de un rol (§7).")
+    s = add("prompt", help="Ensambla el contexto de un rol (§7).")
     s.add_argument("role", choices=["escritor", "evaluador", "continuista",
                                     "editor_acto", "arquitecto"])
     s.add_argument("--chapter", type=int)
@@ -775,39 +788,39 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--output", "-o", help="Escribe el contexto en este archivo.")
     s.set_defaults(func=cmd_prompt)
 
-    s = sub.add_parser("save-attempt", help="Guarda un borrador en .intentos/.")
+    s = add("save-attempt", help="Guarda un borrador en .intentos/.")
     s.add_argument("--file", required=True)
     s.add_argument("--chapter", type=int)
     s.add_argument("--iteration", type=int)
     s.add_argument("--patched-scenes", help="Escenas autorizadas, p. ej. 1,3.")
     s.set_defaults(func=cmd_save_attempt)
 
-    s = sub.add_parser("record", help="Registra el informe de un juez.")
+    s = add("record", help="Registra el informe de un juez.")
     s.add_argument("kind", choices=["eval", "cont"])
     s.add_argument("--file", required=True)
     s.add_argument("--chapter", type=int)
     s.add_argument("--iteration", type=int)
     s.set_defaults(func=cmd_record)
 
-    s = sub.add_parser("decide", help="Aplica la condición de aceptación (§9.2).")
+    s = add("decide", help="Aplica la condición de aceptación (§9.2).")
     s.add_argument("--chapter", type=int)
     s.set_defaults(func=cmd_decide)
 
-    s = sub.add_parser("patch-plan", help="Fusiona parches y contradicciones.")
+    s = add("patch-plan", help="Fusiona parches y contradicciones.")
     s.add_argument("--chapter", type=int)
     s.add_argument("--output", "-o")
     s.set_defaults(func=cmd_patch_plan)
 
-    s = sub.add_parser("accept", help="Promueve, aplica deltas y regenera estado.")
+    s = add("accept", help="Promueve, aplica deltas y regenera estado.")
     s.add_argument("--chapter", type=int)
     s.set_defaults(func=cmd_accept)
 
-    s = sub.add_parser("save-report", help="Guarda el informe del Editor de acto.")
+    s = add("save-report", help="Guarda el informe del Editor de acto.")
     s.add_argument("--file", required=True)
     s.add_argument("--act", type=int)
     s.set_defaults(func=cmd_save_report)
 
-    s = sub.add_parser("save-bible", help="Guarda un artefacto de la biblia.")
+    s = add("save-bible", help="Guarda un artefacto de la biblia.")
     s.add_argument("--name", required=True,
                    help="entrevista.md | premisa.md | personajes.md | "
                         "voz-y-estilo.md | escaleta.md")
@@ -816,23 +829,23 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Tras guardar, abre la Puerta 1.")
     s.set_defaults(func=cmd_save_bible)
 
-    s = sub.add_parser("seed-clues", help="Siembra pistas.md desde la escaleta.")
+    s = add("seed-clues", help="Siembra pistas.md desde la escaleta.")
     s.set_defaults(func=cmd_seed_clues)
 
-    s = sub.add_parser("audit", help="Reglas de §8.2 o auditoría final de §8.3.")
+    s = add("audit", help="Reglas de §8.2 o auditoría final de §8.3.")
     s.add_argument("--final", action="store_true")
     s.add_argument("--chapter", type=int)
     s.set_defaults(func=cmd_audit)
 
-    s = sub.add_parser("validate-bible", help="Valida los esquemas de §6.")
+    s = add("validate-bible", help="Valida los esquemas de §6.")
     s.set_defaults(func=cmd_validate_bible)
 
-    s = sub.add_parser("gate", help="Responde a una puerta humana (§11).")
+    s = add("gate", help="Responde a una puerta humana (§11).")
     s.add_argument("--answer", required=True)
     s.add_argument("--force", action="store_true")
     s.set_defaults(func=cmd_gate)
 
-    s = sub.add_parser("commit", help="Commit del capítulo aceptado (puerto P5).")
+    s = add("commit", help="Commit del capítulo aceptado (puerto P5).")
     s.add_argument("--chapter", type=int)
     s.set_defaults(func=cmd_commit)
 

@@ -87,24 +87,39 @@ def client(repo: Path):
         return None
 
 
-def tool_name(block: dict) -> str:
-    """Nombre estable y de baja cardinalidad para una llamada a herramienta.
+def tool_names(block: dict) -> list[str]:
+    """Nombres estables y de baja cardinalidad para una llamada a herramienta.
 
     Langfuse trata los nombres como una API: los evaluadores y los paneles
     filtran por ellos, asi que no puede entrar el comando concreto.
+
+    Devuelve uno por cada orden del nucleo que lleve el comando. El orquestador
+    encadena ordenes con `;`, y quedandose con la primera —lo que se hacia antes—
+    `harness decide`, que es la orden que aplica §9.2, no aparecia nunca en la
+    traza aunque se ejecutase en cada iteracion.
     """
     name = block.get("name", "")
-    if name in runs.SHELLS:
-        cmd = " ".join(str((block.get("input") or {}).get("command", "")).split())
-        m = runs.CORE_CMD.search(cmd)
-        return f"harness-{m.group(1).replace(' ', '-')}" if m else "shell"
-    return TOOL_NAMES.get(name, name or "herramienta")
+    if name not in runs.SHELLS:
+        return [TOOL_NAMES.get(name, name or "herramienta")]
+    cmd = " ".join(str((block.get("input") or {}).get("command", "")).split())
+    ordenes = [f"harness-{m.group(1).replace(' ', '-')}"
+               for m in runs.CORE_CMD.finditer(cmd)]
+    return ordenes or ["shell"]
 
 
-def _usage(raw: dict | None) -> dict | None:
+def _usage(raw: dict | None, salida: bool = True) -> dict | None:
+    """Los cubos de uso de Langfuse a partir de la `usage` de Anthropic.
+
+    `salida=False` para el uso por turno: el stream trae el `output_tokens` del
+    `message_start`, que vale 1, y nunca reemite el definitivo. Contarlo es peor
+    que no contarlo —en una traza real sumaba 789 tokens de salida cuando los
+    reales eran 42.501—, asi que el turno declara solo lo que sabe y el total
+    bueno se pone en la raiz desde el `result`.
+    """
     if not isinstance(raw, dict):
         return None
-    out = {k: raw[v] for k, v in USAGE_KEYS.items() if isinstance(raw.get(v), int)}
+    keys = USAGE_KEYS if salida else {k: v for k, v in USAGE_KEYS.items() if k != "output"}
+    out = {k: raw[v] for k, v in keys.items() if isinstance(raw.get(v), int)}
     return out or None
 
 
@@ -135,16 +150,20 @@ class Tracer:
     SDK ni claves.
     """
 
-    def __init__(self, lf, slug: str, cfg: Config | None, prompt: str = ""):
+    def __init__(self, lf, slug: str, cfg: Config | None, prompt: str = "",
+                 replay: bool = False):
         self.lf = lf
         self.slug = slug
         self.cfg = cfg
         self.prompt = prompt
+        self.replay = replay
         self.root = None
         self.gens = 0
-        self.tools: dict[str, object] = {}     # tool_use_id -> observacion
+        self.tools: dict[str, list] = {}       # tool_use_id -> observaciones
         self.agents: dict[str, object] = {}    # task_id -> observacion
+        self.msgs: dict[str, list] = {}        # message.id -> [observacion, bloques]
         self.pending: list[dict] = []          # lo que el modelo vio desde su ultimo turno
+        self.cuota: list[dict] = []            # utilizacion de las ventanas, primera y ultima
         self._open()
 
     def _open(self) -> None:
@@ -176,6 +195,8 @@ class Tracer:
                 )
             self.gens = 0
             self.pending = []   # el contexto de la invocacion anterior no cruza
+            self.msgs = {}
+            self.cuota = []
         except Exception:
             self.lf = self.root = None
 
@@ -198,6 +219,8 @@ class Tracer:
                 self._user(obj)
             elif kind == "system":
                 self._system(obj)
+            elif kind == "rate_limit_event":
+                self._rate_limit(obj)
             elif kind == "result":
                 self._result(obj)
         except Exception:
@@ -211,37 +234,54 @@ class Tracer:
         content = msg.get("content")
         content = content if isinstance(content, list) else []
 
-        # Lo que el modelo vio desde su turno anterior; en el primero, el prompt
-        # de arranque. Sin esto la entrada del primer turno saldria vacia y no se
-        # podria saber con que contexto decidio.
-        entrada = self.pending or (_clip(self.prompt) if not self.gens else None)
-
-        gen = self.root.start_observation(
-            name="turno-orquestador", as_type="generation",
-            model=msg.get("model"),
-            input=entrada or None,
-            output=_blocks(content),
-            usage_details=_usage(msg.get("usage")),
-            metadata={"stop_reason": msg.get("stop_reason"),
-                      "request_id": obj.get("request_id")},
-        )
-        gen.end()
-        self.gens += 1
-        self.pending = []
+        # Claude Code emite un evento `assistant` por bloque de contenido del
+        # mismo mensaje: el `text` y el `tool_use` llegan por separado, con el
+        # mismo `message.id` y la misma `usage`. Es un turno, no dos. Emitirlos
+        # como dos generations duplicaba el coste (10 de 62 en una traza real).
+        mid = str(msg.get("id") or "") or f"sin-id-{self.gens}"
+        previo = self.msgs.get(mid)
+        if previo is not None:
+            previo[1] += _blocks(content)
+            previo[0].update(output=previo[1])
+        else:
+            # Lo que el modelo vio desde su turno anterior; en el primero, el
+            # prompt de arranque. Sin esto la entrada del primer turno saldria
+            # vacia y no se podria saber con que contexto decidio.
+            entrada = self.pending or (_clip(self.prompt) if not self.gens else None)
+            bloques = _blocks(content)
+            gen = self.root.start_observation(
+                name="turno-orquestador", as_type="generation",
+                model=msg.get("model"),
+                input=entrada or None,
+                output=bloques,
+                usage_details=_usage(msg.get("usage"), salida=False),
+                metadata={"stop_reason": msg.get("stop_reason"),
+                          "request_id": obj.get("request_id")},
+            )
+            gen.end()
+            self.msgs[mid] = [gen, bloques]
+            self.gens += 1
+            self.pending = []
 
         # Las herramientas cuelgan de la raiz, hermanas de la generation que las
-        # pidio: asi se ve a que paso pertenece cada accion.
+        # pidio: asi se ve a que paso pertenece cada accion. Un comando que
+        # encadena varias ordenes del nucleo emite una observacion por orden; la
+        # salida no se puede repartir entre ellas, asi que la reciben todas.
         for block in content:
             if not isinstance(block, dict) or block.get("type") != "tool_use":
                 continue
             if block.get("name") in SKIP_TOOLS:
                 continue
-            obs = self.root.start_observation(
-                name=tool_name(block), as_type="tool",
-                input=block.get("input"),
-                metadata={"herramienta": block.get("name")},
-            )
-            self.tools[str(block.get("id"))] = obs
+            nombres = tool_names(block)
+            self.tools[str(block.get("id"))] = [
+                self.root.start_observation(
+                    name=nombre, as_type="tool",
+                    input=block.get("input"),
+                    metadata={"herramienta": block.get("name"),
+                              "ordenes_encadenadas": len(nombres) if len(nombres) > 1 else None},
+                )
+                for nombre in nombres
+            ]
 
     def _user(self, obj: dict) -> None:
         msg = obj.get("message")
@@ -250,13 +290,11 @@ class Tracer:
             if not isinstance(block, dict) or block.get("type") != "tool_result":
                 continue
             self.pending.append({"role": "user", "content": [block]})
-            obs = self.tools.pop(str(block.get("tool_use_id")), None)
-            if obs is None:
-                continue
             failed = bool(block.get("is_error"))
-            obs.update(output=_clip(block.get("content")),
-                       level="ERROR" if failed else None)
-            obs.end()
+            for obs in self.tools.pop(str(block.get("tool_use_id")), []):
+                obs.update(output=_clip(block.get("content")),
+                           level="ERROR" if failed else None)
+                obs.end()
 
     def _system(self, obj: dict) -> None:
         sub = obj.get("subtype")
@@ -301,19 +339,37 @@ class Tracer:
             self.root.create_event(name="permiso-denegado", level="WARNING",
                                    input={"herramienta": obj.get("tool_name")})
 
+    def _rate_limit(self, obj: dict) -> None:
+        """La utilizacion de las ventanas de cuota. Es la senal de §4.5 y el
+        stream la regala: entre la primera y la ultima esta lo que cuesta un
+        capitulo en cuota, que es la pregunta que decide si la obra cabe."""
+        ventanas = ((obj.get("rate_limit_info") or {}).get("unifiedWindows") or {})
+        uso = {k: v.get("utilization") for k, v in ventanas.items()
+               if isinstance(v, dict) and v.get("utilization") is not None}
+        if not uso:
+            return
+        self.cuota = [self.cuota[0] if self.cuota else uso, uso]
+
     def _result(self, obj: dict) -> None:
+        # El uso de verdad solo existe aqui: los turnos traen el `output_tokens`
+        # del `message_start` y no el definitivo (ver `_usage`). Va como
+        # `usage_details` de la raiz, no solo a metadatos, para que la suma de la
+        # traza coincida con lo que se pago.
         usage = obj.get("usage") or {}
+        coste = obj.get("total_cost_usd")
         self.root.update(
             output=_clip(obj.get("result")),
             level="ERROR" if obj.get("is_error") else None,
+            usage_details=_usage(usage),
+            cost_details={"total": coste} if isinstance(coste, (int, float)) else None,
             metadata={
-                "coste_usd": obj.get("total_cost_usd"),
+                "coste_usd": coste,
                 "turnos": obj.get("num_turns"),
                 "duracion_ms": obj.get("duration_ms"),
                 "subagentes": (obj.get("subagent_stats") or {}).get("spawned"),
                 "motivo_fin": obj.get("terminal_reason"),
-                "uso_total": {k: usage[v] for k, v in USAGE_KEYS.items()
-                              if isinstance(usage.get(v), int)},
+                "cuota_inicial": self.cuota[0] if self.cuota else None,
+                "cuota_final": self.cuota[1] if self.cuota else None,
             },
         )
         self._scores()
@@ -324,8 +380,8 @@ class Tracer:
         """La nota del Evaluador y el veredicto del Continuista, del informe mas
         reciente de `.intentos/`. Son la senal de calidad del harness: sin ellas
         la traza dice lo que costo el capitulo, pero no si salio bien."""
-        if self.cfg is None:
-            return
+        if self.cfg is None or self.replay:
+            return   # reproduciendo, el informe de disco es el de ahora, no el de entonces
         ev = _latest_report(self.cfg, "eval")
         if ev:
             media = ev.get("media_calculada")
@@ -348,7 +404,8 @@ class Tracer:
         if self.root is None:
             return
         try:
-            for obs in list(self.tools.values()) + list(self.agents.values()):
+            abiertas = [o for lista in self.tools.values() for o in lista]
+            for obs in abiertas + list(self.agents.values()):
                 obs.update(level="WARNING", status_message="sin cerrar: el orquestador terminó antes")
                 obs.end()
             self.tools.clear()
@@ -376,13 +433,22 @@ def _latest_report(cfg: Config, kind: str) -> dict:
         return {}
 
 
-def start(repo: Path, slug: str, prompt: str) -> Tracer:
-    """Un trazador para esta ejecucion. Siempre devuelve un objeto usable."""
+def start(repo: Path, slug: str, prompt: str, replay: bool = False) -> Tracer:
+    """Un trazador para esta ejecucion. Siempre devuelve un objeto usable.
+
+    `replay=True` manda la traza a otro entorno de Langfuse. Una reproduccion
+    emite las marcas de tiempo de ahora y no las del run, asi que mezclada con
+    las reales estropea cualquier media de latencia o de coste del proyecto: un
+    log acumulado de cuatro sesiones se reproducia como cuatro trazas con todas
+    sus observaciones en el mismo milisegundo.
+    """
+    if replay:
+        os.environ["LANGFUSE_TRACING_ENVIRONMENT"] = "replay"
     try:
         cfg = runs.load_cfg(repo, slug)
     except Exception:
         cfg = None
-    return Tracer(client(repo), slug, cfg, prompt)
+    return Tracer(client(repo), slug, cfg, prompt, replay=replay)
 
 
 # --------------------------------------------------------------------------
@@ -393,13 +459,22 @@ if __name__ == "__main__":
 
     repo = Path(__file__).resolve().parent.parent
 
-    assert tool_name({"name": "Bash", "input": {"command": "python -m harness --root runs/x next"}}) == "harness-next"
-    assert tool_name({"name": "PowerShell", "input": {"command": "python -m harness save-attempt"}}) == "harness-save-attempt"
-    assert tool_name({"name": "Bash", "input": {"command": "ls -la"}}) == "shell"
-    assert tool_name({"name": "Write", "input": {}}) == "escribir-archivo"
+    assert tool_names({"name": "Bash", "input": {"command": "python -m harness --root runs/x next"}}) == ["harness-next"]
+    assert tool_names({"name": "PowerShell", "input": {"command": "python -m harness save-attempt"}}) == ["harness-save-attempt"]
+    assert tool_names({"name": "Bash", "input": {"command": "ls -la"}}) == ["shell"]
+    assert tool_names({"name": "Write", "input": {}}) == ["escribir-archivo"]
+
+    # Una cadena con `;` emite una observacion por orden del nucleo: sin esto
+    # `harness decide` no aparecia en ninguna traza.
+    cadena = ("python -m harness --root runs/x record cont --file a.json; "
+              "python -m harness --root runs/x decide")
+    assert tool_names({"name": "Bash", "input": {"command": cadena}}) == [
+        "harness-record-cont", "harness-decide"]
 
     assert _usage({"input_tokens": 2, "output_tokens": 1, "cache_read_input_tokens": 7}) == {
         "input": 2, "output": 1, "cache_read_input_tokens": 7}
+    # El uso por turno no declara salida: el stream solo da el placeholder.
+    assert _usage({"input_tokens": 2, "output_tokens": 1}, salida=False) == {"input": 2}
     assert _usage(None) is None and _usage({}) is None
 
     assert _clip("a" * 10) == "a" * 10
@@ -411,13 +486,49 @@ if __name__ == "__main__":
         mute.feed(line)
     mute.close()
 
+    # Un mensaje que llega partido en dos eventos es un turno, no dos. Es el
+    # fallo que inflaba el coste un 19 %, asi que se comprueba con un doble.
+    class _Obs:
+        def __init__(self, sink, name):
+            self.sink, self.name = sink, name
+            sink.append(name)
+        def start_observation(self, name, as_type=None, **kw):
+            return _Obs(self.sink, f"{as_type}:{name}")
+        def update(self, **kw): pass
+        def end(self): pass
+        def create_event(self, name, **kw): self.sink.append(f"event:{name}")
+        def score_trace(self, **kw): pass
+
+    class _LF:
+        def __init__(self, sink): self.sink = sink
+        def start_observation(self, name, as_type=None, **kw):
+            return _Obs(self.sink, f"{as_type}:{name}")
+        def flush(self): pass
+
+    emitido: list[str] = []
+    t = Tracer(_LF(emitido), "novela", None, "/novela")
+    turno = ('{"type":"assistant","message":{"id":"msg_1","model":"m",'
+             '"usage":{"input_tokens":2,"output_tokens":1},"content":[%s]}}')
+    t.feed(turno % '{"type":"text","text":"voy"}')
+    t.feed(turno % '{"type":"tool_use","id":"tu_1","name":"Bash",'
+                   '"input":{"command":"python -m harness next; python -m harness decide"}}')
+    assert emitido.count("generation:turno-orquestador") == 1, emitido
+    assert emitido.count("tool:harness-next") == 1 and emitido.count("tool:harness-decide") == 1, emitido
+    t.feed('{"type":"rate_limit_event","rate_limit_info":'
+           '{"unifiedWindows":{"five_hour":{"utilization":0.19}}}}')
+    t.feed('{"type":"rate_limit_event","rate_limit_info":'
+           '{"unifiedWindows":{"five_hour":{"utilization":0.24}}}}')
+    assert t.cuota == [{"five_hour": 0.19}, {"five_hour": 0.24}], t.cuota
+
     if len(sys.argv) > 1:
         # Reproduce un log real contra Langfuse. Las marcas de tiempo son las de
         # ahora, no las del run: sirve para revisar la forma del arbol, no para
-        # medir latencias.
+        # medir latencias. Por eso va al entorno `replay` y no al de las trazas
+        # buenas, donde falsearia las medias de coste y de latencia.
         log = Path(sys.argv[1])
         slug = log.parent.parent.parent.name
-        tracer = start(repo, slug if runs.exists(repo, slug) else runs.ROOT_SLUG, f"reproducción de {log.name}")
+        tracer = start(repo, slug if runs.exists(repo, slug) else runs.ROOT_SLUG,
+                       f"reproducción de {log.name}", replay=True)
         if tracer.root is None:
             print("Sin cliente de Langfuse: revisa el `.env`.")
             raise SystemExit(1)

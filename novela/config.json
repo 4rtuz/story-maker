@@ -176,7 +176,10 @@
       },
       "contexto": {
         "capitulos_texto_integro": 1,
-        "capitulos_ficha_completa": 1
+        "capitulos_ficha_completa": 1,
+        "_nota_palabras": "Escalan con palabras_objetivo. Con los 120 de 'base' el Continuista rellenaba: una ficha de 176 palabras para un capitulo de 89, y ese relleno acaba en estado/, que es la fuente de hechos.",
+        "palabras_ficha": 40,
+        "palabras_resumen_acto": 50
       }
     },
 
