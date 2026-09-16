@@ -230,6 +230,12 @@ textarea { font-family: var(--serif); font-size: 15px; line-height: 1.62; resize
 .bloque { display: flex; flex-direction: column; gap: 10px; }
 .bloque.grow-y { flex-grow: 1; min-height: 0; }
 
+#mensaje-wrap.pide {
+  border: 1px solid var(--accent); border-radius: 4px;
+  padding: 14px; background: var(--tinte);
+}
+#mensaje-wrap.pide .lbl { color: var(--accent); }
+
 .agentes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 .agente {
   border: 1px solid var(--border); background: var(--surface);

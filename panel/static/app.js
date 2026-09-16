@@ -58,6 +58,7 @@ const estado = {
   perfiles: [],
   claude: false,
   snap: null,
+  seguir: false,   // el autor ha dado permiso para encadenar fases
   capitulos: [],
   capitulo: null,
   timer: null,
@@ -178,6 +179,7 @@ $('#lista-runs').addEventListener('click', (e) => {
   if (!tarjeta) return;
   estado.slug = tarjeta.dataset.slug;
   estado.capitulo = null;
+  estado.seguir = false;   // mirar otra ejecución no es pedir que arranque
   document.querySelectorAll('.run').forEach((n) => n.classList.toggle('sel', n === tarjeta));
   pintarTopMeta();
   irAVista('progreso');
@@ -222,7 +224,6 @@ $('#btn-crear').addEventListener('click', () => {
 // --------------------------------------------------------------------------
 async function refrescarProgreso() {
   if (!estado.slug) return;
-  const antes = estado.snap;
   try {
     estado.snap = await api(`/api/runs/${estado.slug}/estado`);
   } catch (err) {
@@ -232,7 +233,7 @@ async function refrescarProgreso() {
   }
   pintarProgreso(estado.snap);
   pintarTopMeta();
-  autoContinuar(antes, estado.snap);
+  autoContinuar(estado.snap);
 }
 
 // Lo que cambia cuando el núcleo ha avanzado de verdad. Los archivos de
@@ -244,12 +245,18 @@ const firma = (s) => `${s.estado}|${s.capitulo_actual}|${s.iteracion}|${s.capitu
 // UTC siguiente, y una novela completa no tiene fase siguiente.
 const SIN_RELANZAR = ['COMPLETADO', 'CUOTA_PAUSADA'];
 
-function autoContinuar(antes, ahora) {
-  if (!antes || !antes.vivo || ahora.vivo || estado.detenido) return;   // solo al morir
+// Seguir es una intención del autor, no un evento: responder una puerta o pulsar
+// «Lanzar» la enciende, «Detener» la apaga. Antes esto colgaba de una llamada
+// suelta en el instante del clic, y si esa llamada no salía —pestaña recargada,
+// puerta respondida desde otro sitio, error de red— la ejecución se quedaba
+// parada para siempre con el estado diciendo que tocaba trabajar.
+function autoContinuar(ahora) {
+  if (!estado.seguir || ahora.vivo || estado.detenido) return;
   if (ahora.estado.startsWith('GATE_') || SIN_RELANZAR.includes(ahora.estado)) return;
   if (firma(ahora) === estado.firmaLanzada) {
     // Terminó sin mover el estado: te ha preguntado algo (la entrevista) o ha
     // fallado. Relanzar aquí sería un bucle de llamadas contra la cuota.
+    estado.seguir = false;
     brindis('El orquestador terminó sin avanzar el estado. Mira los eventos: si te ha '
             + 'preguntado algo, contéstale en «Responder al orquestador» y vuelve a lanzar.', true);
     return;
@@ -263,7 +270,11 @@ function pintarProgreso(s) {
     `${rotulo} · capítulo ${Math.min(s.capitulo_actual, s.total)} de ${s.total} · iteración ${s.iteracion} · acto ${s.acto_actual}`;
   $('#btn-parar').hidden = !s.vivo;
   $('#btn-lanzar-run').disabled = s.vivo || !estado.claude;
-  $('#btn-lanzar-run').textContent = s.vivo ? 'Orquestador en marcha' : 'Lanzar agentes';
+  $('#btn-lanzar-run').textContent = s.vivo ? 'Orquestador en marcha'
+    : s.espera_respuesta ? 'Responder y lanzar' : 'Lanzar agentes';
+  // Las preguntas se leen en el log de la derecha y la caja esta a la
+  // izquierda: sin resaltarla el autor no la encuentra.
+  $('#mensaje-wrap').classList.toggle('pide', !!s.espera_respuesta && !s.vivo);
 
   // banda de estados
   const actual = s.estado;
@@ -371,11 +382,11 @@ $('#puerta-wrap').addEventListener('click', async (e) => {
   try {
     const res = await post(`/api/runs/${estado.slug}/puerta`, { respuesta });
     brindis(res.salida);
+    // Responder la puerta ES el permiso del autor para seguir. `editar` y
+    // `parar` dejan la puerta abierta, y `autoContinuar` no relanza en un GATE_.
+    estado.seguir = true;
     await refrescarProgreso();
     cargarRuns();
-    // Responder la puerta ES el permiso del autor para seguir. `editar` y
-    // `parar` dejan la puerta abierta y por eso no relanzan.
-    if (estado.snap && !estado.snap.vivo && !estado.snap.estado.startsWith('GATE_')) lanzar();
   } catch (err) {
     brindis(err.message, true);
   }
@@ -390,6 +401,7 @@ async function lanzar(mensaje = '') {
     const info = await post(`/api/runs/${estado.slug}/lanzar`, { mensaje });
     estado.firmaLanzada = previo;
     estado.detenido = false;
+    estado.seguir = true;
     $('#in-mensaje').value = '';
     brindis(`Orquestador en marcha (pid ${info.pid}).`);
     refrescarProgreso();
@@ -402,6 +414,7 @@ $('#btn-parar').addEventListener('click', async () => {
   try {
     await post(`/api/runs/${estado.slug}/parar`);
     estado.detenido = true;
+    estado.seguir = false;
     brindis('Orquestador detenido. El estado en disco queda donde estaba.');
     refrescarProgreso();
   } catch (err) { brindis(err.message, true); }

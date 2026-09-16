@@ -69,12 +69,25 @@ def field(text: str, name: str) -> str:
     return m.group(1).strip() if m else ""
 
 
+# El esquema de la escaleta pide "ids" sin ensenar el formato, y los modelos
+# escriben `P1`, `P-1` y `P-01` sin distinguirlos. Leerlo estricto no rechaza la
+# escaleta: la acepta con el ledger vacio, y entonces ni el Continuista ni la
+# auditoria final tienen nada que comprobar. Se lee flojo y se guarda canonico.
+CLUE_RE = re.compile(r"\bP-?0*(\d+)\b")
+
+
+def clue_id(raw: str) -> str:
+    """Forma canonica `P-NN`. Una pista con dos nombres no la resuelve nadie."""
+    m = CLUE_RE.search(raw)
+    return f"P-{int(m.group(1)):02d}" if m else ""
+
+
 def id_list(raw: str) -> list[str]:
-    """Convierte `P-01, P-03` o `ninguna` en una lista de ids."""
+    """Convierte `P-01, P-03` o `P1, P3` en ids canonicos; `ninguna` en nada."""
     raw = raw.strip()
     if not raw or raw.lower() in {"ninguna", "ninguno", "-", "n/a", "none"}:
         return []
-    return re.findall(r"P-\d+", raw)
+    return [f"P-{int(n):02d}" for n in CLUE_RE.findall(raw)]
 
 
 WORD_RE = re.compile(r"[0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:['’-][0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*")

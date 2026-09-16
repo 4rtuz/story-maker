@@ -150,7 +150,7 @@ def escaleta() -> str:
         (1, "El regreso", "Elena Vargas", 0, "La casa",
          ["Marcos aparece en la puerta", "Elena le sirve agua y calla",
           "Elena ve el reloj con la correa cambiada"],
-         "P-01", "ninguna", "ninguna", "ninguna",
+         "P1", "ninguna", "ninguna", "ninguna",   # forma floja a proposito
          "Elena oye la puerta", "Elena reconoce el reloj y no dice nada"),
         (2, "La vecina", "Elena Vargas", 1, "El rellano",
          ["Nieves para a Elena en la escalera",
@@ -360,6 +360,9 @@ def plan(sandbox: Path) -> None:
     ledger = ClueLedger.load(cfg.state_path("pistas.md"))
     check("El ledger se siembra desde la escaleta con las 3 pistas",
           len(ledger.clues) == 3, f"{[c.id for c in ledger.clues]}")
+    check("Una pista escrita `P1` se siembra como `P-01` y no duplica",
+          [c.id for c in ledger.clues] == ["P-01", "P-02", "P-03"],
+          f"{[c.id for c in ledger.clues]}")
 
 
 def write_chapter(sandbox: Path, n: int, text: str, ev: str, cont: str,

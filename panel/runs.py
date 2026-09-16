@@ -168,6 +168,7 @@ def snapshot(repo: Path, slug: str, log_limit: int = 60) -> dict:
         # significa nada y confunde
         "paso": (_substep(cfg, n, state.get("iteracion", 0))
                  if state.get("estado") in EN_CICLO and n <= cfg.total_chapters else ""),
+        "espera_respuesta": _awaiting_answer(cfg),
         "archivos": _scratch(cfg),
         "eventos": events(cfg, log_limit),
         "pistas": _clues(cfg),
@@ -185,6 +186,17 @@ def _scratch(cfg: Config, limit: int = 14) -> list[dict]:
     files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
     return [{"nombre": p.name, "ts": p.stat().st_mtime, "bytes": p.stat().st_size}
             for p in files[:limit]]
+
+
+# Fase A de la skill: el Arquitecto pregunto, el turno se acabo y las lineas
+# `**Respuesta:**` siguen vacias. No mueve `estado.json` —por eso el panel no
+# puede deducirlo de la firma— y es el unico momento en que el autor tiene que
+# escribir algo que no es una puerta del nucleo.
+VACIA_RE = re.compile(r"^\*\*Respuesta:\*\*\s*$", re.M)
+
+
+def _awaiting_answer(cfg: Config) -> bool:
+    return bool(VACIA_RE.search(read(cfg.bible_path("entrevista.md"))))
 
 
 def _clues(cfg: Config) -> list[dict]:
@@ -449,6 +461,9 @@ if __name__ == "__main__":
             pass
         else:
             raise AssertionError(f"slug aceptado y no debería: {bad!r}")
+
+    assert VACIA_RE.search("**Respuesta:**")
+    assert not VACIA_RE.search("**Respuesta:** (A) Una vecina")
 
     assert _as_float("3,5") == 3.5 and _as_float("4.0") == 4.0 and _as_float("") is None
 

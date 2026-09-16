@@ -335,6 +335,15 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Panel en {url}  (Ctrl+C para parar)")
     if not Launcher.available():
         print("AVISO: `claude` no está en el PATH; podrás crear y leer, no lanzar agentes.")
+    # El trazado es opcional y falla en silencio a propósito (observar no puede
+    # impedir escribir), asi que aqui se dice en voz alta si esta o no: si no,
+    # la unica pista de que no traza es no ver nada en Langfuse.
+    if tracing.client(repo) is None:
+        print("AVISO: sin trazado en Langfuse. Faltan las claves del `.env` "
+              'o el SDK (`pip install "langfuse>=4,<5"`).')
+    else:
+        print(f"Trazado en Langfuse: {os.environ.get('LANGFUSE_BASE_URL', '')} "
+              f"(entorno `{os.environ.get('LANGFUSE_TRACING_ENVIRONMENT', 'development')}`)")
     if not args.no_browser:
         threading.Timer(0.5, webbrowser.open, args=(url,)).start()
     try:

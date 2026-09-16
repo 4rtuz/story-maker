@@ -21,7 +21,7 @@ from . import context as ctx
 from . import deltas as D
 from . import rules
 from . import summary as S
-from .artifacts import (Card, ClueLedger, Clue, Timeline, parse_outline, read,
+from .artifacts import (Card, ClueLedger, Clue, Timeline, clue_id, parse_outline, read,
                         sections, word_count, write)
 from .config import Config, load
 from .scenes import (Chapter, language_drift, reconcile_patch, spanish_ratio,
@@ -657,9 +657,9 @@ def cmd_seed_clues(args) -> int:
     premise = read(cfg.bible_path("premisa.md"))
     descriptions: dict[str, str] = {}
     for line in premise.splitlines():
-        m = __import__("re").match(r"\s*[-*]\s*(P-\d+)\s*[·:—-]\s*(.+)", line)
+        m = __import__("re").match(r"\s*[-*]\s*(P-?\d+)\s*[·:—-]\s*(.+)", line)
         if m:
-            descriptions[m.group(1)] = m.group(2).strip()
+            descriptions[clue_id(m.group(1))] = m.group(2).strip()
 
     planned_resolution: dict[str, int] = {}
     kinds: dict[str, str] = {}
