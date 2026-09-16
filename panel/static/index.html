@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Máquina de novelas</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap">
+<link rel="stylesheet" href="/static/style.css">
+<!-- Three.js por importmap con la versión fijada: el repo no tiene gestor de
+     paquetes y no se le añade uno solo por el visor. Para trabajar sin red,
+     descarga estos dos archivos a /static/vendor/ y cambia las dos URLs. -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19v18H5.5A1.5 1.5 0 0 1 4 19.5z"/><path d="M8 3v18"/></svg>
+    <span>Máquina de novelas</span>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button data-vista="lanzar" class="on">Lanzar</button>
+    <button data-vista="progreso">Progreso</button>
+    <button data-vista="lector">Lector</button>
+  </nav>
+  <div class="grow"></div>
+  <div class="topmeta" id="topmeta"></div>
+</header>
+
+<main>
+
+  <!-- ========================= LANZAR ========================= -->
+  <section id="vista-lanzar" class="vista on">
+    <div class="lanzar-cols">
+      <form class="card form" id="form-nueva" autocomplete="off">
+        <div class="card-head">
+          <h1>Novela nueva</h1>
+          <p>Se crea en <code>runs/&lt;identificador&gt;/</code> con su propio estado. Las ejecuciones existentes no se tocan.</p>
+        </div>
+
+        <label class="field">
+          <span class="lbl">Identificador</span>
+          <span class="prefixed">
+            <span class="prefix">runs/</span>
+            <input name="slug" id="in-slug" placeholder="el-buzon-de-la-planta-baja"
+                   pattern="[a-z0-9][a-z0-9-]{0,39}" required>
+          </span>
+          <span class="hint">Minúsculas, dígitos y guiones.</span>
+        </label>
+
+        <label class="field">
+          <span class="lbl">Idea de partida</span>
+          <textarea name="idea" id="in-idea" rows="5"
+            placeholder="Dos o tres frases. El Arquitecto abrirá la entrevista a partir de aquí."></textarea>
+          <span class="hint">Se guarda en <code>.intentos/idea.md</code>.</span>
+        </label>
+
+        <label class="field narrow">
+          <span class="lbl">Perfil</span>
+          <select name="perfil" id="in-perfil"></select>
+        </label>
+
+        <div class="acciones">
+          <button type="submit" class="btn primario" id="btn-crear-lanzar">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 3 14 9-14 9z"/></svg>
+            Crear y lanzar agentes
+          </button>
+          <button type="button" class="btn" id="btn-crear">Solo crear</button>
+        </div>
+
+        <div class="aviso" id="aviso-claude"></div>
+        <div class="resultado" id="form-salida" hidden></div>
+      </form>
+
+      <div class="runs">
+        <div class="seccion-head">
+          <h2>Ejecuciones en este repositorio</h2>
+          <span id="runs-total" class="faint"></span>
+        </div>
+        <div id="lista-runs" class="lista-runs"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================= PROGRESO ========================= -->
+  <section id="vista-progreso" class="vista">
+    <div class="prog-wrap" id="prog-wrap">
+      <div class="banda-head">
+        <span class="contexto" id="prog-contexto">—</span>
+        <div class="grow"></div>
+        <button class="btn mini" id="btn-siguiente" title="Ejecuta `harness next`">¿Qué toca ahora?</button>
+        <button class="btn mini" id="btn-lanzar-run">Lanzar agentes</button>
+        <button class="btn mini peligro" id="btn-parar" hidden>Detener</button>
+      </div>
+
+      <div class="banda" id="banda-estados"></div>
+
+      <div class="prog-cols">
+        <div class="prog-main">
+          <div class="bloque">
+            <span class="lbl">Agentes</span>
+            <div class="agentes" id="agentes"></div>
+          </div>
+
+          <div id="puerta-wrap"></div>
+
+          <div class="bloque grow-y">
+            <div class="seccion-head compacta">
+              <span class="lbl">Intentos del capítulo en curso</span>
+              <span class="faint" id="regla-92"></span>
+            </div>
+            <div class="tabla" id="tabla-intentos"></div>
+          </div>
+        </div>
+
+        <aside class="prog-side">
+          <div class="card compacta">
+            <div class="seccion-head compacta">
+              <span class="lbl">Cuota del día</span>
+              <span class="mono" id="cuota-cifra"></span>
+            </div>
+            <div class="medidor"><div id="cuota-barra"></div></div>
+            <p class="nota">Llamadas lógicas. Cada una cuesta varias peticiones HTTP reales: contrástalo con el panel del proveedor.</p>
+          </div>
+
+          <div class="bloque grow-y">
+            <div class="seccion-head compacta">
+              <span class="lbl">Eventos</span>
+              <span class="faint" id="log-fuente">—</span>
+            </div>
+            <div class="log" id="log"></div>
+          </div>
+
+          <div class="bloque">
+            <span class="lbl">Ledger de pistas</span>
+            <div class="pistas" id="pistas"></div>
+          </div>
+
+          <div class="bloque">
+            <span class="lbl">Últimos archivos de trabajo</span>
+            <div class="archivos" id="archivos"></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================= LECTOR ========================= -->
+  <section id="vista-lector" class="vista">
+    <div class="lector">
+      <div class="indice">
+        <div class="indice-head"><span class="lbl">Capítulos</span></div>
+        <div id="lista-capitulos"></div>
+        <div class="grow"></div>
+        <div class="indice-pie" id="indice-pie"></div>
+      </div>
+
+      <article class="prosa" id="prosa"></article>
+
+      <div class="visor">
+        <div class="visor-head">
+          <span class="lbl">Libro</span>
+          <div class="grow"></div>
+          <button class="btn icono" id="hoja-prev" aria-label="Capítulo anterior">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <button class="btn icono" id="hoja-next" aria-label="Capítulo siguiente">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+        </div>
+        <div class="lienzo" id="lienzo3d"></div>
+        <div class="visor-pie">
+          <span><b>arrastrar</b> orbitar</span>
+          <span><b>rueda</b> acercar</span>
+          <span><b>← →</b> pasar hoja</span>
+          <span><b>clic en el canto</b> saltar de capítulo</span>
+          <div class="grow"></div>
+          <span class="mono" id="visor-pos"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="brindis" class="brindis" hidden></div>
+
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

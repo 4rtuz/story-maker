@@ -14,6 +14,7 @@ un árbol de directorios paralelo si lo sigues). Guía de operador: `docs/SETUP.
 | **Núcleo** (§1-17, determinista) | `harness/` | No menciona jamás Claude Code, OpenRouter ni un identificador de modelo. |
 | **Contrato de puertos** (Anexo B) | P1 invocar · P2 artefactos · P3 estado · P4 humano · P5 git · P6 cuota | Cambiar de runtime = escribir un anexo nuevo, no reescribir el núcleo. |
 | **Binding** (Anexo A) | `.claude/` | Implementa **solo P1 y P4**. No reimplementa lógica del núcleo. |
+| **Panel web** (Anexo C) | `panel/` | Binding secundario. Implementa P4, lee P2/P3, y **delega P1** lanzando el binding de Claude Code como subproceso. No orquesta. |
 | **Artefactos** | `novela/` | Los `.md` de §6 + `estado.json` (única fuente de verdad del run). |
 
 Romper ese reparto en cualquier dirección es el error caro del proyecto.
@@ -29,6 +30,8 @@ python tests/dry_run.py           # 40 comprobaciones offline, sin gastar cuota
 Desde Claude Code: `/novela`. **Una invocación escribe un capítulo y para** (§7.5) — el
 contexto del orquestador no aguanta encadenar capítulos y no hace falta: el estado está en
 disco. Sin dependencias externas; solo stdlib de Python 3.12.
+
+El panel se arranca con `python -m panel` (`docs/anexo-c-panel-web.md`): lanza una novela, muestra el progreso y lee los capítulos.
 
 Órdenes del CLI (`harness/cli.py`, las que invoca la skill): `init status next prompt
 save-attempt record decide patch-plan accept save-report save-bible seed-clues audit
