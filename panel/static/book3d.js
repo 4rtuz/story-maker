@@ -3,7 +3,7 @@
 //
 // Es navegable, no decorativo: se orbita con el ratón, se pasa hoja pulsando
 // sobre la página izquierda o derecha, y se salta de capítulo pulsando en el
-// segmento correspondiente del lomo. Cualquiera de las tres cosas avisa al
+// segmento correspondiente del canto. Cualquiera de las tres cosas avisa al
 // panel, que sincroniza el lector en 2D.
 
 import * as THREE from 'three';
@@ -14,18 +14,21 @@ const ALTO = 1.9;
 const SEP = 0.0045;      // separación entre hojas, evita el z-fighting
 const PX = 460;          // resolución del canvas de cada cara
 
-const TINTA = '#2c2620';
-const TINTA_2 = '#7d7364';
-const PAPEL = '#e8e0d2';
-const PAPEL_PDTE = '#cfc6b2';
+// Marca Qaracter: azul #233441 para la tinta y la tapa, naranja #ff7932 para
+// el capítulo en curso, off-white #f5f5f5 para el papel. Los dos colores de
+// estado (aceptado / con deuda) son derivados: la marca no declara ninguno.
+const TINTA = '#233441';
+const TINTA_2 = '#6d7b87';
+const PAPEL = '#f5f5f5';
+const PAPEL_PDTE = '#dcdfe4';
 
 const COLOR = {
-  tapa: 0x2a2019,
-  lomo: 0x1a140f,
-  ok: 0x7c9a6a,
-  deuda: 0xc4794a,
-  pendiente: 0x3a332a,
-  actual: 0xd99a3e,
+  tapa: 0x233441,
+  lomo: 0x18222b,
+  ok: 0x4f9e82,
+  deuda: 0xd4594b,
+  pendiente: 0x2b3a47,
+  actual: 0xff7932,
 };
 
 // --------------------------------------------------------------------------
@@ -64,8 +67,8 @@ function pintarCara(cap, dorso) {
   ctx.fillRect(0, 0, W, H);
   // veladura hacia el lomo, para que la página no parezca un rectángulo plano
   const sombra = ctx.createLinearGradient(dorso ? W : 0, 0, dorso ? W - 70 : 70, 0);
-  sombra.addColorStop(0, 'rgba(90,76,58,0.28)');
-  sombra.addColorStop(1, 'rgba(90,76,58,0)');
+  sombra.addColorStop(0, 'rgba(35,52,65,0.24)');
+  sombra.addColorStop(1, 'rgba(35,52,65,0)');
   ctx.fillStyle = sombra;
   ctx.fillRect(0, 0, W, H);
 
@@ -84,7 +87,7 @@ function pintarCara(cap, dorso) {
     y += 8;
   }
 
-  ctx.strokeStyle = 'rgba(70,60,48,0.35)';
+  ctx.strokeStyle = 'rgba(35,52,65,0.3)';
   ctx.beginPath();
   ctx.moveTo(M, y);
   ctx.lineTo(W - M, y);
@@ -100,7 +103,7 @@ function pintarCara(cap, dorso) {
   }
 
   if (dorso) {
-    ctx.font = '400 15px "IBM Plex Sans", sans-serif';
+    ctx.font = "400 15px Satoshi, 'Segoe UI', sans-serif";
     for (const [rotulo, valor] of [
       ['Focalizador', cap.focalizador],
       ['Media del Evaluador', cap.media != null ? cap.media.toFixed(2) : '—'],
@@ -172,11 +175,11 @@ export async function crearLibro(contenedor, { alElegir, traerTexto } = {}) {
   const camara = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
   camara.position.set(0, 0.42, 3.75);
 
-  escena.add(new THREE.AmbientLight(0xfff2de, 1.5));
-  const foco = new THREE.DirectionalLight(0xffe9c9, 2.1);
+  escena.add(new THREE.AmbientLight(0xf2f5f8, 1.5));
+  const foco = new THREE.DirectionalLight(0xffffff, 2.1);
   foco.position.set(2.2, 3.4, 3.2);
   escena.add(foco);
-  const relleno = new THREE.DirectionalLight(0x8fa4c4, 0.5);
+  const relleno = new THREE.DirectionalLight(0x7f93a8, 0.5);
   relleno.position.set(-3, -1, 1.5);
   escena.add(relleno);
 

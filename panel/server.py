@@ -28,7 +28,8 @@ from . import runs
 
 STATIC = Path(__file__).resolve().parent / "static"
 TYPES = {".html": "text/html", ".css": "text/css", ".js": "text/javascript",
-         ".svg": "image/svg+xml", ".json": "application/json"}
+         ".svg": "image/svg+xml", ".json": "application/json",
+         ".woff": "font/woff", ".woff2": "font/woff2"}
 
 # Herramientas que el orquestador necesita y ninguna mas: lee el contexto que le
 # monta el nucleo, escribe la respuesta cruda del subagente y lanza subagentes.

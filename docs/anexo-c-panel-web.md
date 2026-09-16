@@ -96,7 +96,38 @@ Se cumple gratis porque se cumple el punto 3: el panel no mueve ni reescribe nin
 empezada en Claude Code se lee y se responde desde el panel. La ejecución `novela/`, escrita entera
 con el binding de Claude Code, se lee hoy desde el panel sin haberla tocado.
 
-## C.6 Riesgos asumidos
+## C.6 Marca
+
+El panel usa la identidad de Qaracter. Los tokens son **literales de `qaracter.com`**, con el
+nombre que les da el CSS del propio sitio, y viven en `:root` de `panel/static/style.css`:
+
+| Token | Valor | Origen |
+|---|---|---|
+| `--qa-azul` | `#233441` | variable `--azul` del sitio |
+| `--qa-naranja` | `#ff7932` | variable `--naranja` |
+| `--qa-naranja-oscuro` | `#ff6311` | segundo naranja del sitio |
+| `--qa-gris` | `#e4e6eb` | gris de texto |
+| `--qa-carbon` | `#272727` | variable `--carbon` |
+
+Todo lo demás se deriva de ellos: la escala oscura sale del azul, y los tintes de los paneles
+destacados son `color-mix()` sobre el naranja, para que cambiar el acento arrastre el resto.
+
+**Dos cosas no son de marca y están marcadas como tales en el código:**
+
+- **Los colores de estado.** Qaracter no declara ninguno. `--ok` (`#4f9e82`) y `--warn`
+  (`#d4594b`) son derivados: un verde y un rojo que conviven con el azul sin competir con el
+  naranja. Si Qaracter publica una paleta de estados, se sustituyen ahí y ya.
+- **El serif de la prosa.** La marca es Satoshi, sin serif. Newsreader se usa **solo para el
+  contenido de la novela** —texto de los capítulos, títulos de capítulo, logline— porque es
+  tipografía de lectura, no chrome. Todo el panel va en Satoshi.
+
+**Assets vendorizados** en `panel/static/`: `qaracter-logo.svg` (lockup completo, variante
+blanca, para la cabecera), `qaracter-q.svg` (la Q sola, extraída de la primera ruta del
+lockup, para el favicon) y `Satoshi-{Regular,Medium,Bold}.woff`. La fuente se copia al repo a
+propósito: el sitio la sirve desde una URL generada de Webflow que rota en cada reconstrucción,
+y enlazarla dejaría el panel sin tipografía de marca sin avisar.
+
+## C.7 Riesgos asumidos
 
 - **No hay locking.** `estado.json` es read-modify-write sin coordinación (`state.py` solo garantiza
   que una escritura no queda a medias, no que dos no se pisen). El panel serializa sus propias
