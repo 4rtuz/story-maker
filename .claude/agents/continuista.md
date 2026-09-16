@@ -2,7 +2,7 @@
 name: continuista
 description: Verifica que un capitulo no contradice el estado establecido y, si pasa, extrae los deltas de estado. Devuelve solo un objeto JSON.
 tools: []
-model: sonnet
+model: haiku
 ---
 
 Eres el Continuista de una novela de suspense psicológico doméstico en español. Tu trabajo

@@ -24,7 +24,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import runs
+from . import runs, tracing
 
 STATIC = Path(__file__).resolve().parent / "static"
 TYPES = {".html": "text/html", ".css": "text/css", ".js": "text/javascript",
@@ -61,8 +61,8 @@ class Launcher:
         proc = self.procs.get(slug)
         return bool(proc and proc.poll() is None)
 
-    def command(self, slug: str) -> list[str]:
-        cmd = [self.available() or "claude", "-p", self.prompt(slug),
+    def command(self, slug: str, mensaje: str = "") -> list[str]:
+        cmd = [self.available() or "claude", "-p", self.prompt(slug, mensaje),
                "--output-format", "stream-json", "--verbose"]
         if self.skip_permissions:
             cmd.append("--dangerously-skip-permissions")
@@ -70,24 +70,33 @@ class Launcher:
             cmd += ["--permission-mode", "acceptEdits", "--allowedTools", *ALLOWED_TOOLS]
         return cmd
 
-    def prompt(self, slug: str) -> str:
+    def prompt(self, slug: str, mensaje: str = "") -> str:
         """El prompt de arranque. Para una ejecucion fuera de la raiz hay que
         decirle donde vive, porque las ordenes literales de la skill no llevan
         `--root`.
+
+        `mensaje` es la respuesta literal del autor (puerto P4): las opciones de
+        la entrevista, o una instruccion suelta. Va al final, sin interpretar:
+        quien sabe que hacer con ella es el orquestador. Sin este canal el autor
+        no puede contestar a la entrevista, que no es una puerta del nucleo y por
+        tanto no pasa por `harness gate`.
 
         ponytail: el encaminamiento va en el prompt y depende de que el
         orquestador lo respete. Si se vuelve un problema, la solucion es una
         skill que acepte `--root`, no tocar el nucleo.
         """
-        if slug == runs.ROOT_SLUG:
-            return "/novela"
-        rel = f"{runs.RUNS_DIR}/{slug}"
-        return ("/novela\n\n"
+        partes = ["/novela"]
+        if slug != runs.ROOT_SLUG:
+            rel = f"{runs.RUNS_DIR}/{slug}"
+            partes.append(
                 f"Esta sesión trabaja sobre la ejecución `{rel}`, no sobre `novela/`.\n"
                 f"Añade `--root {rel}` a TODAS las órdenes `python -m harness ...`, y usa\n"
                 f"`{rel}/novela/.intentos/` para los archivos de contexto y de respuesta.")
+        if mensaje.strip():
+            partes.append("Respuesta del autor, literal:\n\n" + mensaje.strip())
+        return "\n\n".join(partes)
 
-    def start(self, slug: str) -> dict:
+    def start(self, slug: str, mensaje: str = "") -> dict:
         with self.lock:
             if self.alive(slug):
                 raise ValueError("Ya hay un orquestador en marcha para esta ejecución.")
@@ -101,27 +110,34 @@ class Launcher:
             log.parent.mkdir(parents=True, exist_ok=True)
 
             proc = subprocess.Popen(
-                self.command(slug), cwd=str(self.repo),
+                self.command(slug, mensaje), cwd=str(self.repo),
                 env=dict(os.environ, PYTHONIOENCODING="utf-8"),
                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT, text=True, encoding="utf-8",
                 errors="replace", bufsize=1,
             )
             self.procs[slug] = proc
-            threading.Thread(target=self._drain, args=(proc, log),
+            threading.Thread(target=self._drain,
+                             args=(proc, log,
+                                   tracing.start(self.repo, slug, self.prompt(slug, mensaje))),
                              daemon=True, name=f"panel-{slug}").start()
             return {"pid": proc.pid, "orden": " ".join(self.command(slug)[:2]) + " …"}
 
     @staticmethod
-    def _drain(proc: subprocess.Popen, log: Path) -> None:
+    def _drain(proc: subprocess.Popen, log: Path, tracer: tracing.Tracer) -> None:
         """Vuelca el stream tal cual llega. No lo interpreta: de eso se encarga
-        `runs.events` al leerlo, para que una linea rara nunca tumbe el hilo."""
+        `runs.events` al leerlo, para que una linea rara nunca tumbe el hilo.
+
+        El trazador si lo lee, pero se traga sus propios errores por el mismo
+        motivo: observar la ejecucion no puede llegar a impedirla."""
         try:
             with log.open("a", encoding="utf-8", newline="\n") as fh:
                 for line in proc.stdout:  # type: ignore[union-attr]
                     fh.write(line if line.endswith("\n") else line + "\n")
                     fh.flush()
+                    tracer.feed(line)
         finally:
+            tracer.close()
             proc.wait()
 
     def stop(self, slug: str) -> dict:
@@ -265,7 +281,10 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError(f"No existe la ejecución `{slug}`.")
 
         if action == "lanzar":
-            return self._json(self.launcher.start(slug))
+            mensaje = str(body.get("mensaje", ""))
+            if len(mensaje) > 4000:
+                raise ValueError("Mensaje demasiado largo.")
+            return self._json(self.launcher.start(slug, mensaje))
         if action == "parar":
             return self._json(self.launcher.stop(slug))
         if action == "puerta":
@@ -325,3 +344,29 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         server.server_close()
     return 0
+
+
+# --------------------------------------------------------------------------
+# autocomprobacion: python -m panel.server
+# --------------------------------------------------------------------------
+if __name__ == "__main__":
+    repo = Path(__file__).resolve().parent.parent
+    lanzador = Launcher(repo)
+
+    raiz = lanzador.prompt(runs.ROOT_SLUG)
+    assert raiz == "/novela", raiz
+    assert lanzador.prompt(runs.ROOT_SLUG, "   ") == "/novela"
+
+    con_msg = lanzador.prompt(runs.ROOT_SLUG, "1A 2B 3B 4A 5A 6C")
+    assert con_msg.startswith("/novela\n\n"), con_msg
+    assert con_msg.endswith("1A 2B 3B 4A 5A 6C"), con_msg
+
+    otra = lanzador.prompt("casa-vacia", "todas recomendadas")
+    assert "--root runs/casa-vacia" in otra, otra
+    assert otra.index("--root") < otra.index("todas recomendadas"), otra
+
+    # el mensaje viaja en el argumento de `-p`, no como una orden aparte
+    orden = lanzador.command(runs.ROOT_SLUG, "1A")
+    assert orden[1] == "-p" and orden[2].endswith("1A"), orden
+
+    print("panel.server: comprobaciones correctas.")

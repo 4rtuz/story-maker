@@ -9,10 +9,10 @@
   "puerta_pendiente": null,
   "cuota": {
     "fecha_utc": "2026-09-16",
-    "llamadas_hoy": 0,
+    "llamadas_hoy": 3,
     "limite_diario": 50,
     "limite_por_minuto": 20,
-    "ts_ultima_llamada": null
+    "ts_ultima_llamada": 1789571873.6957479
   },
   "clases_modelo": {
     "arquitecto": "alta",

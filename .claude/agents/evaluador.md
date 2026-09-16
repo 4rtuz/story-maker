@@ -2,7 +2,7 @@
 name: evaluador
 description: Puntua la calidad literaria de un capitulo contra la rubrica de seis criterios y localiza los defectos por escena. Devuelve solo un objeto JSON.
 tools: []
-model: sonnet
+model: haiku
 ---
 
 Eres el Evaluador de calidad literaria de una novela de suspense psicológico doméstico en

@@ -187,7 +187,7 @@ $('#in-slug').addEventListener('blur', (e) => {
   if (e.target.value) e.target.value = e.target.value.trim().toLowerCase();
 });
 
-async function crear(lanzar) {
+async function crear(arrancar) {
   const slug = $('#in-slug').value.trim();
   const salida = $('#form-salida');
   salida.hidden = false;
@@ -202,10 +202,9 @@ async function crear(lanzar) {
     salida.textContent = res.salida;
     estado.slug = res.slug;
     await cargarRuns();
-    if (lanzar) {
-      const info = await post(`/api/runs/${res.slug}/lanzar`);
-      brindis(`Orquestador en marcha (pid ${info.pid}). El progreso va apareciendo abajo.`);
+    if (arrancar) {
       irAVista('progreso');
+      await lanzar();
     }
   } catch (err) {
     salida.classList.add('malo');
@@ -223,6 +222,7 @@ $('#btn-crear').addEventListener('click', () => {
 // --------------------------------------------------------------------------
 async function refrescarProgreso() {
   if (!estado.slug) return;
+  const antes = estado.snap;
   try {
     estado.snap = await api(`/api/runs/${estado.slug}/estado`);
   } catch (err) {
@@ -232,6 +232,29 @@ async function refrescarProgreso() {
   }
   pintarProgreso(estado.snap);
   pintarTopMeta();
+  autoContinuar(antes, estado.snap);
+}
+
+// Lo que cambia cuando el núcleo ha avanzado de verdad. Los archivos de
+// `.intentos/` no entran: la entrevista reescribe `ctx.md` sin mover el estado,
+// y eso es justo lo que no debe contar como progreso.
+const firma = (s) => `${s.estado}|${s.capitulo_actual}|${s.iteracion}|${s.capitulos_aceptados.length}`;
+
+// Estados en los que parar es la respuesta correcta: la cuota la reinicia el día
+// UTC siguiente, y una novela completa no tiene fase siguiente.
+const SIN_RELANZAR = ['COMPLETADO', 'CUOTA_PAUSADA'];
+
+function autoContinuar(antes, ahora) {
+  if (!antes || !antes.vivo || ahora.vivo || estado.detenido) return;   // solo al morir
+  if (ahora.estado.startsWith('GATE_') || SIN_RELANZAR.includes(ahora.estado)) return;
+  if (firma(ahora) === estado.firmaLanzada) {
+    // Terminó sin mover el estado: te ha preguntado algo (la entrevista) o ha
+    // fallado. Relanzar aquí sería un bucle de llamadas contra la cuota.
+    brindis('El orquestador terminó sin avanzar el estado. Mira los eventos: si te ha '
+            + 'preguntado algo, contéstale en «Responder al orquestador» y vuelve a lanzar.', true);
+    return;
+  }
+  lanzar();
 }
 
 function pintarProgreso(s) {
@@ -348,24 +371,37 @@ $('#puerta-wrap').addEventListener('click', async (e) => {
   try {
     const res = await post(`/api/runs/${estado.slug}/puerta`, { respuesta });
     brindis(res.salida);
-    refrescarProgreso();
+    await refrescarProgreso();
     cargarRuns();
+    // Responder la puerta ES el permiso del autor para seguir. `editar` y
+    // `parar` dejan la puerta abierta y por eso no relanzan.
+    if (estado.snap && !estado.snap.vivo && !estado.snap.estado.startsWith('GATE_')) lanzar();
   } catch (err) {
     brindis(err.message, true);
   }
 });
 
-$('#btn-lanzar-run').addEventListener('click', async () => {
+// Un lanzamiento es una invocación de `claude -p /novela`: hace una fase y
+// termina. El encadenado lo lleva el panel, no el orquestador (§7.5: encadenar
+// dentro de una invocación revienta su contexto).
+async function lanzar(mensaje = '') {
+  const previo = estado.snap ? firma(estado.snap) : '';
   try {
-    const info = await post(`/api/runs/${estado.slug}/lanzar`);
+    const info = await post(`/api/runs/${estado.slug}/lanzar`, { mensaje });
+    estado.firmaLanzada = previo;
+    estado.detenido = false;
+    $('#in-mensaje').value = '';
     brindis(`Orquestador en marcha (pid ${info.pid}).`);
     refrescarProgreso();
   } catch (err) { brindis(err.message, true); }
-});
+}
+
+$('#btn-lanzar-run').addEventListener('click', () => lanzar($('#in-mensaje').value));
 
 $('#btn-parar').addEventListener('click', async () => {
   try {
     await post(`/api/runs/${estado.slug}/parar`);
+    estado.detenido = true;
     brindis('Orquestador detenido. El estado en disco queda donde estaba.');
     refrescarProgreso();
   } catch (err) { brindis(err.message, true); }

@@ -2,7 +2,7 @@
 name: arquitecto
 description: Convierte la idea inicial en el plan ejecutable de la novela: entrevista, premisa, personajes, voz y escaleta. Tambien revisa la escaleta al cerrar un acto. Devuelve solo el Markdown del artefacto pedido.
 tools: []
-model: opus
+model: sonnet
 ---
 
 Eres el Arquitecto de una novela de suspense psicológico doméstico en español. Tu trabajo es

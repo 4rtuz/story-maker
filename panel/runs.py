@@ -230,6 +230,10 @@ AGENTS = {"arquitecto", "escritor", "evaluador", "continuista", "editor-acto"}
 # tool_progress, rate_limit_event— es ruido de transporte y se tira.
 SHELLS = ("Bash", "PowerShell")
 
+# Una orden del nucleo dentro de un comando de shell. La usa tambien
+# `panel.tracing` para nombrar la herramienta en la traza.
+CORE_CMD = re.compile(r"-m\s+harness\s+(?:--root\s+\S+\s+)?([a-z-]+(?:\s+[a-z]+)?)")
+
 
 def _flatten(obj: dict) -> list[dict]:
     """Una linea del stream -> 0..n eventos `{tipo, texto, agente}`."""
@@ -265,7 +269,10 @@ def _flatten(obj: dict) -> list[dict]:
         if not isinstance(block, dict):
             continue
         if block.get("type") == "text" and str(block.get("text", "")).strip():
-            out.append({"tipo": "texto", "texto": str(block["text"]).strip()[:400]})
+            # Generoso a proposito: las preguntas de la entrevista son el unico
+            # sitio del panel donde el autor lee lo que le pregunta el
+            # orquestador, y a 400 caracteres se cortaban por la mitad.
+            out.append({"tipo": "texto", "texto": str(block["text"]).strip()[:4000]})
         elif block.get("type") == "tool_use":
             out.append(_tool_event(block))
     return [e for e in out if e]
@@ -277,7 +284,7 @@ def _tool_event(block: dict) -> dict | None:
     if name in SHELLS:
         cmd = " ".join(str(args.get("command", "")).split())
         # las ordenes del nucleo se destacan; el resto es ruido de shell
-        m = re.search(r"-m\s+harness\s+(?:--root\s+\S+\s+)?([a-z-]+(?:\s+[a-z]+)?)", cmd)
+        m = CORE_CMD.search(cmd)
         if m:
             return {"tipo": "nucleo", "texto": f"harness {m.group(1)}"}
         return {"tipo": "shell", "texto": cmd[:110]}

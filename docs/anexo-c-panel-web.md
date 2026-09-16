@@ -144,3 +144,49 @@ y enlazarla dejaría el panel sin tipografía de marca sin avisar.
 - **Three.js llega por CDN** con la versión fijada (`three@0.160.1`), porque el repo no tiene gestor
   de paquetes y no se le añade uno por un visor. Para trabajar sin red, descarga los dos archivos a
   `panel/static/vendor/` y cambia las dos URLs del importmap de `index.html`.
+
+## C.8 Trazado en Langfuse
+
+El harness no llama nunca a un modelo desde Python: quien llama es el binding de Claude Code. Como
+el panel ya lo arranca como subproceso y hace *tee* de su stream, ahí está todo lo que hace falta
+para observarlo —modelo, tokens, subagentes, herramientas, coste—, así que `panel/tracing.py` se
+limita a **traducir ese stream a trazas**. No añade ninguna llamada ni cambia el orden de nada.
+
+Vive en `panel/` y no en `harness/` por la misma regla de siempre: menciona identificadores de
+modelo y un runtime concreto, y eso el núcleo no lo toca (§4.5).
+
+- **Una traza = una invocación del orquestador**, que por §7.5 es un capítulo. Se abre con cada
+  `system/init` del stream y se cierra con su `result`.
+- **Una sesión = una novela**: el `session_id` es el slug de la ejecución, así que los capítulos de
+  la misma obra salen agrupados y comparables entre sí.
+- **Árbol**: la raíz es un `agent` (`orquestar-capitulo`); cada mensaje del orquestador es una
+  `generation` con su modelo y su reparto de tokens —incluida la caché, que aquí es la mitad del
+  gasto—; cada subagente es un `agent` propio con su prompt y su salida; cada orden del núcleo es
+  una `tool` (`harness-next`, `harness-save-attempt`…). El `Task` que lanza un subagente no se
+  emite: ya está representado por el `agent`, y duplicarlo ensucia el grafo.
+- **Calidad**: al cerrar, la traza lleva la media del Evaluador, si pasó la regla de §9.2 y el
+  veredicto del Continuista como *scores*. Sin eso la traza diría lo que costó el capítulo, pero no
+  si salió bien.
+
+Configuración: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` y `LANGFUSE_BASE_URL` en el `.env` de
+la raíz (que no se versiona), y `pip install "langfuse>=4,<5"`. **Si falta cualquiera de las dos
+cosas, el panel funciona igual y no traza**: la dependencia es opcional a propósito, el panel sigue
+siendo stdlib puro sin ella. El entorno de Langfuse es `development` salvo que se fije
+`LANGFUSE_TRACING_ENVIRONMENT`.
+
+Para revisar un log ya volcado: `python -m panel.tracing <ruta>/panel-run.jsonl`. Reproduce el
+stream contra Langfuse con las marcas de tiempo de ahora, no las del run: sirve para mirar la forma
+del árbol, no para medir latencias.
+
+### Lo que no se traza
+
+- **Las sesiones de Claude Code que no lanza el panel.** Si escribes `/novela` a mano, ese run no
+  pasa por aquí. Para eso está el [plugin oficial de Langfuse](https://langfuse.com/integrations/developer-tools/claude-code),
+  que engancha un hook global; son dos integraciones distintas y conviene no montar las dos sobre
+  el mismo run.
+- **El desglose de tokens de un subagente.** El stream da un `total_tokens` suelto, sin repartir
+  entre entrada y salida y sin decir con qué modelo corrió, así que no se puede costear. Va a
+  metadatos (`tokens_totales`) en vez de a `usage_details`, donde Langfuse lo ignoraría de todos
+  modos. El coste de la sesión completa, subagentes incluidos, sí está: `coste_usd` en la raíz.
+- **El bloque `system/init` entero.** Solo se guardan modelo, sesión y versión: el resto son rutas
+  de la máquina, plugins y sockets. La salida de los hooks se descarta por lo mismo.

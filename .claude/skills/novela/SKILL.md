@@ -167,26 +167,64 @@ cada capítulo (§8.3).
 Solo cuando `next` dice `planificar`. Con el perfil `poc` la entrevista es de **una sola
 ronda**.
 
+`planificar` cubre tres momentos distintos. Los distingues mirando si existe
+`novela/biblia/entrevista.md` y si sus líneas `**Respuesta:**` están rellenas:
+
+| `entrevista.md` | Qué haces |
+|---|---|
+| no existe | fase A (entrevistar) |
+| existe, sin respuestas | fase B (registrar las respuestas del autor) |
+| existe, con respuestas | fase C (generar la biblia) |
+
+### Fase A — Entrevistar
+
 1. Pide al autor su idea de partida en dos o tres frases, si no la ha dado ya.
 2. Lanza `arquitecto` con:
    ```bash
    python -m harness prompt arquitecto --task "[ENTREVISTA]" --schema entrevista --extra <archivo con la idea> -o novela/.intentos/ctx.md
    ```
-3. Presenta las preguntas al autor **tal cual**, con sus opciones cerradas, y **termina el
+3. **Guarda su respuesta tal cual, con las líneas `**Respuesta:**` todavía vacías:**
+   ```bash
+   python -m harness save-bible --name entrevista.md --file novela/.intentos/raw-entrevista.md
+   ```
+   Este paso no es opcional. Tu conversación no sobrevive al final del turno; el archivo sí.
+   Sin él, la siguiente invocación no sabe qué se preguntó y **repite la entrevista en
+   bucle** — es el modo de fallo caro de esta fase.
+4. Presenta las preguntas al autor **tal cual**, con sus opciones cerradas, y **termina el
    turno**. No las contestes tú.
-4. Con las respuestas, genera en este orden: `[PREMISA]`, `[PERSONAJES]`, `[VOZ]`,
-   `[ESCALETA]`. Un subagente por artefacto, con `--schema premisa|personajes|voz-y-estilo|escaleta`.
-   Guarda cada uno:
-   ```bash
-   python -m harness save-bible --name premisa.md --file novela/.intentos/raw.md
-   ```
-   En la escaleta, añade `--gate`: abre la Puerta 1.
-5. Antes de presentar la puerta, valida:
-   ```bash
-   python -m harness validate-bible
-   ```
-   Si hay campos vacíos o entradas que faltan, **regenera la escaleta** antes de molestar al
-   autor. Es el momento en que una corrección cuesta una llamada en vez de treinta capítulos.
+
+### Fase B — Registrar las respuestas
+
+El autor vuelve a invocarte con su respuesta (`1A 2B 3B 4A 5A 6C`, `todas recomendadas`, o
+texto libre). Lee `novela/biblia/entrevista.md`, rellena cada `**Respuesta:**` con la opción
+elegida —copiando el texto de la opción, no solo la letra— y guárdala de nuevo:
+
+```bash
+python -m harness save-bible --name entrevista.md --file novela/.intentos/entrevista-respondida.md
+```
+
+Si el mensaje no trae respuestas, vuelve a presentar las preguntas y termina el turno. No las
+contestes tú ni asumas las recomendadas.
+
+### Fase C — Generar la biblia
+
+El núcleo inyecta `entrevista.md` en el prompt del Arquitecto por su cuenta: no hace falta
+que se la pases. Genera en este orden `[PREMISA]`, `[PERSONAJES]`, `[VOZ]`, `[ESCALETA]`: un
+subagente por artefacto, con `--schema premisa|personajes|voz-y-estilo|escaleta`. Guarda cada
+uno:
+
+```bash
+python -m harness save-bible --name premisa.md --file novela/.intentos/raw.md
+```
+
+En la escaleta, añade `--gate`: abre la Puerta 1. Antes de presentar la puerta, valida:
+
+```bash
+python -m harness validate-bible
+```
+
+Si hay campos vacíos o entradas que faltan, **regenera la escaleta** antes de molestar al
+autor. Es el momento en que una corrección cuesta una llamada en vez de treinta capítulos.
 
 ## Puertas
 
