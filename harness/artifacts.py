@@ -359,18 +359,22 @@ class CharacterState:
     def save(self, path: Path) -> None:
         write(path, "# Estado de personajes\n\n" + self.render() + "\n")
 
-    def apply(self, name: str, changes: dict, chapter: int) -> None:
+    def apply(self, name: str, changes: dict, chapter: int) -> list[str]:
+        """Devuelve las claves que no corresponden a ningun campo conocido.
+        Descartarlas en silencio perdia deltas del Continuista sin dejar rastro."""
         entry = self.chars.setdefault(name, {f: "" for f in CHAR_FIELDS})
+        unknown: list[str] = []
         for key, value in (changes or {}).items():
             canonical = _CHAR_ALIAS.get(key.strip().lower().replace(" ", "_"),
                                         key.strip())
             match = next((f for f in CHAR_FIELDS
                           if f.lower() == canonical.lower()), None)
             if match is None:
+                unknown.append(key)
                 continue
-            entry[match] = ", ".join(str(v) for v in value) \
-                if isinstance(value, list) else str(value)
+            entry[match] = ", ".join(str(v) for v in value)                 if isinstance(value, list) else str(value)
         entry["Última aparición"] = f"capítulo {chapter}"
+        return unknown
 
     def render(self, names: list[str] | None = None) -> str:
         if names is None:

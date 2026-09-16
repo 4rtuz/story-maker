@@ -11,7 +11,7 @@ import json
 import re
 from pathlib import Path
 
-from .artifacts import (CharacterState, ClueLedger, Timeline, CLUE_STATES,
+from .artifacts import (_CHAR_ALIAS, CharacterState, ClueLedger, Timeline, CLUE_STATES,
                         parse_outline, read, render_card, sections, word_count,
                         write)
 
@@ -176,9 +176,13 @@ def apply_deltas(cfg, chapter: int, deltas: dict) -> list[str]:
         name = str(item.get("nombre", "")).strip()
         if not name:
             continue
-        chars.apply(name, item.get("cambios") or {}, chapter)
+        unknown = chars.apply(name, item.get("cambios") or {}, chapter)
         applied.append(f"personaje {name}: "
                        f"{', '.join((item.get('cambios') or {}).keys())}")
+        if unknown:
+            applied.append(f"AVISO personaje {name}: claves descartadas por "
+                           f"desconocidas ({', '.join(unknown)}); campos validos: "
+                           f"{', '.join(_CHAR_ALIAS)}")
     for name in ficha.get("personajes_presentes") or []:
         name = str(name).strip()
         if name and name not in chars.chars:

@@ -227,3 +227,6 @@ novela/.intentos/
 
 # Claves de OpenRouter (Anexo A.1). NO se versiona.
 .claude/settings.local.json
+# Cualquier variante: .bin, .bak, .old... El renombrado para desactivar
+# OpenRouter se saltaba la regla exacta de arriba y la clave acababa en un commit.
+.claude/settings.local.json.*

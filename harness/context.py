@@ -154,7 +154,7 @@ def _author_notes(cfg, chapter: int) -> str:
 # --------------------------------------------------------------------------
 # 7.1 ensamblados por rol
 # --------------------------------------------------------------------------
-def for_writer(cfg, chapter: int, patches: str = "") -> Assembly:
+def for_writer(cfg, chapter: int, patches: str = "", draft: str = "") -> Assembly:
     outline = parse_outline(read(cfg.bible_path("escaleta.md")))
     entry = outline.get(chapter)
     if entry is None:
@@ -214,6 +214,9 @@ def for_writer(cfg, chapter: int, patches: str = "") -> Assembly:
                             read(cfg.chapter_path(n)), droppable=droppable))
 
     if patches:
+        # En modo PARCHE el Escritor tiene que copiar literalmente lo que no parchea:
+        # sin el borrador vigente delante no puede hacerlo (9.5).
+        blocks.append(Block("borrador_vigente", "Borrador vigente del capítulo", draft))
         blocks.append(Block("parches", "PARCHES SOLICITADOS", patches))
 
     return Assembly(cfg, "escritor", instruction, blocks)

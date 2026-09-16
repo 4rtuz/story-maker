@@ -173,7 +173,13 @@ def cmd_next(args) -> int:
     if state.name == "CUOTA_PAUSADA":
         state.transition("ESCRIBIENDO")
 
-    if n > cfg.total_chapters:
+    if state.name == "EDITANDO_ACTO":
+        # el acto que acaba de cerrarse es el del ultimo capitulo aceptado,
+        # no `acto_actual`, que `accept` ya ha movido al capitulo siguiente.
+        _out("ACCION: editar_acto", f"ACTO: {cfg.act_of(max(n - 1, 1))}")
+        return OK
+
+    if state.name == "AUDITORIA_FINAL" or n > cfg.total_chapters:
         state.transition("AUDITORIA_FINAL")
         _out("ACCION: auditoria_final")
         return OK
@@ -222,7 +228,11 @@ def cmd_prompt(args) -> int:
 
     if args.role == "escritor":
         patches = read(Path(args.patches)) if args.patches else ""
-        assembly = ctx.for_writer(cfg, n, patches)
+        draft = ""
+        if patches:
+            prev = cfg.attempt_path(n, state["iteracion"] - 1)
+            draft = read(prev) if prev.exists() else ""
+        assembly = ctx.for_writer(cfg, n, patches, draft)
     elif args.role == "evaluador":
         assembly = ctx.for_evaluator(cfg, n, read(Path(args.draft)))
     elif args.role == "continuista":
