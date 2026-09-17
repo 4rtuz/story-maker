@@ -238,7 +238,16 @@ class Tracer:
         # mismo mensaje: el `text` y el `tool_use` llegan por separado, con el
         # mismo `message.id` y la misma `usage`. Es un turno, no dos. Emitirlos
         # como dos generations duplicaba el coste (10 de 62 en una traza real).
-        mid = str(msg.get("id") or "") or f"sin-id-{self.gens}"
+        #
+        # La clave es el `request_id`, no el `message.id`: una misma petición
+        # puede traer varios `message.id` y entonces el id del mensaje no
+        # deduplica. Medido sobre las seis trazas de `el-buzon-de-la-planta-baja-2`,
+        # agrupar por petición reproduce `result.num_turns` (17→10, 41→33,
+        # 62→52) y el id del mensaje queda como respaldo para los streams que
+        # no lo traigan.
+        mid = (str(obj.get("request_id") or "")
+               or str(msg.get("id") or "")
+               or f"sin-id-{self.gens}")
         previo = self.msgs.get(mid)
         if previo is not None:
             previo[1] += _blocks(content)
@@ -507,13 +516,26 @@ if __name__ == "__main__":
 
     emitido: list[str] = []
     t = Tracer(_LF(emitido), "novela", None, "/novela")
-    turno = ('{"type":"assistant","message":{"id":"msg_1","model":"m",'
-             '"usage":{"input_tokens":2,"output_tokens":1},"content":[%s]}}')
+    turno = ('{"type":"assistant","request_id":"req_1","message":{"id":"msg_1",'
+             '"model":"m","usage":{"input_tokens":2,"output_tokens":1},"content":[%s]}}')
     t.feed(turno % '{"type":"text","text":"voy"}')
     t.feed(turno % '{"type":"tool_use","id":"tu_1","name":"Bash",'
                    '"input":{"command":"python -m harness next; python -m harness decide"}}')
     assert emitido.count("generation:turno-orquestador") == 1, emitido
     assert emitido.count("tool:harness-next") == 1 and emitido.count("tool:harness-decide") == 1, emitido
+    # La misma petición con dos `message.id` distintos sigue siendo un turno.
+    # Es el caso que el id del mensaje no cubría: 89 generations para 75
+    # peticiones en la traza `0d834e01`.
+    t.feed(turno.replace("msg_1", "msg_2") % '{"type":"text","text":"sigo"}')
+    assert emitido.count("generation:turno-orquestador") == 1, emitido
+
+    # Sin `request_id`, el id del mensaje sigue deduplicando.
+    sin_req = ('{"type":"assistant","message":{"id":"msg_9","model":"m",'
+               '"usage":{"input_tokens":2},"content":[%s]}}')
+    t.feed(sin_req % '{"type":"text","text":"a"}')
+    t.feed(sin_req % '{"type":"text","text":"b"}')
+    assert emitido.count("generation:turno-orquestador") == 2, emitido
+
     t.feed('{"type":"rate_limit_event","rate_limit_info":'
            '{"unifiedWindows":{"five_hour":{"utilization":0.19}}}}')
     t.feed('{"type":"rate_limit_event","rate_limit_info":'

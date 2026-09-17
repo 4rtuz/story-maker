@@ -49,6 +49,7 @@ class State:
             "acto_actual": 1,
             "iteracion": 0,
             "intentos": [],
+            "iteracion_aceptada": None,
             "capitulos_aceptados": [],
             "puerta_pendiente": None,
             "cuota": {
@@ -153,4 +154,5 @@ class State:
     def reset_chapter_scratch(self) -> None:
         self.data["iteracion"] = 0
         self.data["intentos"] = []
+        self.data["iteracion_aceptada"] = None
         self.save()
