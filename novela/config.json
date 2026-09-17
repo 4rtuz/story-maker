@@ -40,6 +40,8 @@
       "umbral_criterio_bloqueante": 4,
       "criterios_bloqueantes": ["tension", "escaleta"],
       "max_reescrituras": 2,
+      "_mejora_minima": "9.4: ganancia de media que una reescritura debe aportar para justificar otra vuelta. Un criterio de seis vale 0.167, asi que por encima de eso se vetaria un progreso legitimo de un solo criterio.",
+      "mejora_minima": 0.01,
       "max_parches_por_iteracion": 4,
       "al_agotar_iteraciones": "aceptar_mejor_con_deuda",
       "seleccion_al_agotar": "mayor_media"

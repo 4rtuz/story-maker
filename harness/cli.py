@@ -200,18 +200,24 @@ def cmd_next(args) -> int:
             return FAIL
 
     eval_path = _report_path(cfg, n, state["iteracion"], "eval")
-    cont_path = _report_path(cfg, n, state["iteracion"], "cont")
     attempt = cfg.attempt_path(n, state["iteracion"])
 
     if not attempt.exists():
         _out("ACCION: escribir", f"CAPITULO: {n}",
              f"ITERACION: {state['iteracion']}")
-    elif not eval_path.exists():
+        return OK
+    if not eval_path.exists():
         _out("ACCION: evaluar", f"CAPITULO: {n}",
              f"ITERACION: {state['iteracion']}")
-    elif not cont_path.exists():
-        _out("ACCION: verificar", f"CAPITULO: {n}",
-             f"ITERACION: {state['iteracion']}")
+        return OK
+
+    # La continuidad se verifica sobre el intento que se va a aceptar, no sobre
+    # los que el bucle va a descartar (ver `_to_verify`). La iteracion que hay
+    # que verificar no tiene por que ser la actual: con `aceptar_con_deuda`
+    # gana el intento de mayor media, que puede ser anterior.
+    pending = _to_verify(cfg, state, n)
+    if pending is not None:
+        _out("ACCION: verificar", f"CAPITULO: {n}", f"ITERACION: {pending}")
     else:
         _out("ACCION: decidir", f"CAPITULO: {n}",
              f"ITERACION: {state['iteracion']}")
@@ -369,18 +375,75 @@ def cmd_record(args) -> int:
 # ==========================================================================
 # decision del bucle (pasos 9 a 12)
 # ==========================================================================
+def _improvement(state, i: int, mean) -> float | None:
+    """Cuanto ha ganado la iteracion `i` sobre la anterior, o None en la i0.
+
+    9.4: una reescritura que no mejora no justifica otra vuelta. Medido en
+    `el-buzon-de-la-planta-baja-2`, la iteracion 2 del capitulo 3 gano 0.00 y
+    costo el 52 % del capitulo, que ademas se acepto desde la iteracion 1.
+    """
+    if i <= 0 or not isinstance(mean, (int, float)):
+        return None
+    previous = [a["media"] for a in state["intentos"] if a["iteracion"] == i - 1]
+    return round(mean - previous[0], 2) if previous else None
+
+
+def _verdict(cfg, state, n: int) -> tuple[dict, bool, float | None, int]:
+    """Lo que el nucleo sabe del capitulo `n` sin haber llamado al Continuista.
+
+    Devuelve el informe del Evaluador de la iteracion en curso, si aprueba por
+    la regla de 9.2, la ganancia sobre la iteracion anterior y la iteracion que
+    se aceptaria: la actual si aprueba, y si no la de mayor media (9.4).
+    """
+    i = state["iteracion"]
+    ev = json.loads(read(_report_path(cfg, n, i, "eval")) or "{}")
+    approved = ev.get("aprobado_por_regla", False)
+    gain = _improvement(state, i, ev.get("media_calculada"))
+    chosen = i if approved else (state.best_attempt() or {}).get("iteracion", i)
+    return ev, approved, gain, chosen
+
+
+def _to_verify(cfg, state, n: int) -> int | None:
+    """La iteracion cuya continuidad hay que verificar, o None si no toca.
+
+    El Continuista es el rol mas caro del harness —26k tokens y 130 s por
+    llamada, el 27 % del reloj de `el-buzon-de-la-planta-baja-2`— y se gastaba
+    en cada iteracion, incluidas las siete que el bucle iba a descartar. Se
+    verifica el intento que se va a aceptar, y solo ese: la puerta de 8.2 sigue
+    entera, porque ningun capitulo se promociona sin pasar por ella.
+    """
+    ev, approved, gain, chosen = _verdict(cfg, state, n)
+    if not ev:
+        return None
+    stalled = gain is not None and gain < cfg["evaluacion"]["mejora_minima"]
+    if not approved and state["iteracion"] < cfg["evaluacion"]["max_reescrituras"] \
+            and not stalled:
+        return None                     # se va a parchear: no se verifica nada
+    return None if _report_path(cfg, n, chosen, "cont").exists() else chosen
+
+
 def cmd_decide(args) -> int:
     cfg, state = _cfg_state(args)
     n = args.chapter or state["capitulo_actual"]
     i = state["iteracion"]
-    ev = json.loads(read(_report_path(cfg, n, i, "eval")) or "{}")
-    cont = json.loads(read(_report_path(cfg, n, i, "cont")) or "{}")
+    ev, approved, gain, chosen = _verdict(cfg, state, n)
 
-    if not ev or not cont:
-        _out("Faltan informes para decidir. Ejecuta `evaluar` y `verificar` primero.")
+    if not ev:
+        _out("Falta el informe del Evaluador. Ejecuta `evaluar` primero.")
         return FAIL
 
-    approved = ev.get("aprobado_por_regla", False)
+    # 9.4: las iteraciones se agotan por cuenta o por estancamiento, lo que
+    # llegue antes.
+    min_gain = cfg["evaluacion"]["mejora_minima"]
+    stalled = gain is not None and gain < min_gain
+
+    pending = _to_verify(cfg, state, n)
+    if pending is not None:
+        _out("DECISION: verificar", f"ITERACION: {pending}",
+             "MOTIVO: el capítulo se va a aceptar y falta su continuidad (9.2).")
+        return OK
+
+    cont = json.loads(read(_report_path(cfg, n, chosen, "cont")) or "{}")
     verdict = cont.get("veredicto")
 
     if verdict == "BLOQUEO":
@@ -393,23 +456,28 @@ def cmd_decide(args) -> int:
         return OK
 
     if approved and verdict == "OK":
-        state.transition("ACEPTANDO")
+        state.transition("ACEPTANDO", iteracion_aceptada=chosen)
         _out("DECISION: aceptar",
              f"MOTIVO: media {ev['media_calculada']} y continuidad OK.")
         return OK
 
-    if i < cfg["evaluacion"]["max_reescrituras"]:
+    if i < cfg["evaluacion"]["max_reescrituras"] and not stalled:
         state.transition("PARCHEANDO", iteracion=i + 1)
+        # Sin veredicto es que este intento se descarta y no se ha verificado.
+        continuidad = (f"continuidad `{verdict}`" if verdict
+                       else "continuidad sin verificar: este intento se descarta")
         _out("DECISION: parchear", f"ITERACION_NUEVA: {i + 1}",
              f"MOTIVO: media {ev.get('media_calculada')} "
-             f"(umbral {cfg['evaluacion']['umbral_media']}), continuidad `{verdict}`.")
+             f"(umbral {cfg['evaluacion']['umbral_media']}), {continuidad}.")
         return OK
 
     best = state.best_attempt()
-    state.transition("ACEPTANDO", aceptar_con_deuda=True)
+    state.transition("ACEPTANDO", aceptar_con_deuda=True, iteracion_aceptada=chosen)
+    motivo = (f"la reescritura no mejora ({gain:+.2f} sobre i{i - 1}, "
+              f"mínimo {min_gain})" if stalled else "iteraciones agotadas")
     _out("DECISION: aceptar_con_deuda",
          f"MEJOR_INTENTO: i{best['iteracion']} con media {best['media']}",
-         "MOTIVO: iteraciones agotadas (9.4). La ejecución continúa.")
+         f"MOTIVO: {motivo} (9.4). La ejecución continúa.")
     return OK
 
 
@@ -461,7 +529,14 @@ def cmd_accept(args) -> int:
     if best is None:
         _out("No hay ningún intento registrado para este capítulo.")
         return FAIL
-    iteration = best["iteracion"]
+    # La iteracion la fijo `decide`, que es quien aplica 9.2 y 9.4 y quien pidio
+    # al Continuista que verificase precisamente esa. Recalcular aqui el mejor
+    # intento podia elegir otro —una media mas alta que no aprobo por criterio
+    # bloqueante— y promocionar un capitulo sin verificar.
+    iteration = state.get("iteracion_aceptada")
+    if iteration is None:
+        iteration = best["iteracion"]
+    best = next((a for a in state["intentos"] if a["iteracion"] == iteration), best)
     chapter_text = read(cfg.attempt_path(n, iteration))
     ev = json.loads(read(_report_path(cfg, n, iteration, "eval")) or "{}")
     cont = json.loads(read(_report_path(cfg, n, iteration, "cont")) or "{}")

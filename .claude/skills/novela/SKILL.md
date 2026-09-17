@@ -39,6 +39,13 @@ fuente.
 Guarda siempre la respuesta con `Write` antes de dársela al núcleo. Nunca pases el texto de
 una respuesta por la línea de órdenes.
 
+## Cómo llamar al núcleo
+
+Encadenar órdenes con `;` está bien. **El control de flujo del intérprete no**: `if ($?) {
+… }`, `&&`, `||` y los bucles hacen que el validador de permisos no pueda analizar el
+comando estáticamente y lo deniegue, y pierdes el turno. Si una orden depende del resultado
+de la anterior, haz dos llamadas.
+
 ## Bucle
 
 Empieza **siempre** por:
@@ -109,6 +116,24 @@ al prompt (§12). Si vuelve a fallar, trátalo como `CORREGIR` y sigue.
 
 Igual, con el rol `continuista` y `record cont`.
 
+**Solo cuando el núcleo lo pida, y sobre la iteración que él diga.** El Continuista es el
+rol más caro del harness y no se gasta en intentos que el bucle va a descartar: se verifica
+el capítulo que se va a aceptar, y solo ese. `next` y `decide` te dan la iteración:
+
+```
+ACCION: verificar
+CAPITULO: 3
+ITERACION: 1
+```
+
+Esa iteración **puede no ser la actual** —al aceptar con deuda gana el intento de mayor
+media, que puede ser anterior—, así que pásala siempre tal cual:
+
+```bash
+python -m harness prompt continuista --chapter N --draft novela/.intentos/NN-iI.md -o novela/.intentos/ctx.md
+python -m harness record cont --iteration I --file novela/.intentos/raw-cont.json
+```
+
 ### Paso 4 — Decidir
 
 ```bash
@@ -120,7 +145,12 @@ veredicto que diga el modelo. Devuelve:
 
 - `DECISION: aceptar` o `aceptar_con_deuda` → paso 5.
 - `DECISION: parchear` → vuelve al paso 1 en modo parche.
+- `DECISION: verificar` → paso 3, con la `ITERACION` que indique. Luego vuelve aquí.
 - `DECISION: puerta_bloqueo` → sección «Puertas».
+
+`decide` también corta el bucle cuando una reescritura **no mejora la media** lo suficiente,
+aunque queden iteraciones (§9.4, `evaluacion.mejora_minima`). No lo discutas: una vuelta más
+que no mueve la nota cuesta un capítulo entero y no compra nada.
 
 ### Paso 5 — Aceptar
 

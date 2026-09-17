@@ -502,19 +502,46 @@ def chapter_3_loop(sandbox: Path) -> None:
     check("La escena 2 sí conserva el parche",
           "caja" in restored.scenes[2])
 
+    # 9.4: una reescritura que no mueve la media no compra otra vuelta, aunque
+    # queden iteraciones. Es el ciclo esteril que costo el 52 % del capitulo 3
+    # en `el-buzon-de-la-planta-baja-2`.
     run(sandbox, "record", "eval", "--iteration", "1",
-        "--file", str(write_tmp(sandbox, "3-ev1.json", evaluation(3, BAD_SCORES))))
-    run(sandbox, "record", "cont", "--iteration", "1",
-        "--file", str(write_tmp(sandbox, "3-co1.json", CONT[3])))
+        "--file", str(write_tmp(sandbox, "3-ev1x.json", evaluation(3, BAD_SCORES))))
     out = run(sandbox, "decide")
-    check("Segunda iteración fallida: sigue habiendo margen (max 2)",
-          "DECISION: parchear" in out, out)
+    check("Una reescritura que no mejora se corta aunque queden iteraciones (§9.4)",
+          "DECISION: aceptar_con_deuda" in out and "no mejora" in out, out)
+
+    # La reescritura mejora un criterio: hay margen y la mejora lo justifica.
+    # Y como este intento se va a descartar, su continuidad no se verifica: el
+    # Continuista solo corre sobre el que se acepta.
+    run(sandbox, "record", "eval", "--iteration", "1",
+        "--file", str(write_tmp(sandbox, "3-ev1.json",
+                                evaluation(3, {**BAD_SCORES, "escaleta": 3}))))
+    check("La continuidad de un intento descartado no llega a escribirse",
+          not (cfg.path("intentos") / "03-i1-cont.json").exists())
+    # `--skip-audit`: en el perfil poc la auditoria previa de 8.3 cae en el
+    # capitulo 3 y pararia aqui, que no es lo que esta comprobacion mide.
+    out = run(sandbox, "next", "--skip-audit")
+    check("Un intento que se va a parchear no pasa por el Continuista",
+          "ACCION: decidir" in out, out)
+    out = run(sandbox, "decide")
+    check("Segunda iteración fallida pero que mejora: sigue habiendo margen (max 2)",
+          "DECISION: parchear" in out and "sin verificar" in out, out)
 
     run(sandbox, "save-attempt", "--iteration", "2",
         "--file", str(write_tmp(sandbox, "3-i2.md", DRAFTS[3])), expect=None)
     run(sandbox, "record", "eval", "--iteration", "2",
         "--file", str(write_tmp(sandbox, "3-ev2.json",
-                                evaluation(3, {**BAD_SCORES, "tension": 3}))))
+                                evaluation(3, {**BAD_SCORES, "escaleta": 3,
+                                               "tension": 3}))))
+    # Agotadas las iteraciones, ahora sí hace falta la continuidad, y del
+    # intento elegido: el nucleo dice cual.
+    out = run(sandbox, "next", "--skip-audit")
+    check("Al aceptar, el núcleo pide verificar el intento elegido",
+          "ACCION: verificar" in out and "ITERACION: 2" in out, out)
+    out = run(sandbox, "decide")
+    check("Sin ese informe, `decide` no acepta: lo reclama",
+          "DECISION: verificar" in out, out)
     run(sandbox, "record", "cont", "--iteration", "2",
         "--file", str(write_tmp(sandbox, "3-co2.json", CONT[3])))
     out = run(sandbox, "decide")
