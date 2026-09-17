@@ -163,6 +163,8 @@ def snapshot(repo: Path, slug: str, log_limit: int = 60) -> dict:
         "perfil": state.get("perfil", cfg.profile_name),
         "total": cfg.total_chapters,
         "umbral": cfg["evaluacion"]["umbral_media"],
+        "umbral_bloqueante": cfg["evaluacion"]["umbral_criterio_bloqueante"],
+        "criterios_bloqueantes": cfg["evaluacion"]["criterios_bloqueantes"],
         "max_reescrituras": cfg["evaluacion"]["max_reescrituras"],
         # solo dentro del ciclo de escritura: en INIT o en una puerta no
         # significa nada y confunde
@@ -172,8 +174,41 @@ def snapshot(repo: Path, slug: str, log_limit: int = 60) -> dict:
         "archivos": _scratch(cfg),
         "eventos": events(cfg, log_limit),
         "pistas": _clues(cfg),
+        "historial": _attempt_history(cfg),
     }
     return data
+
+
+# `estado.json` solo guarda los intentos del capitulo en curso: al cerrarlo,
+# `reset_chapter_scratch()` los borra (§9.4). Los `-eval.json` de `.intentos/`,
+# en cambio, siguen en disco, y son la unica memoria de los capitulos ya
+# aceptados. Lectura pura: si un archivo esta roto, ese intento no sale.
+EVAL_RE = re.compile(r"^(\d+)-i(\d+)-eval\.json$")
+
+
+def _attempt_history(cfg: Config) -> list[dict]:
+    intentos = cfg.path("intentos")
+    if not intentos.is_dir():
+        return []
+    out = []
+    for path in intentos.iterdir():
+        m = EVAL_RE.match(path.name)
+        if not m:
+            continue
+        try:
+            ev = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        notas = ev.get("puntuaciones") or {}
+        out.append({
+            "capitulo": int(m.group(1)),
+            "iteracion": int(m.group(2)),
+            "media": ev.get("media"),
+            "puntuaciones": notas,
+            "ruta": f"{m.group(1)}-i{m.group(2)}.md",
+        })
+    out.sort(key=lambda a: (a["capitulo"], a["iteracion"]))
+    return out
 
 
 def _scratch(cfg: Config, limit: int = 14) -> list[dict]:

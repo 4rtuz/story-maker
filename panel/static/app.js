@@ -3,19 +3,15 @@
 // transiciones llegan ya calculados desde `python -m harness`.
 
 import { crearLibro } from './book3d.js';
+import { crearGrafo, ALIAS } from './flowgraph.js';
 
-// Los estados por los que pasa una ejecución normal, en orden de lectura.
-// Los literales salen de harness/state.py; ERROR y ENTREVISTA no se emiten.
+// Los estados por los que pasa una ejecución normal, en orden de lectura. Ya no
+// se pintan como banda: el orden sirve para saber qué nodos del grafo quedan
+// detrás del actual. Los literales salen de harness/state.py.
 const BANDA = [
   'INIT', 'GENERANDO_BIBLIA', 'GATE_PLAN', 'ESCRIBIENDO', 'EVALUANDO',
   'PARCHEANDO', 'ACEPTANDO', 'EDITANDO_ACTO', 'GATE_ACTO',
   'AUDITORIA_FINAL', 'GATE_FINAL', 'COMPLETADO',
-];
-const FUERA_DE_BANDA = { REVISANDO_ESCALETA: 'GATE_ACTO', GATE_BLOQUEO: 'EVALUANDO', CUOTA_PAUSADA: 'ESCRIBIENDO' };
-
-const AGENTES = [
-  ['arquitecto', 'Arquitecto'], ['escritor', 'Escritor'], ['evaluador', 'Evaluador'],
-  ['continuista', 'Continuista'], ['editor-acto', 'Editor de acto'],
 ];
 
 // Qué agente corresponde a cada paso del ciclo, para cuando no hay stream.
@@ -49,7 +45,6 @@ const PUERTAS = {
 
 const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const hora = (ts) => new Date(ts * 1000).toLocaleTimeString('es-ES', { hour12: false });
 
 const estado = {
   vista: 'lanzar',
@@ -111,6 +106,19 @@ function irAVista(nombre) {
   if (nombre === 'lector') cargarCapitulos();
   if (nombre === 'progreso') refrescarProgreso();
 }
+
+// Tema: el atributo lo pone el HTML antes de pintar (ver index.html), aqui solo
+// se alterna y se recuerda.
+function pintarTema(t) {
+  document.documentElement.dataset.tema = t;
+  $('#btn-tema').textContent = t === 'claro' ? '☼' : '☾';
+  try { localStorage.setItem('tema', t); } catch {}
+}
+pintarTema(document.documentElement.dataset.tema || 'oscuro');
+$('#btn-tema').addEventListener('click', () => {
+  pintarTema(document.documentElement.dataset.tema === 'claro' ? 'oscuro' : 'claro');
+  grafo?.retema();
+});
 
 $('#tabs').addEventListener('click', (e) => {
   const boton = e.target.closest('button[data-vista]');
@@ -220,10 +228,163 @@ $('#btn-crear').addEventListener('click', () => {
 });
 
 // --------------------------------------------------------------------------
-// vista: progreso
+// vista: progreso — el grafo y sus burbujas
 // --------------------------------------------------------------------------
+// El grafo es la vista: los estados y los cinco subagentes son nodos, y lo que
+// antes eran paneles sueltos (la puerta abierta, la caja de mensaje, la tabla
+// de intentos) cuelga ahora del nodo que lo produce. `anclasGrafo` son esas
+// posiciones, en píxeles del contenedor, y solo cambian al redimensionar.
+let grafo = null;
+let grafoMontado = false;     // sin WebGL `crearGrafo` devuelve null: no reintentar
+let anclasGrafo = {};
+const tallos = new Map();
+
+function montarGrafo() {
+  if (grafoMontado) return;
+  grafoMontado = true;
+  grafo = crearGrafo($('#grafo'), {
+    alMover: (anclas) => { anclasGrafo = anclas; recolocar(); },
+  });
+}
+
+// El tallo une la burbuja con su nodo: es una línea suelta en el lienzo, no un
+// borde de la burbuja, porque tiene que quedar por debajo de ella.
+function tallo(clave, ancla, centro) {
+  let i = tallos.get(clave);
+  if (!i) {
+    i = document.createElement('i');
+    i.className = 'tallo';
+    $('#grafo-zona').appendChild(i);
+    tallos.set(clave, i);
+  }
+  const dx = centro.x - ancla.x;
+  const dy = centro.y - ancla.y;
+  i.style.left = `${ancla.x}px`;
+  i.style.top = `${ancla.y}px`;
+  i.style.width = `${Math.hypot(dx, dy)}px`;
+  i.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+  i.hidden = false;
+}
+
+// Área solapada de dos rectángulos, 0 si no se tocan.
+function corte(a, b) {
+  const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+  const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+  return w > 0 && h > 0 ? w * h : 0;
+}
+
+// Coste de una posición: cuánto tapa, medido por área y no por número de nodos
+// —tapar media etiqueta no es lo mismo que sepultar un nodo—. El nodo encendido
+// pesa cinco veces: es justo el que se ha venido a mirar. Pisar otra burbuja
+// pesa diez, porque la deja inservible. La distancia solo deshace empates.
+function estorbo(caja, ancla, propio, ocupados) {
+  let coste = 0;
+  for (const [id, a] of Object.entries(anclasGrafo)) {
+    if (id === propio) continue;
+    const nodo = { x: a.x - a.w / 2, y: a.cy - a.h / 2, w: a.w, h: a.h };
+    const parte = corte(caja, nodo) / (nodo.w * nodo.h);
+    coste += parte * (id === estado.nodoActivo || id === estado.agenteActivo ? 50 : 10);
+  }
+  for (const o of ocupados) {
+    coste += (corte(caja, o) / (o.w * o.h)) * 100;
+  }
+  return coste + Math.hypot(caja.x + caja.w / 2 - ancla.x, caja.y + caja.h / 2 - ancla.y) / 500;
+}
+
+// Coloca una burbuja donde tape menos grafo. Antes caía siempre hacia abajo y
+// en un capítulo avanzado eso enterraba media banda inferior.
+function colocar(el, id, ocupados = []) {
+  const ancla = anclasGrafo[id];
+  const zona = $('#grafo-zona');
+  if (!ancla || el.hidden || !zona.clientWidth) {
+    const i = tallos.get(el.id);
+    if (i) i.hidden = true;
+    return null;
+  }
+  const w = el.offsetWidth;
+  const h = el.offsetHeight;
+  const W = zona.clientWidth;
+  const H = zona.clientHeight;
+  // Barrido en rejilla en vez de una lista de sitios a mano: el grafo deja
+  // huecos que no caen ni al lado del nodo ni en una esquina, y probarlos todos
+  // cuesta unos pocos miles de comparaciones de rectángulos cada 1,5 s.
+  const PASO = 24;
+  let mejor = null;
+  for (let y = 10; y <= H - h - 10; y += PASO) {
+    for (let x = 10; x <= W - w - 10; x += PASO) {
+      const caja = { x, y, w, h };
+      const coste = estorbo(caja, ancla, id, ocupados);
+      if (!mejor || coste < mejor.coste) mejor = { caja, coste };
+    }
+  }
+  // La burbuja no cabe en el lienzo: se clava arriba a la izquierda y ya.
+  if (!mejor) mejor = { caja: { x: 10, y: 10, w, h } };
+  el.style.left = `${mejor.caja.x}px`;
+  el.style.top = `${mejor.caja.y}px`;
+  // El origen de la animación de entrada es el punto del nodo: por eso la
+  // burbuja «sale» de él en lugar de aparecer centrada sobre sí misma.
+  el.style.transformOrigin = `${ancla.x - mejor.caja.x}px ${ancla.y - mejor.caja.y}px`;
+  tallo(el.id, ancla, { x: mejor.caja.x + w / 2, y: mejor.caja.y + h / 2 });
+  return mejor.caja;
+}
+
+// Los intentos van clavados en la columna que el lienzo deja libre. No buscan
+// hueco: no hay ninguno que no tape un nodo, y enterrar el mapa era peor que
+// perder la cercanía. El tallo y la animación de entrada siguen diciendo de qué
+// nodo salen, que es lo que tenían que decir.
+function fijarIntentos(el, id) {
+  const zona = $('#grafo-zona');
+  const ancla = anclasGrafo[id];
+  const x = zona.clientWidth - el.offsetWidth - 8;
+  const y = 10;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  if (!ancla) { const i = tallos.get(el.id); if (i) i.hidden = true; return null; }
+  el.style.transformOrigin = `${ancla.x - x}px ${ancla.y - y}px`;
+  tallo(el.id, ancla, { x: x + el.offsetWidth / 2, y: y + el.offsetHeight / 2 });
+  return { x, y, w: el.offsetWidth, h: el.offsetHeight };
+}
+
+function recolocar() {
+  // Primero la columna fija, y la de responder ya la esquiva.
+  const ocupados = [];
+  const intentos = $('#burbuja-intentos');
+  if (!intentos.hidden) {
+    const caja = fijarIntentos(intentos, intentos.dataset.ancla || 'EVALUANDO');
+    if (caja) ocupados.push(caja);
+  } else {
+    const i = tallos.get(intentos.id);
+    if (i) i.hidden = true;
+  }
+  const responder = $('#burbuja-responder');
+  if (!responder.hidden) colocar(responder, responder.dataset.ancla || 'ESCRIBIENDO', ocupados);
+}
+
+// La respuesta enviada no se desvanece: se encoge hacia el nodo que la recibe,
+// como una ventana que se minimiza al Dock. Es la única pista visual de a quién
+// ha ido a parar lo que acabas de escribir.
+function genio(el, id) {
+  const ancla = anclasGrafo[id];
+  const i = tallos.get(el.id);
+  if (i) i.hidden = true;
+  el.dataset.marca = '';
+  if (!ancla || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    el.hidden = true;
+    return;
+  }
+  el.style.setProperty('--gx', `${ancla.x - (el.offsetLeft + el.offsetWidth / 2)}px`);
+  el.style.setProperty('--gy', `${ancla.y - (el.offsetTop + el.offsetHeight / 2)}px`);
+  el.classList.remove('brota');
+  el.classList.add('genio');
+  el.addEventListener('animationend', () => {
+    el.classList.remove('genio');
+    el.hidden = true;
+  }, { once: true });
+}
+
 async function refrescarProgreso() {
   if (!estado.slug) return;
+  montarGrafo();
   try {
     estado.snap = await api(`/api/runs/${estado.slug}/estado`);
   } catch (err) {
@@ -258,7 +419,7 @@ function autoContinuar(ahora) {
     // fallado. Relanzar aquí sería un bucle de llamadas contra la cuota.
     estado.seguir = false;
     brindis('El orquestador terminó sin avanzar el estado. Mira los eventos: si te ha '
-            + 'preguntado algo, contéstale en «Responder al orquestador» y vuelve a lanzar.', true);
+            + 'preguntado algo, contéstale en la burbuja del nodo activo y vuelve a lanzar.', true);
     return;
   }
   lanzar();
@@ -272,104 +433,92 @@ function pintarProgreso(s) {
   $('#btn-lanzar-run').disabled = s.vivo || !estado.claude;
   $('#btn-lanzar-run').textContent = s.vivo ? 'Orquestador en marcha'
     : s.espera_respuesta ? 'Responder y lanzar' : 'Lanzar agentes';
-  // Las preguntas se leen en el log de la derecha y la caja esta a la
-  // izquierda: sin resaltarla el autor no la encuentra.
-  $('#mensaje-wrap').classList.toggle('pide', !!s.espera_respuesta && !s.vivo);
 
-  // banda de estados
-  const actual = s.estado;
-  const ancla = FUERA_DE_BANDA[actual] || actual;
-  const corte = BANDA.indexOf(ancla);
-  $('#banda-estados').innerHTML = BANDA.map((nombre, i) => {
-    const esAhora = nombre === actual || (FUERA_DE_BANDA[actual] && nombre === ancla);
-    const cls = esAhora ? 'ahora' : i < corte ? 'hecho' : '';
-    const enlace = i ? `<span class="lk ${i <= corte ? 'hecho' : ''}"></span>` : '';
-    const rotulo = esAhora && FUERA_DE_BANDA[actual] ? actual : nombre;
-    return `${enlace}<span class="est ${cls}">${esc(rotulo)}</span>`;
-  }).join('');
+  // El grafo solo recibe hechos: qué estado está activo, en qué subagente se ha
+  // delegado y por dónde ya se ha pasado. La animación la decide él.
+  const ancla = ALIAS[s.estado] || s.estado;
+  const tope = BANDA.indexOf(ancla);
+  const agente = s.agente_en_curso || (s.vivo ? PASO_AGENTE[s.paso] : '') || '';
+  grafo?.setEstado({ estado: s.estado, agente, hechos: tope > 0 ? BANDA.slice(0, tope) : [] });
+  estado.nodoActivo = ancla;
+  estado.agenteActivo = agente;
 
-  // agentes
-  const enCurso = s.agente_en_curso || (s.vivo ? PASO_AGENTE[s.paso] : '') || '';
-  $('#agentes').innerHTML = AGENTES.map(([clave, nombre]) => {
-    const activo = clave === enCurso;
-    const sub = activo ? 'en curso' : s.vivo ? 'en reposo' : '—';
-    return `<div class="agente ${activo ? 'activo' : ''}">
-      <div class="agente-head"><b>${nombre}</b><span class="punto ${activo ? 'on' : ''}"></span></div>
-      <small>${esc(sub)}</small>
-    </div>`;
-  }).join('');
-
-  pintarPuerta(s);
-
-  // intentos
-  $('#regla-92').textContent =
-    `umbral ${s.umbral} · tensión y escaleta ≥ ${Math.ceil(s.umbral)} · máx. ${s.max_reescrituras} reescrituras`;
-  const filas = s.intentos.map((a) => {
-    const bien = a.media >= s.umbral;
-    return `<div class="fila ${a.iteracion === s.iteracion ? 'ahora' : ''}">
-      <span>i${a.iteracion}</span>
-      <span>${esc((a.ruta || '').split(/[\\/]/).pop())}</span>
-      <span class="${bien ? 'bien' : 'mal'}">${a.media.toFixed(2)}</span>
-      <span>${bien ? 'llega al umbral' : 'por debajo'}</span>
-      <span class="${bien ? 'bien' : 'mal'}">${bien ? 'APROBADO' : 'CORREGIR'}</span>
-    </div>`;
-  }).join('');
-  const enMarcha = s.paso && s.capitulo_actual <= s.total
-    ? `<div class="fila ahora"><span>i${s.iteracion}</span><span>${esc(String(s.capitulo_actual).padStart(2, '0'))}-i${s.iteracion}.md</span><span>—</span><span>—</span><span class="vivo">${esc(s.paso)}…</span></div>`
-    : '';
-  $('#tabla-intentos').innerHTML =
-    `<div class="fila cab"><span>iter</span><span>archivo</span><span>media</span><span>regla 9.2</span><span>veredicto</span></div>`
-    + (filas + enMarcha || '<p class="vacio-msg">Sin intentos registrados para este capítulo.</p>');
-
-  // cuota
-  const q = s.cuota || {};
-  const usadas = q.llamadas_hoy ?? 0;
-  const tope = q.limite_diario || 1;
-  $('#cuota-cifra').textContent = `${usadas} / ${tope}`;
-  $('#cuota-barra').style.width = `${Math.min(100, (usadas / tope) * 100)}%`;
+  pintarResponder(s, ancla, agente);
+  pintarIntentos(s, ancla);
 
   // log
   $('#log-fuente').textContent = s.eventos.length ? `${s.eventos.length} · cada 1,5 s` : 'sin stream todavía';
   $('#log').innerHTML = s.eventos.length
     ? s.eventos.map((e) => `<div class="ev ${esc(e.tipo)}"><em>${e.tipo === 'agente' ? '▸' : '·'}</em><span>${esc(e.texto)}</span></div>`).join('')
-    : '<div class="ev"><span>El stream aparece cuando lanzas el orquestador desde aquí. Si lo arrancas a mano en Claude Code, el progreso se sigue viendo por el estado y los archivos de trabajo.</span></div>';
+    : '<div class="ev"><span>El stream aparece cuando lanzas el orquestador desde aquí. Si lo arrancas a mano en Claude Code, el progreso se sigue viendo por el estado y el grafo.</span></div>';
   $('#log').scrollTop = $('#log').scrollHeight;
 
-  // pistas
-  $('#pistas').innerHTML = (s.pistas || []).map((p) => {
-    const est = (p.estado || '').toUpperCase();
-    const cls = est === 'RESUELTA' || est === 'DESACTIVADA' ? 'ok' : est === 'RED_HERRING' ? 'aviso' : '';
-    return `<span class="pista ${cls}" title="${esc(p.descripcion)}">${esc(p.id)} ${esc(est.toLowerCase())}</span>`;
-  }).join('') || '<span class="faint">El ledger se siembra al aprobar el plan.</span>';
-
-  // archivos de trabajo
-  $('#archivos').innerHTML = (s.archivos || []).slice(0, 8)
-    .map((a) => `<div><em>${hora(a.ts)}</em><b>${esc(a.nombre)}</b></div>`).join('')
-    || '<div><b>—</b></div>';
+  recolocar();
 }
 
-function pintarPuerta(s) {
+// --------------------------------------------------------------------------
+// burbuja de respuesta: la puerta abierta, o la caja libre de la entrevista
+// --------------------------------------------------------------------------
+// Las dos son lo mismo desde aquí: algo que el orquestador espera de ti y que no
+// avanza hasta que lo mandas. Quién decide si vale sigue siendo el núcleo.
+function pintarResponder(s, ancla, agente) {
+  const el = $('#burbuja-responder');
   const def = PUERTAS[s.estado];
-  const zona = $('#puerta-wrap');
-  if (!def) { zona.innerHTML = ''; return; }
-  const botones = def.botones.map((b) => `<button class="btn ${b === def.botones[0] ? 'primario' : ''}" data-puerta="${esc(b)}">${esc(b)}</button>`).join('');
+  const pide = def || (s.espera_respuesta && !s.vivo);
+  if (!pide) {
+    if (!el.classList.contains('genio')) { el.hidden = true; el.dataset.marca = ''; }
+    return;
+  }
+  // Sale del nodo que espera: el de la puerta, o el del subagente que ha dejado
+  // la pregunta a medias.
+  const nodo = def ? ancla : (agente || ancla);
+  el.dataset.ancla = nodo;
+  // El sondeo cae cada 1,5 s y el genio dura 0,6: sin esto, la burbuja que
+  // acabas de enviar reaparece a medio encoger.
+  if (el.classList.contains('genio')) return;
+  const marca = `${s.estado}|${s.espera_respuesta}|${nodo}`;
+  if (el.dataset.marca === marca) return;
+  el.dataset.marca = marca;
+  $('#responder-titulo').textContent = def ? def.titulo : 'Responder al orquestador';
+  const chip = $('#responder-chip');
+  chip.hidden = !def;
+  chip.textContent = s.estado;
+  $('#responder-cuerpo').innerHTML = def ? cuerpoPuerta(def) : cuerpoLibre();
+  el.hidden = false;
+  el.classList.remove('brota', 'genio');
+  void el.offsetWidth;            // reinicia la animación de entrada
+  el.classList.add('brota');
+}
+
+function cuerpoPuerta(def) {
+  const botones = def.botones
+    .map((b) => `<button class="btn ${b === def.botones[0] ? 'primario' : ''}" data-puerta="${esc(b)}">${esc(b)}</button>`)
+    .join('');
   const libre = def.libre
     ? `<div class="puerta-libre"><span>${esc(def.libre.prefijo)}</span><input id="puerta-arg" placeholder="${esc(def.libre.marca)}"></div>
        <button class="btn" data-puerta-libre="${esc(def.libre.prefijo)}">enviar</button>`
     : '';
-  zona.innerHTML = `<div class="puerta">
-    <div class="puerta-head">
-      <b>${esc(def.titulo)}</b>
-      <span class="chip puerta">${esc(s.estado)}</span>
-      <div class="grow"></div>
-      <span class="faint">nada avanza hasta que respondas</span>
-    </div>
-    <p>${esc(def.texto)}</p>
+  return `<p>${esc(def.texto)}</p>
     <div class="puerta-ops">${botones}${libre}</div>
-  </div>`;
+    <p class="nota">Nada avanza hasta que respondas.</p>`;
 }
 
-$('#puerta-wrap').addEventListener('click', async (e) => {
+function cuerpoLibre() {
+  return `<textarea id="in-mensaje" rows="3" placeholder="p. ej. 1A 2B 3B 4A 5A 6C — o «todas recomendadas»"></textarea>
+    <div class="puerta-ops"><button class="btn primario" id="btn-responder">Enviar y lanzar</button></div>
+    <p class="nota">Va literal al principio de la siguiente invocación. Es el canal de la entrevista de partida, que no es una puerta del núcleo.</p>`;
+}
+
+$('#burbuja-responder').addEventListener('click', async (e) => {
+  const el = $('#burbuja-responder');
+  const destino = el.dataset.ancla || 'ESCRIBIENDO';
+
+  if (e.target.closest('#btn-responder')) {
+    const mensaje = $('#in-mensaje').value;
+    genio(el, destino);
+    return lanzar(mensaje);
+  }
+
   const simple = e.target.closest('[data-puerta]');
   const conArg = e.target.closest('[data-puerta-libre]');
   if (!simple && !conArg) return;
@@ -381,6 +530,7 @@ $('#puerta-wrap').addEventListener('click', async (e) => {
   }
   try {
     const res = await post(`/api/runs/${estado.slug}/puerta`, { respuesta });
+    genio(el, destino);
     brindis(res.salida);
     // Responder la puerta ES el permiso del autor para seguir. `editar` y
     // `parar` dejan la puerta abierta, y `autoContinuar` no relanza en un GATE_.
@@ -392,6 +542,71 @@ $('#puerta-wrap').addEventListener('click', async (e) => {
   }
 });
 
+// --------------------------------------------------------------------------
+// burbuja de intentos: sale del nodo que los produce y no se va nunca
+// --------------------------------------------------------------------------
+// `estado.json` borra los intentos al cerrar capítulo (§9.4), así que el
+// histórico viene del servidor leyendo los `-eval.json` de `.intentos/`.
+const NODOS_CICLO = ['ESCRIBIENDO', 'EVALUANDO', 'PARCHEANDO', 'ACEPTANDO'];
+
+function pintarIntentos(s, ancla) {
+  const el = $('#burbuja-intentos');
+  const historial = s.historial || [];
+  el.hidden = !historial.length && !s.paso;
+  $('#grafo-zona').classList.toggle('con-intentos', !el.hidden);
+  if (el.hidden) { recolocar(); return; }
+  // Cuelga del nodo del ciclo que esté activo; fuera del ciclo, de EVALUANDO.
+  el.dataset.ancla = NODOS_CICLO.includes(ancla) ? ancla : 'EVALUANDO';
+
+  const bloq = s.criterios_bloqueantes || [];
+  $('#regla-92').textContent =
+    `media ≥ ${s.umbral} · ${bloq.join(' y ') || 'criterios'} ≥ ${s.umbral_bloqueante}`
+    + ` · máx. ${s.max_reescrituras} reescrituras · la continuidad la decide el núcleo`;
+
+  const porCapitulo = new Map();
+  for (const a of historial) {
+    if (!porCapitulo.has(a.capitulo)) porCapitulo.set(a.capitulo, []);
+    porCapitulo.get(a.capitulo).push(a);
+  }
+  // El intento en vuelo todavía no tiene `-eval.json`, así que no está en el
+  // histórico: si es el primero del capítulo, el capítulo tampoco.
+  if (s.paso && s.capitulo_actual <= s.total && !porCapitulo.has(s.capitulo_actual)) {
+    porCapitulo.set(s.capitulo_actual, []);
+  }
+
+  const capitulos = [...porCapitulo.keys()].sort((a, b) => b - a);
+  $('#tabla-intentos').innerHTML = capitulos.map((n) => {
+    const enCurso = n === s.capitulo_actual;
+    const filas = porCapitulo.get(n).map((a) => filaIntento(a, s, enCurso)).join('');
+    const vivo = enCurso && s.paso
+      ? `<div class="fila ahora"><span>i${s.iteracion}</span><span class="mono">${esc(String(n).padStart(2, '0'))}-i${s.iteracion}.md</span><span>—</span><span class="vivo">${esc(s.paso)}…</span></div>`
+      : '';
+    const sello = s.capitulos_aceptados.includes(n) ? '<span class="sello ok">aceptado</span>'
+      : enCurso ? '<span class="sello vivo">en curso</span>' : '';
+    return `<div class="cap-intentos ${enCurso ? 'ahora' : ''}">
+      <div class="cap-intentos-head"><b>Capítulo ${String(n).padStart(2, '0')}</b>${sello}</div>
+      ${filas}${vivo}</div>`;
+  }).join('') || '<p class="vacio-msg">Sin intentos todavía.</p>';
+  recolocar();
+}
+
+function filaIntento(a, s, enCurso) {
+  const notas = a.puntuaciones || {};
+  const flojo = (s.criterios_bloqueantes || []).filter((c) => (notas[c] ?? 0) < s.umbral_bloqueante);
+  const pasa = a.media >= s.umbral && !flojo.length;
+  const motivo = pasa ? 'llega al umbral'
+    : a.media < s.umbral ? 'media por debajo'
+    : `${flojo.join(' y ')} por debajo`;
+  // El motivo va en el `title`: en una columna se cortaba a «llega al umb…»,
+  // que no informa de nada.
+  return `<div class="fila ${enCurso && a.iteracion === s.iteracion ? 'ahora' : ''}" title="${esc(motivo)}">
+    <span>i${a.iteracion}</span>
+    <span class="mono">${esc(a.ruta)}</span>
+    <span class="${pasa ? 'bien' : 'mal'}">${a.media == null ? '—' : a.media.toFixed(2)}</span>
+    <span class="${pasa ? 'bien' : 'mal'}">${pasa ? 'APROBADO' : 'CORREGIR'}</span>
+  </div>`;
+}
+
 // Un lanzamiento es una invocación de `claude -p /novela`: hace una fase y
 // termina. El encadenado lo lleva el panel, no el orquestador (§7.5: encadenar
 // dentro de una invocación revienta su contexto).
@@ -402,13 +617,20 @@ async function lanzar(mensaje = '') {
     estado.firmaLanzada = previo;
     estado.detenido = false;
     estado.seguir = true;
-    $('#in-mensaje').value = '';
     brindis(`Orquestador en marcha (pid ${info.pid}).`);
     refrescarProgreso();
   } catch (err) { brindis(err.message, true); }
 }
 
-$('#btn-lanzar-run').addEventListener('click', () => lanzar($('#in-mensaje').value));
+$('#btn-lanzar-run').addEventListener('click', () => {
+  // Si la burbuja libre está abierta, lanzar equivale a enviarla: se va al nodo
+  // igual que si hubieras pulsado su propio botón.
+  const caja = $('#in-mensaje');
+  const el = $('#burbuja-responder');
+  const mensaje = caja ? caja.value : '';
+  if (caja && !el.hidden) genio(el, el.dataset.ancla || 'ESCRIBIENDO');
+  lanzar(mensaje);
+});
 
 $('#btn-parar').addEventListener('click', async () => {
   try {

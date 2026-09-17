@@ -12,6 +12,7 @@
   --qa-naranja-oscuro: #ff6311;
   --qa-gris: #e4e6eb;
   --qa-carbon: #272727;
+  --sobre-acento: #101820;
 
   /* --- Escala oscura derivada del azul de marca --- */
   --bg: #101820;
@@ -47,6 +48,33 @@
   --sans: 'Satoshi', 'Gothic A1', 'Segoe UI', system-ui, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
   --serif: 'Newsreader', Georgia, 'Times New Roman', serif;
+}
+
+/* Tema claro: mismo esquema de tokens sobre papel crema (nunca blanco puro).
+   Las mezclas de arriba (--tinte, --prosa...) se recalculan solas. */
+:root[data-tema="claro"] {
+  --bg: #f4f0e8;
+  --bg-2: #ebe5d9;
+  --surface: #faf7f1;
+  --surface-2: #f0ebe1;
+  --raised: #e7e0d2;
+  --border: #ddd5c4;
+  --border-2: #c6bba6;
+  --hair: #e9e3d6;
+
+  --text: #1c2a35;
+  --text-2: #33424f;
+  --muted: #5f6d79;
+  --faint: #7f8b95;
+  --ghost: #a3adb5;
+
+  --accent: var(--qa-naranja-oscuro);
+  --accent-alto: #d94f08;
+
+  --ok: #2f7259;
+  --warn: #b03a2b;
+
+  --hundido: #ebe5d9;
 }
 
 * { box-sizing: border-box; }
@@ -85,7 +113,7 @@ code { font-family: var(--mono); font-size: 0.92em; color: var(--text-2); }
   border-bottom: 1px solid var(--border); background: var(--surface-2);
 }
 .brand { display: flex; align-items: center; gap: 13px; }
-.brand .logo { height: 21px; width: auto; display: block; }
+.brand .logo { height: 21px; width: auto; display: block; color: var(--text); }
 .brand .sep { width: 1px; height: 19px; background: var(--border-2); }
 .brand .producto { color: var(--text-2); font-size: 13px; font-weight: 500; letter-spacing: 0.01em; }
 .tabs { display: flex; gap: 2px; }
@@ -94,7 +122,13 @@ code { font-family: var(--mono); font-size: 0.92em; color: var(--text-2); }
   border: 0; border-radius: 3px; color: var(--muted); cursor: pointer;
 }
 .tabs button:hover { color: var(--text-2); background: var(--raised); }
-.tabs button.on { color: var(--bg); background: var(--accent); font-weight: 500; }
+.tabs button.on { color: var(--sobre-acento); background: var(--accent); font-weight: 500; }
+.tema {
+  padding: 6px 9px; line-height: 1; background: none; border: 1px solid var(--border-2);
+  border-radius: 3px; color: var(--muted); cursor: pointer; font-size: 13px;
+}
+.tema:hover { color: var(--text); border-color: var(--muted); }
+
 .topmeta {
   display: flex; align-items: center; gap: 14px;
   font-family: var(--mono); font-size: 11.5px; color: var(--muted);
@@ -116,7 +150,7 @@ main { flex-grow: 1; min-height: 0; position: relative; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn.primario {
   background: var(--accent); border-color: var(--accent);
-  color: var(--bg); font-weight: 600; font-size: 13.5px; padding: 12px 18px;
+  color: var(--sobre-acento); font-weight: 600; font-size: 13.5px; padding: 12px 18px;
 }
 .btn.primario:hover:not(:disabled) { background: var(--accent-alto); border-color: var(--accent-alto); }
 .btn.mini { padding: 6px 11px; font-size: 11.5px; }
@@ -200,93 +234,153 @@ textarea { font-family: var(--serif); font-size: 15px; line-height: 1.62; resize
   letter-spacing: 0.04em; padding: 3px 8px; border-radius: 2px;
   border: 1px solid var(--border-2); color: var(--muted);
 }
-.chip.ok { background: var(--ok); border-color: var(--ok); color: var(--bg); }
-.chip.puerta { background: var(--accent); border-color: var(--accent); color: var(--bg); }
-.chip.malo { background: var(--warn); border-color: var(--warn); color: var(--bg); }
+.chip.ok { background: var(--ok); border-color: var(--ok); color: var(--sobre-acento); }
+.chip.puerta { background: var(--accent); border-color: var(--accent); color: var(--sobre-acento); }
+.chip.malo { background: var(--warn); border-color: var(--warn); color: var(--sobre-acento); }
 
-/* ---------------- PROGRESO ---------------- */
-.prog-wrap { padding: 20px 24px; display: flex; flex-direction: column; gap: 18px; }
-.banda-head { display: flex; align-items: center; gap: 10px; }
+/* ---------------- PROGRESO ----------------
+   Dos capas: el lienzo del grafo, que ocupa todo, y las burbujas, que son DOM
+   colocado por `app.js` sobre las coordenadas que le pasa el grafo. El texto
+   nunca entra en la escena 3D: un rótulo de Three.js no se selecciona, no se
+   lee con un lector de pantalla y no admite un `<textarea>`. */
+.prog-wrap {
+  padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 14px;
+  height: 100%; min-height: 0;
+}
+.banda-head { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .contexto {
   font-size: 12.5px; color: var(--muted); max-width: 78ch;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.banda { display: flex; align-items: center; flex-wrap: wrap; gap: 0; }
-.banda .est {
-  padding: 7px 12px; font-family: var(--mono); font-size: 11px;
-  border: 1px solid var(--border); border-radius: 2px;
-  background: var(--surface-2); color: var(--faint); white-space: nowrap;
-}
-.banda .est.hecho { color: var(--text-2); border-color: var(--border-2); background: var(--raised); }
-.banda .est.ahora {
-  color: var(--bg); background: var(--accent); border-color: var(--accent); font-weight: 500;
-}
-.banda .lk { width: 12px; height: 1px; background: var(--border); flex-shrink: 0; }
-.banda .lk.hecho { background: var(--accent); }
 
-.prog-cols { display: flex; gap: 20px; align-items: flex-start; min-height: 0; }
-.prog-main { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
-.prog-side { width: 372px; flex-shrink: 0; display: flex; flex-direction: column; gap: 18px; }
-.bloque { display: flex; flex-direction: column; gap: 10px; }
-.bloque.grow-y { flex-grow: 1; min-height: 0; }
+.escenario { display: flex; gap: 16px; flex-grow: 1; min-height: 0; }
 
-#mensaje-wrap.pide {
-  border: 1px solid var(--accent); border-radius: 4px;
-  padding: 14px; background: var(--tinte);
+.panel-eventos {
+  width: 340px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px;
+  min-height: 0;
 }
-#mensaje-wrap.pide .lbl { color: var(--accent); }
 
-.agentes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
-.agente {
-  border: 1px solid var(--border); background: var(--surface);
-  border-radius: 4px; padding: 13px 14px;
-  display: flex; flex-direction: column; gap: 8px;
+.grafo-zona {
+  position: relative; flex-grow: 1; min-width: 0;
+  border: 1px solid var(--border); border-radius: 6px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, var(--tinte-2), transparent 70%),
+    var(--hundido);
+  overflow: hidden;
 }
-.agente.activo { border-color: var(--accent); background: var(--raised); }
-.agente-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.agente-head b { font-size: 12.5px; font-weight: 500; color: var(--muted); }
-.agente.activo .agente-head b { color: var(--text); font-weight: 600; }
-.punto { width: 6px; height: 6px; border-radius: 50%; background: var(--punto); flex-shrink: 0; }
-.punto.on { background: var(--accent); animation: latido 1.4s ease-in-out infinite; }
-.punto.ok { background: var(--ok); }
-@keyframes latido { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
-.agente small { font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
-
-.puerta {
-  border: 1px solid var(--accent); background: var(--tinte); border-radius: 4px;
-  padding: 19px 21px; display: flex; flex-direction: column; gap: 14px;
+.lienzo-grafo { position: absolute; inset: 0; }
+/* Los intentos no flotan sobre el grafo: el lienzo les cede una columna. Antes
+   se posaban en el hueco menos malo, y con la burbuja abierta siempre había un
+   nodo enterrado. El `ResizeObserver` del grafo reencuadra solo. */
+.grafo-zona.con-intentos .lienzo-grafo { right: 356px; }
+.lienzo-grafo canvas { display: block; }
+/* Sin WebGL no hay grafo: el log de la izquierda sigue contando lo que pasa. */
+.lienzo-grafo.sin-webgl::after {
+  content: 'Este navegador no tiene WebGL: el grafo no se dibuja. Los eventos siguen a la izquierda.';
+  position: absolute; inset: 0; display: grid; place-content: center;
+  padding: 0 40px; text-align: center; font-size: 12px; color: var(--faint);
 }
-.puerta-head { display: flex; align-items: center; gap: 10px; }
-.puerta-head b { font-size: 13.5px; }
-.puerta p { margin: 0; font-family: var(--serif); font-size: 15.5px; line-height: 1.6; color: var(--text-2); max-width: 70ch; text-wrap: pretty; }
-.puerta-ops { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.puerta-libre { display: flex; gap: 0; border: 1px solid var(--border-2); border-radius: 3px; overflow: hidden; }
-.puerta-libre span { display: flex; align-items: center; padding: 0 12px; font-size: 12.5px; color: var(--text-2); background: var(--surface); border-right: 1px solid var(--border-2); }
-.puerta-libre input { border: 0; border-radius: 0; width: 320px; font-family: var(--mono); font-size: 11.5px; }
 
-.tabla { border: 1px solid var(--border); background: var(--surface); border-radius: 4px; overflow: hidden; }
+/* -- burbujas ------------------------------------------------------------ */
+.burbuja {
+  position: absolute; z-index: 2; width: 360px; max-width: calc(100% - 20px);
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px 16px; border-radius: 6px;
+  border: 1px solid var(--border-2); background: var(--surface);
+  box-shadow: 0 14px 34px rgb(0 0 0 / 0.34);
+}
+.burbuja[hidden] { display: none; }
+.burbuja.responder { width: 360px; border-color: var(--accent); background: var(--tinte); }
+/* Del ancho de su columna. Como ya no tapa nada, puede crecer a lo alto. */
+.burbuja.intentos { width: 340px; }
+.burbuja.intentos .burbuja-cuerpo { max-height: none; }
+/* La regla de §9.2 ya no se estruja contra el título: tiene la columna entera. */
+.burbuja.intentos .burbuja-head { flex-wrap: wrap; }
+.burbuja.intentos .burbuja-head .faint { flex-basis: 100%; text-align: left; }
+.burbuja-head { display: flex; align-items: center; gap: 10px; }
+.burbuja-head .lbl { white-space: nowrap; }
+.burbuja-head .faint { font-size: 10px; line-height: 1.4; text-align: right; }
+.burbuja-cuerpo { display: flex; flex-direction: column; gap: 10px; max-height: 34vh; overflow-y: auto; }
+.burbuja-cuerpo p { margin: 0; font-family: var(--serif); font-size: 14.5px; line-height: 1.55; color: var(--text-2); text-wrap: pretty; }
+.burbuja-cuerpo p.nota { font-family: var(--sans); font-size: 11.5px; color: var(--faint); }
+.burbuja.responder .lbl { color: var(--accent); }
+
+/* El tallo es el hilo que ata la burbuja a su nodo. Va suelto en el lienzo
+   para quedar por debajo de ella, no como borde. */
+.tallo {
+  position: absolute; z-index: 1; height: 1px; transform-origin: 0 50%;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 20%, transparent));
+}
+.tallo[hidden] { display: none; }
+
+/* Brotar: la burbuja crece desde el punto del nodo (el `transform-origin` lo
+   pone `app.js` con la posición proyectada). */
+@keyframes brotar {
+  from { transform: scale(0.06); opacity: 0; }
+  60%  { opacity: 1; }
+  to   { transform: scale(1); opacity: 1; }
+}
+.burbuja.brota { animation: brotar 380ms cubic-bezier(0.2, 0.9, 0.25, 1.1); }
+
+/* Genio: al enviar, la burbuja se estrecha y se va hacia el nodo que la recibe.
+   `--gx`/`--gy` son el vector centro-burbuja → nodo, en píxeles. El estrechado
+   del `clip-path` es lo que da el aire de ventana minimizándose; una escala
+   sola se leería como un simple fundido. */
+@keyframes genio {
+  0%   { transform: translate(0, 0) scale(1); clip-path: inset(0 0 0 0 round 6px); opacity: 1; }
+  45%  { transform: translate(calc(var(--gx) * 0.45), calc(var(--gy) * 0.45)) scale(0.72, 0.5);
+         clip-path: inset(0 24% 0 24% round 30px); opacity: 0.95; }
+  100% { transform: translate(var(--gx), var(--gy)) scale(0.08, 0.02);
+         clip-path: inset(0 47% 0 47% round 30px); opacity: 0; }
+}
+.burbuja.genio { animation: genio 620ms cubic-bezier(0.55, 0, 0.35, 1) forwards; pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .burbuja.brota, .burbuja.genio { animation: none; }
+}
+
+/* -- intentos ------------------------------------------------------------ */
+.cap-intentos {
+  border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+  background: var(--surface-2);
+}
+.cap-intentos.ahora { border-color: var(--accent); }
+.cap-intentos + .cap-intentos { margin-top: 8px; }
+.cap-intentos-head {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+  border-bottom: 1px solid var(--hair); background: var(--raised);
+}
+.cap-intentos-head b { font-size: 12px; font-weight: 600; }
+.sello { font-family: var(--mono); font-size: 10px; padding: 2px 7px; border-radius: 2px; border: 1px solid var(--border-2); color: var(--faint); }
+.sello.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--bg)); }
+.sello.vivo { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--bg)); }
+
 .fila {
-  display: grid; grid-template-columns: 62px 1fr 90px 130px 120px;
-  padding: 10px 16px; align-items: center; border-bottom: 1px solid var(--hair);
+  display: grid; grid-template-columns: 26px 1fr 44px 70px;
+  gap: 8px; padding: 8px 14px; align-items: center; border-bottom: 1px solid var(--hair);
 }
 .fila:last-child { border-bottom: 0; }
-.fila.cab { background: var(--surface-2); border-bottom-color: var(--border); }
-.fila.cab span { font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--faint); }
 .fila.ahora { background: var(--tinte-2); }
-.fila span { font-family: var(--mono); font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fila span { font-family: var(--mono); font-size: 10.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fila .bien { color: var(--ok); }
 .fila .mal { color: var(--warn); }
 .fila .vivo { color: var(--accent); }
 .vacio-msg { padding: 16px; font-size: 12px; color: var(--faint); }
 
-.medidor { display: flex; height: 8px; background: var(--border); border-radius: 1px; overflow: hidden; margin: 10px 0; }
-.medidor div { background: var(--accent); }
+/* -- puertas y respuesta libre ------------------------------------------- */
+.puerta-ops { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.puerta-libre { display: flex; gap: 0; border: 1px solid var(--border-2); border-radius: 3px; overflow: hidden; }
+.puerta-libre span { display: flex; align-items: center; padding: 0 10px; font-size: 12px; color: var(--text-2); background: var(--surface); border-right: 1px solid var(--border-2); }
+.puerta-libre input { border: 0; border-radius: 0; width: 210px; font-family: var(--mono); font-size: 11px; }
 .nota { margin: 0; font-size: 11.5px; line-height: 1.55; color: var(--faint); text-wrap: pretty; }
 
+.punto { width: 6px; height: 6px; border-radius: 50%; background: var(--punto); flex-shrink: 0; }
+
 .log {
-  border: 1px solid var(--border); background: var(--hundido); border-radius: 4px;
+  border: 1px solid var(--border); background: var(--hundido); border-radius: 6px;
   padding: 12px 13px; display: flex; flex-direction: column; gap: 6px;
-  flex-grow: 1; min-height: 180px; max-height: 340px; overflow-y: auto;
+  flex-grow: 1; min-height: 0; overflow-y: auto;
 }
 .ev { display: flex; gap: 10px; }
 .ev em { font-family: var(--mono); font-size: 10.5px; color: var(--ghost); font-style: normal; flex-shrink: 0; }
@@ -296,13 +390,15 @@ textarea { font-family: var(--serif); font-size: 15px; line-height: 1.62; resize
 .ev.error span { color: var(--warn); }
 .ev.texto span { font-family: var(--sans); color: var(--text-2); }
 
-.pistas { display: flex; flex-wrap: wrap; gap: 6px; }
-.pista { font-family: var(--mono); font-size: 10.5px; padding: 3px 8px; border-radius: 2px; border: 1px solid var(--border); color: var(--muted); }
-.pista.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--bg)); }
-.pista.aviso { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--bg)); }
-.archivos { display: flex; flex-direction: column; gap: 4px; }
-.archivos div { display: flex; gap: 10px; font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
-.archivos b { color: var(--muted); font-weight: 400; }
+/* Pantalla estrecha: el log se va debajo del grafo, que es el que necesita
+   sitio. Por debajo de eso la vista deja de tener sentido y se dice. */
+@media (max-width: 1080px) {
+  .escenario { flex-direction: column; }
+  .panel-eventos { width: auto; max-height: 30%; }
+  .grafo-zona { min-height: 340px; }
+  .burbuja { width: 300px; }
+  .burbuja.responder, .burbuja.intentos { width: 320px; }
+}
 
 /* ---------------- LECTOR ---------------- */
 .lector { display: flex; height: 100%; }

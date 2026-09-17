@@ -14,7 +14,8 @@ No orquesta nada. Cuando hay que escribir un capítulo, **arranca el binding de 
 subproceso** (`claude -p "/novela"`) y observa su salida. Las decisiones —qué toca ahora, si un
 capítulo se acepta, qué media gana— siguen saliendo de `python -m harness`, igual que antes.
 
-`harness/` no tiene ni una línea nueva. El comprobante es `python tests/dry_run.py`: 40 de 40.
+`harness/` no tiene ni una línea nueva. El comprobante es `python tests/dry_run.py`: 46 de 46.
+El cableado de la vista de progreso lo comprueba aparte `python tests/panel_grafo.py`.
 
 ## C.1 Los seis puertos
 
@@ -60,6 +61,31 @@ con lo que reconoce y descarta el resto; una línea con otra forma no rompe la v
 observadas y de las que depende la vista son dos: `system/task_started`, que trae `subagent_type`
 (es de donde sale «qué agente corre ahora», no del bloque `tool_use` de `Task`), y
 `system/permission_denied`, que trae `tool_name`.
+
+### C.3.1 La vista: un grafo, no una lista de paneles
+
+La vista de progreso es **el grafo del flujo** (`panel/static/flowgraph.js`, Three.js r160) con el
+log de eventos a su izquierda. Cada nodo es un estado de §10 o uno de los cinco subagentes; cada
+arista, una transición real. El nodo activo está encendido; delegar en un subagente es un pulso que
+recorre la arista, enciende el destino y apaga el origen.
+
+Lo que antes eran paneles fijos ahora **sale del nodo que lo produce**, como burbuja sobre el
+lienzo: la puerta abierta y la caja de respuesta libre salen del nodo que espera, y al enviarlas se
+encogen hacia él; los intentos salen del nodo del ciclo que esté activo y no se van nunca.
+
+Tres cosas que esto **no** cambia:
+
+- **El grafo no decide.** Recibe `{estado, agente}` del mismo sondeo de C.3 y solo lo traduce a una
+  animación. Sigue sin haber lógica del núcleo en `panel/`.
+- **El texto no entra en la escena 3D.** Los rótulos de los nodos son sprites, pero todo lo que se
+  lee o se escribe —el log, las burbujas, los botones de puerta— es DOM colocado sobre las
+  coordenadas que el grafo proyecta. Sin WebGL el grafo no se dibuja y el log sigue contándolo todo.
+- **P4 no se relaja.** La burbuja de puerta manda la respuesta literal a `harness gate`, igual que
+  la caja de antes.
+
+La única capacidad nueva en el servidor es `snapshot()["historial"]`: los intentos de **todos** los
+capítulos, no solo el del curso. `estado.json` los borra al cerrar capítulo (§9.4), así que el
+histórico se reconstruye leyendo los `NN-iM-eval.json` de `.intentos/`. Sigue siendo lectura pura.
 
 ## C.4 Tabla de peticiones (B.2 punto 4)
 
@@ -121,8 +147,9 @@ destacados son `color-mix()` sobre el naranja, para que cambiar el acento arrast
   contenido de la novela** —texto de los capítulos, títulos de capítulo, logline— porque es
   tipografía de lectura, no chrome. Todo el panel va en Satoshi.
 
-**Assets vendorizados** en `panel/static/`: `qaracter-logo.svg` (lockup completo, variante
-blanca, para la cabecera), `qaracter-q.svg` (la Q sola, extraída de la primera ruta del
+**Assets vendorizados** en `panel/static/`: `qaracter-logo.svg` (lockup completo; el texto va
+en `currentColor` para seguir al tema, y por eso la cabecera lo inserta en línea en vez de con
+`<img>`), `qaracter-q.svg` (la Q sola, extraída de la primera ruta del
 lockup, para el favicon) y `Satoshi-{Regular,Medium,Bold}.woff`. La fuente se copia al repo a
 propósito: el sitio la sirve desde una URL generada de Webflow que rota en cada reconstrucción,
 y enlazarla dejaría el panel sin tipografía de marca sin avisar.
