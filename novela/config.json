@@ -79,6 +79,7 @@
       "bloqueo_continuidad": true
     },
 
+    "_nota_temperatura": "El campo 'temperatura'/'temperatura_*' de cada agente es documentacion, no vinculante: el binding de Claude Code (.claude/) no expone ningun mecanismo para fijarla (ni CLI, ni settings.json, ni frontmatter de agente) y ningun codigo de harness/ lo consume. Ver docs/rsi-temperatura-veredicto.md.",
     "agentes": {
       "arquitecto": {
         "clase_modelo": "alta",
