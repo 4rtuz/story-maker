@@ -1,0 +1,1097 @@
+{
+  "llamadas": {
+    "fallidas": 0,
+    "ok": 42,
+    "total": 42
+  },
+  "sha256_repuntuar_py": "a5e5640d5ab8171c876bc90c08f913c2975998bc810b6b15e71e1bf0615f7e1e",
+  "splits": {
+    "dev": {
+      "agregado": {
+        "n_borradores": 7,
+        "n_borradores_bloqueante_distinto_entre_pasadas": 6,
+        "n_borradores_media_distinta_entre_pasadas": 7,
+        "sigma_criterio_promedio": {
+          "caracterizacion": 0.5553,
+          "escaleta": 0.6981,
+          "prosa": 0.4728,
+          "ritmo": 0.5332,
+          "tension": 0.5553,
+          "voz": 0.4124
+        },
+        "sigma_media_calculada_promedio": 0.3864
+      },
+      "borradores": {
+        "01-i0": {
+          "bloqueante_unico": false,
+          "criterios": {
+            "caracterizacion": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                2,
+                3,
+                2
+              ]
+            },
+            "escaleta": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                2,
+                2,
+                3
+              ]
+            },
+            "prosa": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                3,
+                3,
+                3
+              ]
+            },
+            "ritmo": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                2,
+                2,
+                2
+              ]
+            },
+            "tension": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                2,
+                3,
+                2
+              ]
+            },
+            "voz": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                4,
+                3
+              ]
+            }
+          },
+          "media_calculada": {
+            "rango": 0.5,
+            "sigma": 0.2542,
+            "valores": [
+              2.33,
+              2.83,
+              2.5
+            ]
+          },
+          "n_pasadas": 3,
+          "veredicto_unico": true,
+          "veredictos": [
+            "CORREGIR",
+            "CORREGIR",
+            "CORREGIR"
+          ]
+        },
+        "01-i1": {
+          "bloqueante_unico": false,
+          "criterios": {
+            "caracterizacion": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                3,
+                4
+              ]
+            },
+            "escaleta": {
+              "rango": 2,
+              "sigma": 1.0,
+              "valores": [
+                4,
+                3,
+                5
+              ]
+            },
+            "prosa": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                3,
+                4
+              ]
+            },
+            "ritmo": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                2,
+                2,
+                3
+              ]
+            },
+            "tension": {
+              "rango": 2,
+              "sigma": 1.0,
+              "valores": [
+                3,
+                2,
+                4
+              ]
+            },
+            "voz": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                4,
+                4,
+                4
+              ]
+            }
+          },
+          "media_calculada": {
+            "rango": 1.17,
+            "sigma": 0.6019,
+            "valores": [
+              3.17,
+              2.83,
+              4.0
+            ]
+          },
+          "n_pasadas": 3,
+          "veredicto_unico": false,
+          "veredictos": [
+            "APROBADO",
+            "CORREGIR",
+            "APROBADO"
+          ]
+        },
+        "01-i2": {
+          "bloqueante_unico": true,
+          "criterios": {
+            "caracterizacion": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                4,
+                4
+              ]
+            },
+            "escaleta": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                4,
+                3
+              ]
+            },
+            "prosa": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                4,
+                4,
+                4
+              ]
+            },
+            "ritmo": {
+              "rango": 2,
+              "sigma": 1.0,
+              "valores": [
+                4,
+                2,
+                3
+              ]
+            },
+            "tension": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                3,
+                3
+              ]
+            },
+            "voz": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                3,
+                4
+              ]
+            }
+          },
+          "media_calculada": {
+            "rango": 0.34,
+            "sigma": 0.17,
+            "valores": [
+              3.67,
+              3.33,
+              3.5
+            ]
+          },
+          "n_pasadas": 3,
+          "veredicto_unico": true,
+          "veredictos": [
+            "APROBADO",
+            "APROBADO",
+            "APROBADO"
+          ]
+        },
+        "02-i0": {
+          "bloqueante_unico": false,
+          "criterios": {
+            "caracterizacion": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                3,
+                3,
+                3
+              ]
+            },
+            "escaleta": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                3,
+                4
+              ]
+            },
+            "prosa": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                3,
+                4
+              ]
+            },
+            "ritmo": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                2,
+                2
+              ]
+            },
+            "tension": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                2,
+                3
+              ]
+            },
+            "voz": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                3,
+                3
+              ]
+            }
+          },
+          "media_calculada": {
+            "rango": 0.83,
+            "sigma": 0.4179,
+            "valores": [
+              3.5,
+              2.67,
+              3.17
+            ]
+          },
+          "n_pasadas": 3,
+          "veredicto_unico": false,
+          "veredictos": [
+            "APROBADO",
+            "CORREGIR",
+            "APROBADO"
+          ]
+        },
+        "03-i0": {
+          "bloqueante_unico": false,
+          "criterios": {
+            "caracterizacion": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                2,
+                3,
+                2
+              ]
+            },
+            "escaleta": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                3,
+                2
+              ]
+            },
+            "prosa": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                2,
+                3,
+                3
+              ]
+            },
+            "ritmo": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                2,
+                2,
+                2
+              ]
+            },
+            "tension": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                2,
+                2,
+                2
+              ]
+            },
+            "voz": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                2,
+                2,
+                2
+              ]
+            }
+          },
+          "media_calculada": {
+            "rango": 0.33,
+            "sigma": 0.1905,
+            "valores": [
+              2.17,
+              2.5,
+              2.17
+            ]
+          },
+          "n_pasadas": 3,
+          "veredicto_unico": true,
+          "veredictos": [
+            "CORREGIR",
+            "CORREGIR",
+            "CORREGIR"
+          ]
+        },
+        "03-i1": {
+          "bloqueante_unico": false,
+          "criterios": {
+            "caracterizacion": {
+              "rango": 2,
+              "sigma": 1.0,
+              "valores": [
+                3,
+                2,
+                4
+              ]
+            },
+            "escaleta": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                3,
+                4
+              ]
+            },
+            "prosa": {
+              "rango": 2,
+              "sigma": 1.0,
+              "valores": [
+                2,
+                3,
+                4
+              ]
+            },
+            "ritmo": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                2,
+                2,
+                3
+              ]
+            },
+            "tension": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                2,
+                2,
+                3
+              ]
+            },
+            "voz": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                2,
+                3,
+                3
+              ]
+            }
+          },
+          "media_calculada": {
+            "rango": 1.17,
+            "sigma": 0.6322,
+            "valores": [
+              2.33,
+              2.5,
+              3.5
+            ]
+          },
+          "n_pasadas": 3,
+          "veredicto_unico": false,
+          "veredictos": [
+            "CORREGIR",
+            "CORREGIR",
+            "APROBADO"
+          ]
+        },
+        "03-i2": {
+          "bloqueante_unico": false,
+          "criterios": {
+            "caracterizacion": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                3,
+                3
+              ]
+            },
+            "escaleta": {
+              "rango": 2,
+              "sigma": 1.0,
+              "valores": [
+                4,
+                2,
+                3
+              ]
+            },
+            "prosa": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                4,
+                4
+              ]
+            },
+            "ritmo": {
+              "rango": 2,
+              "sigma": 1.0,
+              "valores": [
+                3,
+                2,
+                4
+              ]
+            },
+            "tension": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                2,
+                2
+              ]
+            },
+            "voz": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                3,
+                4
+              ]
+            }
+          },
+          "media_calculada": {
+            "rango": 0.83,
+            "sigma": 0.4384,
+            "valores": [
+              3.5,
+              2.67,
+              3.33
+            ]
+          },
+          "n_pasadas": 3,
+          "veredicto_unico": false,
+          "veredictos": [
+            "APROBADO",
+            "CORREGIR",
+            "CORREGIR"
+          ]
+        }
+      }
+    },
+    "holdout": {
+      "agregado": {
+        "n_borradores": 7,
+        "n_borradores_bloqueante_distinto_entre_pasadas": 2,
+        "n_borradores_media_distinta_entre_pasadas": 7,
+        "sigma_criterio_promedio": {
+          "caracterizacion": 0.6981,
+          "escaleta": 0.4949,
+          "prosa": 0.4124,
+          "ritmo": 0.6157,
+          "tension": 0.4124,
+          "voz": 0.5553
+        },
+        "sigma_media_calculada_promedio": 0.4179
+      },
+      "borradores": {
+        "01-i0": {
+          "bloqueante_unico": false,
+          "criterios": {
+            "caracterizacion": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                3,
+                2
+              ]
+            },
+            "escaleta": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                3,
+                2
+              ]
+            },
+            "prosa": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                3,
+                3
+              ]
+            },
+            "ritmo": {
+              "rango": 2,
+              "sigma": 1.0,
+              "valores": [
+                3,
+                4,
+                2
+              ]
+            },
+            "tension": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                3,
+                2
+              ]
+            },
+            "voz": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                3,
+                2
+              ]
+            }
+          },
+          "media_calculada": {
+            "rango": 1.0,
+            "sigma": 0.5774,
+            "valores": [
+              3.17,
+              3.17,
+              2.17
+            ]
+          },
+          "n_pasadas": 3,
+          "veredicto_unico": false,
+          "veredictos": [
+            "APROBADO",
+            "APROBADO",
+            "CORREGIR"
+          ]
+        },
+        "01-i1": {
+          "bloqueante_unico": true,
+          "criterios": {
+            "caracterizacion": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                4,
+                3
+              ]
+            },
+            "escaleta": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                4,
+                4,
+                4
+              ]
+            },
+            "prosa": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                4,
+                4,
+                4
+              ]
+            },
+            "ritmo": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                4,
+                3
+              ]
+            },
+            "tension": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                3,
+                3,
+                3
+              ]
+            },
+            "voz": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                4,
+                4
+              ]
+            }
+          },
+          "media_calculada": {
+            "rango": 0.33,
+            "sigma": 0.165,
+            "valores": [
+              3.67,
+              3.83,
+              3.5
+            ]
+          },
+          "n_pasadas": 3,
+          "veredicto_unico": true,
+          "veredictos": [
+            "APROBADO",
+            "APROBADO",
+            "APROBADO"
+          ]
+        },
+        "02-i0": {
+          "bloqueante_unico": true,
+          "criterios": {
+            "caracterizacion": {
+              "rango": 2,
+              "sigma": 1.0,
+              "valores": [
+                3,
+                4,
+                2
+              ]
+            },
+            "escaleta": {
+              "rango": 2,
+              "sigma": 1.1547,
+              "valores": [
+                3,
+                5,
+                3
+              ]
+            },
+            "prosa": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                4,
+                4
+              ]
+            },
+            "ritmo": {
+              "rango": 2,
+              "sigma": 1.0,
+              "valores": [
+                2,
+                4,
+                3
+              ]
+            },
+            "tension": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                4,
+                3
+              ]
+            },
+            "voz": {
+              "rango": 2,
+              "sigma": 1.0,
+              "valores": [
+                2,
+                4,
+                3
+              ]
+            }
+          },
+          "media_calculada": {
+            "rango": 1.5,
+            "sigma": 0.7882,
+            "valores": [
+              2.67,
+              4.17,
+              3.0
+            ]
+          },
+          "n_pasadas": 3,
+          "veredicto_unico": false,
+          "veredictos": [
+            "CORREGIR",
+            "APROBADO",
+            "APROBADO"
+          ]
+        },
+        "02-i1": {
+          "bloqueante_unico": true,
+          "criterios": {
+            "caracterizacion": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                2,
+                3,
+                2
+              ]
+            },
+            "escaleta": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                2,
+                2,
+                2
+              ]
+            },
+            "prosa": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                4,
+                3
+              ]
+            },
+            "ritmo": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                2,
+                2
+              ]
+            },
+            "tension": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                2,
+                2,
+                2
+              ]
+            },
+            "voz": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                3,
+                2
+              ]
+            }
+          },
+          "media_calculada": {
+            "rango": 0.5,
+            "sigma": 0.2542,
+            "valores": [
+              2.5,
+              2.67,
+              2.17
+            ]
+          },
+          "n_pasadas": 3,
+          "veredicto_unico": true,
+          "veredictos": [
+            "CORREGIR",
+            "CORREGIR",
+            "CORREGIR"
+          ]
+        },
+        "02-i2": {
+          "bloqueante_unico": true,
+          "criterios": {
+            "caracterizacion": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                3,
+                2,
+                2
+              ]
+            },
+            "escaleta": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                2,
+                2,
+                2
+              ]
+            },
+            "prosa": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                4,
+                4,
+                4
+              ]
+            },
+            "ritmo": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                3,
+                3
+              ]
+            },
+            "tension": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                3,
+                3,
+                3
+              ]
+            },
+            "voz": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                4,
+                4,
+                4
+              ]
+            }
+          },
+          "media_calculada": {
+            "rango": 0.33,
+            "sigma": 0.1905,
+            "valores": [
+              3.33,
+              3.0,
+              3.0
+            ]
+          },
+          "n_pasadas": 3,
+          "veredicto_unico": true,
+          "veredictos": [
+            "CORREGIR",
+            "CORREGIR",
+            "CORREGIR"
+          ]
+        },
+        "03-i0": {
+          "bloqueante_unico": false,
+          "criterios": {
+            "caracterizacion": {
+              "rango": 2,
+              "sigma": 1.0,
+              "valores": [
+                3,
+                2,
+                4
+              ]
+            },
+            "escaleta": {
+              "rango": 2,
+              "sigma": 1.1547,
+              "valores": [
+                4,
+                2,
+                4
+              ]
+            },
+            "prosa": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                2,
+                3,
+                2
+              ]
+            },
+            "ritmo": {
+              "rango": 0,
+              "sigma": 0.0,
+              "valores": [
+                2,
+                2,
+                2
+              ]
+            },
+            "tension": {
+              "rango": 2,
+              "sigma": 1.1547,
+              "valores": [
+                2,
+                2,
+                4
+              ]
+            },
+            "voz": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                2,
+                2,
+                3
+              ]
+            }
+          },
+          "media_calculada": {
+            "rango": 1.0,
+            "sigma": 0.5095,
+            "valores": [
+              2.5,
+              2.17,
+              3.17
+            ]
+          },
+          "n_pasadas": 3,
+          "veredicto_unico": false,
+          "veredictos": [
+            "CORREGIR",
+            "CORREGIR",
+            "APROBADO"
+          ]
+        },
+        "03-i1": {
+          "bloqueante_unico": true,
+          "criterios": {
+            "caracterizacion": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                3,
+                3
+              ]
+            },
+            "escaleta": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                4,
+                3
+              ]
+            },
+            "prosa": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                3,
+                4
+              ]
+            },
+            "ritmo": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                3,
+                3
+              ]
+            },
+            "tension": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                3,
+                3
+              ]
+            },
+            "voz": {
+              "rango": 1,
+              "sigma": 0.5774,
+              "valores": [
+                4,
+                3,
+                4
+              ]
+            }
+          },
+          "media_calculada": {
+            "rango": 0.83,
+            "sigma": 0.4403,
+            "valores": [
+              4.0,
+              3.17,
+              3.33
+            ]
+          },
+          "n_pasadas": 3,
+          "veredicto_unico": true,
+          "veredictos": [
+            "APROBADO",
+            "APROBADO",
+            "APROBADO"
+          ]
+        }
+      }
+    }
+  },
+  "umbral_veredicto_preregistro": 0.17
+}

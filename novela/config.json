@@ -157,7 +157,7 @@
       },
       "capitulos": {
         "total": 3,
-        "palabras_objetivo": 150,
+        "palabras_objetivo": 60,
         "tolerancia_palabras": 0.5,
         "escenas_min": 2,
         "escenas_max": 2
