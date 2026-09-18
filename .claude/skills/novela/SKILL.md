@@ -148,9 +148,16 @@ veredicto que diga el modelo. Devuelve:
 - `DECISION: verificar` → paso 3, con la `ITERACION` que indique. Luego vuelve aquí.
 - `DECISION: puerta_bloqueo` → sección «Puertas».
 
-`decide` también corta el bucle cuando una reescritura **no mejora la media** lo suficiente,
-aunque queden iteraciones (§9.4, `evaluacion.mejora_minima`). No lo discutas: una vuelta más
-que no mueve la nota cuesta un capítulo entero y no compra nada.
+`decide` también corta el bucle por su cuenta, aunque queden iteraciones (§9.4). Por dos
+motivos, y no los discutas ninguno:
+
+- una reescritura que **no mejora la media** lo suficiente (`evaluacion.mejora_minima`);
+- **dos rondas seguidas** en las que el Continuista no da el visto bueno
+  (`evaluacion.max_rondas_continuidad`). Una contradicción cuya corrección vive en un
+  capítulo ya aceptado no se arregla parcheando el actual, y el intento de arreglarla suele
+  inventar un hecho sobre el capítulo anterior, que es una contradicción nueva. Lo que
+  corresponde es aceptar con deuda: la contradicción queda escrita en
+  `estado/deuda-narrativa.md` con su evidencia.
 
 ### Paso 5 — Aceptar
 

@@ -72,20 +72,22 @@ function pintarCara(cap, dorso) {
   ctx.fillStyle = sombra;
   ctx.fillRect(0, 0, W, H);
 
+  // El dorso es el reverso de la hoja: papel y nada más. La ficha del
+  // capítulo vive en el panel de la izquierda, no dentro del libro.
+  if (dorso) return lienzo;
+
   let y = M + 14;
   ctx.fillStyle = TINTA_2;
   ctx.font = '500 13px "IBM Plex Mono", monospace';
-  ctx.fillText(dorso ? 'FICHA' : `CAPÍTULO ${cap.numero}`, M, y);
+  ctx.fillText(`CAPÍTULO ${cap.numero}`, M, y);
 
-  if (!dorso) {
-    y += 34;
-    ctx.fillStyle = cap.escrito ? TINTA : TINTA_2;
-    ctx.font = `${cap.escrito ? '500' : 'italic 400'} 25px Newsreader, Georgia, serif`;
-    for (const linea of ajustar(ctx, cap.titulo || 'sin título', util).slice(0, 3)) {
-      if (linea) { ctx.fillText(linea, M, y); y += 30; }
-    }
-    y += 8;
+  y += 34;
+  ctx.fillStyle = cap.escrito ? TINTA : TINTA_2;
+  ctx.font = `${cap.escrito ? '500' : 'italic 400'} 25px Newsreader, Georgia, serif`;
+  for (const linea of ajustar(ctx, cap.titulo || 'sin título', util).slice(0, 3)) {
+    if (linea) { ctx.fillText(linea, M, y); y += 30; }
   }
+  y += 8;
 
   ctx.strokeStyle = 'rgba(35,52,65,0.3)';
   ctx.beginPath();
@@ -102,38 +104,7 @@ function pintarCara(cap, dorso) {
     return lienzo;
   }
 
-  if (dorso) {
-    ctx.font = "400 15px Satoshi, 'Segoe UI', sans-serif";
-    for (const [rotulo, valor] of [
-      ['Focalizador', cap.focalizador],
-      ['Media del Evaluador', cap.media != null ? cap.media.toFixed(2) : '—'],
-      ['Escenas', String(cap.escenas)],
-      ['Palabras', String(cap.palabras)],
-      ['Deuda', cap.deuda ? 'sí' : 'no'],
-    ]) {
-      if (!valor) continue;
-      ctx.fillStyle = TINTA_2;
-      ctx.fillText(rotulo, M, y);
-      ctx.fillStyle = TINTA;
-      for (const linea of ajustar(ctx, valor, util).slice(0, 2)) {
-        if (linea) { y += 21; ctx.fillText(linea, M, y); }
-      }
-      y += 28;
-    }
-    if (cap.gancho) {
-      ctx.fillStyle = TINTA_2;
-      ctx.fillText('Gancho final', M, y); y += 8;
-      ctx.fillStyle = TINTA;
-      ctx.font = '400 16px Newsreader, Georgia, serif';
-      for (const linea of ajustar(ctx, cap.gancho, util)) {
-        if (y > H - M) break;
-        y += 23; ctx.fillText(linea, M, y);
-      }
-    }
-    return lienzo;
-  }
-
-  // anverso: el texto del capítulo, si ya llegó
+  // el texto del capítulo, si ya llegó
   ctx.fillStyle = TINTA;
   ctx.font = '400 16px Newsreader, Georgia, serif';
   if (cap.texto) {

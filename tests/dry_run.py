@@ -590,18 +590,79 @@ def audit_blocks(sandbox: Path) -> None:
           "P-02" in out and "incidencias" in out, out)
 
 
+def continuity_loop(sandbox: Path) -> None:
+    """9.4: dos rondas seguidas de `CORREGIR` no compran una tercera vuelta.
+
+    En sandbox aparte porque termina aceptando con deuda, y un capítulo sin
+    deltas ensuciaría el ledger de pistas del simulacro principal.
+
+    El capítulo 2 de `los-ruidos-del-bosque` gastó 61 turnos y 4,75 $ en tres
+    iteraciones: la regla de estancamiento sólo miraba la media —que subía,
+    3,67 → 4,00— y no la continuidad, que dijo `CORREGIR` las dos veces. Acabó
+    aceptando la i1, la que ya tenía sobre la mesa antes de la tercera vuelta.
+    """
+    setup(sandbox)
+    plan(sandbox)
+    print("\n— Bucle de continuidad: dos `CORREGIR` seguidos cortan (§9.4) —")
+    cfg = load(sandbox)
+    ko = continuity(1, "", "", 0, "", [], "", [], verdict="CORREGIR")
+
+    # i0: aprueba de media (3,67 sobre un umbral de 3,0) y falla continuidad
+    run(sandbox, "save-attempt",
+        "--file", str(write_tmp(sandbox, "1-i0.md", DRAFTS[1])), expect=None)
+    run(sandbox, "record", "eval",
+        "--file", str(write_tmp(sandbox, "1-ev0.json",
+                                evaluation(1, {**GOOD_SCORES,
+                                               "ritmo": 3, "prosa": 3}))))
+    run(sandbox, "record", "cont",
+        "--file", str(write_tmp(sandbox, "1-co0.json", ko)))
+    out = run(sandbox, "decide")
+    check("La primera contradicción de continuidad sí manda parchear",
+          "DECISION: parchear" in out, out)
+
+    # i1: la media sube, así que el estancamiento por media no llega a
+    # dispararse. Lo que no se mueve es la continuidad.
+    run(sandbox, "patch-plan")
+    run(sandbox, "save-attempt", "--iteration", "1",
+        "--file", str(write_tmp(sandbox, "1-i1.md", DRAFTS[1])),
+        "--patched-scenes", "1", expect=None)
+    run(sandbox, "record", "eval", "--iteration", "1",
+        "--file", str(write_tmp(sandbox, "1-ev1.json",
+                                evaluation(1, GOOD_SCORES))))
+    run(sandbox, "record", "cont", "--iteration", "1",
+        "--file", str(write_tmp(sandbox, "1-co1.json", ko)))
+    out = run(sandbox, "decide")
+    check("Con la media subiendo, dos `CORREGIR` seguidos cortan el bucle igual",
+          "DECISION: aceptar_con_deuda" in out
+          and "continuidad no se resuelve" in out, out)
+
+    out = run(sandbox, "accept")
+    debt = read(cfg.state_path("deuda-narrativa.md"))
+    check("La deuda escrita nombra la contradicción del Continuista (§6.10)",
+          "correa" in debt, debt)
+    check("Y no culpa a un criterio que aprobaba",
+          "Criterio fallido" not in debt, debt)
+    check("Las iteraciones anotadas son las gastadas, no el índice del intento",
+          "tras 2 iteraciones" in debt, debt)
+
+
+def new_sandbox(prefix: str) -> Path:
+    sandbox = Path(tempfile.mkdtemp(prefix=prefix))
+    for cmd in (["git", "init", "-q"],
+                ["git", "config", "user.email", "poc@local"],
+                ["git", "config", "user.name", "poc"]):
+        subprocess.run(cmd, cwd=sandbox, capture_output=True)
+    return sandbox
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--keep", action="store_true",
                         help="No borra el directorio de pruebas.")
     args = parser.parse_args()
 
-    sandbox = Path(tempfile.mkdtemp(prefix="novela-poc-"))
-    subprocess.run(["git", "init", "-q"], cwd=sandbox, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "poc@local"], cwd=sandbox,
-                   capture_output=True)
-    subprocess.run(["git", "config", "user.name", "poc"], cwd=sandbox,
-                   capture_output=True)
+    sandbox = new_sandbox("novela-poc-")
+    aparte = new_sandbox("novela-cont-")
 
     print(f"Simulacro del POC en {sandbox}")
     try:
@@ -613,6 +674,7 @@ def main() -> int:
         chapter_3_loop(sandbox)
         final(sandbox)
         audit_blocks(sandbox)
+        continuity_loop(aparte)
 
         log = subprocess.run(["git", "log", "--oneline"], cwd=sandbox,
                              capture_output=True, text=True,
@@ -630,9 +692,10 @@ def main() -> int:
             for name in FAIL:
                 print(f"  FALLO: {name}")
         if args.keep:
-            print(f"Directorio conservado: {sandbox}")
+            print(f"Directorios conservados: {sandbox}, {aparte}")
         else:
             shutil.rmtree(sandbox, ignore_errors=True)
+            shutil.rmtree(aparte, ignore_errors=True)
     return 0 if not FAIL else 1
 
 

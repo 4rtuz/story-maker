@@ -706,20 +706,32 @@ async function abrirCapitulo(n) {
 
   const cap = await api(`/api/runs/${estado.slug}/capitulos/${n}`);
   const f = cap.ficha;
-  const meta2 = [f.focalizador, f.dia ? `día de ficción ${f.dia}` : '', `acto ${cap.acto}`, `${cap.palabras} palabras`]
-    .filter(Boolean).map((t) => `<span>${esc(t)}</span>`).join('');
-  const escenas = cap.escenas.map((s) => `<div class="escena">
-    <div class="escena-rot"><span>ESCENA ${s.n}</span><i></i></div>
-    ${s.texto.split(/\n{2,}/).map((p) => `<p>${esc(p.trim())}</p>`).join('')}
-  </div>`).join('');
-  $('#prosa').innerHTML = `<div class="prosa-head">
+  const campos = [
+    ['Focalizador', f.focalizador],
+    ['Día de ficción', f.dia],
+    ['Presentes', f.presentes],
+    ['Acto', cap.acto],
+    ['Media del Evaluador', f.media != null ? f.media.toFixed(2) : '—'],
+    ['Escenas', cap.escenas.length],
+    ['Palabras', cap.palabras],
+    ['Deuda', meta.deuda ? 'sí' : 'no'],
+  ].filter(([, v]) => v !== '' && v != null)
+    .map(([k, v]) => `<div class="dato"><dt>${k}</dt><dd>${esc(String(v))}</dd></div>`).join('');
+
+  const bloque = (rotulo, texto) => (texto
+    ? `<div class="ficha-bloque"><div class="escena-rot"><span>${rotulo}</span><i></i></div><p>${esc(texto)}</p></div>`
+    : '');
+
+  $('#ficha').innerHTML = `<div class="ficha-head">
+      <span class="lbl">Ficha del capítulo</span>
       <h1>${esc(cap.titulo)}</h1>
-      <div class="prosa-meta">${meta2}</div>
     </div>
-    <div class="prosa-cuerpo">${escenas}
-      <div class="escena-rot"><span>FIN</span><i></i></div>
+    <div class="ficha-cuerpo">
+      <dl class="datos">${campos}</dl>
+      ${bloque('RESUMEN', f.resumen)}
+      ${bloque('GANCHO FINAL', f.gancho)}
     </div>`;
-  $('#prosa').scrollTop = 0;
+  $('#ficha').scrollTop = 0;
 }
 
 $('#hoja-prev').addEventListener('click', () => estado.libro?.anterior());

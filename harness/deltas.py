@@ -206,27 +206,53 @@ def write_card(cfg, chapter: int, ficha: dict, chapter_text: str,
 # --------------------------------------------------------------------------
 # 6.10 deuda narrativa
 # --------------------------------------------------------------------------
-def append_debt(cfg, chapter: int, mean: float, iterations: int,
-                evaluation: dict) -> None:
+def append_debt(cfg, chapter: int, mean: float, rounds: int,
+                evaluation: dict, continuity: dict | None = None) -> None:
+    """Lo que se acepta sin arreglar se anota aqui y en ningun otro sitio,
+    porque nada reescribe un capitulo ya aceptado.
+
+    Recibe tambien el informe del Continuista. Sin el, un capitulo aceptado con
+    deuda *de continuidad* —que es como se acepto el cap. 2 de
+    `los-ruidos-del-bosque`— se anotaba con el criterio mas bajo del Evaluador,
+    que alli era `tension` con un 4 sobre un umbral de 3: un criterio que
+    aprobaba. La contradiccion real, descrita escena por escena y con su
+    evidencia, no quedaba escrita en ninguna parte.
+    """
     path = cfg.state_path("deuda-narrativa.md")
     text = read(path) or "# Deuda narrativa\n"
-    scores = evaluation.get("puntuaciones", {})
-    worst = min(scores, key=lambda k: scores[k]) if scores else "desconocido"
-    patches = evaluation.get("parches") or []
-    problem = patches[0].get("problema", "") if patches else \
-        evaluation.get("observaciones", "")
-    fix = patches[0].get("correccion", "") if patches else ""
+    entry = ["",
+             f"## Capítulo {chapter} — aceptado con {mean} tras {rounds} iteraciones"]
 
-    entry = "\n".join([
-        "",
-        f"## Capítulo {chapter} — aceptado con {mean} tras {iterations} iteraciones",
-        f"- **Criterio fallido:** {worst} ({scores.get(worst, '-')})",
-        f"- **Problema:** {problem or '(no reportado)'}",
-        f"- **Corrección propuesta y no aplicada:** {fix or '(no reportada)'}",
-        f"- **Riesgo si no se corrige:** arrastra el defecto al contexto de los "
-        f"capítulos siguientes, que leen este capítulo como precedente.",
-    ])
-    write(path, text.rstrip() + "\n" + entry)
+    contradictions = (continuity or {}).get("contradicciones") or []
+    if contradictions:
+        entry.append(f"- **Continuidad:** `{(continuity or {}).get('veredicto')}`, "
+                     f"{len(contradictions)} sin resolver:")
+        for c in contradictions:
+            entry += [f"  - escena {c.get('escena')} [{c.get('tipo')}] "
+                      f"{c.get('descripcion')}",
+                      f"    - establecido en: {c.get('evidencia')}",
+                      f"    - corrección no aplicada: {c.get('correccion')}"]
+
+    # El criterio mas bajo solo dice algo si la evaluacion no aprobo: cuando
+    # aprueba, el mas bajo sigue estando por encima del umbral y nombrarlo
+    # manda a corregir lo que no estaba roto.
+    if not evaluation.get("aprobado_por_regla", False):
+        scores = evaluation.get("puntuaciones", {})
+        worst = min(scores, key=lambda k: scores[k]) if scores else "desconocido"
+        patches = evaluation.get("parches") or []
+        problem = patches[0].get("problema", "") if patches else \
+            evaluation.get("observaciones", "")
+        fix = patches[0].get("correccion", "") if patches else ""
+        entry += [
+            f"- **Criterio fallido:** {worst} ({scores.get(worst, '-')})",
+            f"- **Problema:** {problem or '(no reportado)'}",
+            f"- **Corrección propuesta y no aplicada:** {fix or '(no reportada)'}",
+        ]
+
+    entry.append("- **Riesgo si no se corrige:** arrastra el defecto al contexto "
+                 "de los capítulos siguientes, que leen este capítulo como "
+                 "precedente.")
+    write(path, text.rstrip() + "\n" + "\n".join(entry))
 
 
 # --------------------------------------------------------------------------

@@ -403,6 +403,45 @@ def _verdict(cfg, state, n: int) -> tuple[dict, bool, float | None, int]:
     return ev, approved, gain, chosen
 
 
+def _continuity_rounds(cfg, state, n: int) -> int:
+    """Rondas seguidas en las que el Continuista no ha dado el visto bueno.
+
+    Medido en `los-ruidos-del-bosque` cap. 2: el bucle no lo movia la media
+    —subia, 3.67 -> 4.00— sino la continuidad, que devolvio `CORREGIR` dos
+    veces. La regla de estancamiento de 9.4 solo miraba la media, asi que no
+    llegaba a dispararse y la tercera vuelta se gasto entera para acabar
+    aceptando la i1 que ya estaba sobre la mesa: 61 turnos y 4,75 $.
+
+    Y parchear no podia arreglarlo: las dos contradicciones pedian tocar el
+    capitulo 1, ya aceptado, que es lo que prohibe escribir solo hacia delante.
+    El parche de la i1 la tapo inventando un hecho sobre el capitulo 1, y con
+    eso genero la segunda. Lo que toca no es otra vuelta, es anotar la deuda.
+    """
+    rounds = 0
+    for i in range(state["iteracion"] + 1):
+        obj = json.loads(read(_report_path(cfg, n, i, "cont")) or "{}")
+        rounds = rounds + 1 if obj.get("veredicto") not in (None, "OK") else 0
+    return rounds
+
+
+def _stalled(cfg, state, n: int, gain) -> str | None:
+    """Por que se ha agotado el bucle de 9.4, o None si aun queda margen.
+
+    Son dos caminos, no uno: la media que deja de subir y la continuidad que no
+    se resuelve. El segundo faltaba.
+    """
+    minima = cfg["evaluacion"]["mejora_minima"]
+    if gain is not None and gain < minima:
+        return (f"la reescritura no mejora ({gain:+.2f} sobre "
+                f"i{state['iteracion'] - 1}, mínimo {minima})")
+    rounds = _continuity_rounds(cfg, state, n)
+    top = cfg["evaluacion"]["max_rondas_continuidad"]
+    if rounds >= top:
+        return (f"la continuidad no se resuelve parcheando: {rounds} rondas "
+                f"seguidas sin visto bueno (máximo {top})")
+    return None
+
+
 def _to_verify(cfg, state, n: int) -> int | None:
     """La iteracion cuya continuidad hay que verificar, o None si no toca.
 
@@ -415,10 +454,11 @@ def _to_verify(cfg, state, n: int) -> int | None:
     ev, approved, gain, chosen = _verdict(cfg, state, n)
     if not ev:
         return None
-    stalled = gain is not None and gain < cfg["evaluacion"]["mejora_minima"]
-    if not approved and state["iteracion"] < cfg["evaluacion"]["max_reescrituras"] \
-            and not stalled:
-        return None                     # se va a parchear: no se verifica nada
+    keep_patching = (not approved
+                     and state["iteracion"] < cfg["evaluacion"]["max_reescrituras"]
+                     and not _stalled(cfg, state, n, gain))
+    if keep_patching:
+        return None         # se va a parchear: no se verifica nada
     return None if _report_path(cfg, n, chosen, "cont").exists() else chosen
 
 
@@ -434,8 +474,7 @@ def cmd_decide(args) -> int:
 
     # 9.4: las iteraciones se agotan por cuenta o por estancamiento, lo que
     # llegue antes.
-    min_gain = cfg["evaluacion"]["mejora_minima"]
-    stalled = gain is not None and gain < min_gain
+    stalled = _stalled(cfg, state, n, gain)
 
     pending = _to_verify(cfg, state, n)
     if pending is not None:
@@ -473,8 +512,7 @@ def cmd_decide(args) -> int:
 
     best = state.best_attempt()
     state.transition("ACEPTANDO", aceptar_con_deuda=True, iteracion_aceptada=chosen)
-    motivo = (f"la reescritura no mejora ({gain:+.2f} sobre i{i - 1}, "
-              f"mínimo {min_gain})" if stalled else "iteraciones agotadas")
+    motivo = stalled or "iteraciones agotadas"
     _out("DECISION: aceptar_con_deuda",
          f"MEJOR_INTENTO: i{best['iteracion']} con media {best['media']}",
          f"MOTIVO: {motivo} (9.4). La ejecución continúa.")
@@ -557,11 +595,15 @@ def cmd_accept(args) -> int:
                  "resumen_120": "(el Continuista no emitió deltas: "
                                 "capítulo aceptado con deuda)",
                  "personajes_presentes": [], "gancho_final": ""}
-    D.write_card(cfg, n, ficha, chapter_text, iteration, best["media"])
+    # Las iteraciones consumidas son las que se han gastado, no el indice del
+    # intento que gana: al aceptar con deuda gana un intento anterior, y poner
+    # ahi su indice contaba tres vueltas como una.
+    rounds = len(state["intentos"])
+    D.write_card(cfg, n, ficha, chapter_text, rounds, best["media"])
 
     # 9.4: deuda
     if with_debt:
-        D.append_debt(cfg, n, best["media"], iteration, ev)
+        D.append_debt(cfg, n, best["media"], rounds, ev, cont)
 
     # 17: notas del autor
     moved = D.promote_author_notes(cfg, n)
