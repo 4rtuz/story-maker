@@ -35,6 +35,36 @@ misma llamada, no efecto de temperatura. Ejecutarlo igualmente habría gastado e
 llamadas por brazo sin poder atribuir ningún cambio a la variable que el encargo pide
 optimizar.
 
+## Segunda verificación (confirmación independiente)
+
+Antes de cerrar el veredicto se pidió una segunda comprobación, independiente de la
+inspección manual de arriba: se consultó a un agente especializado en Claude Code
+(`claude-code-guide`), que cita la documentación oficial (`settings-reference.md`,
+`sub-agents.md`, code.claude.com/docs). Conclusión, textual: **"`temperature` no existe en
+ninguno de estos lugares: `settings.json`/`settings.local.json`, frontmatter de
+`.claude/agents/*.md` (campos soportados: `name`, `description`, `tools`, `model`,
+`permissionMode`, `skills`, `memory`, `disallowedTools`, `mcpServers`, `maxTurns`,
+`isolation` — ninguno es `temperature`), flags CLI de `claude -p`, ni el flag
+`--agents <json>`."** Coincide con la comprobación manual: no hay ningún mecanismo
+soportado, documentado o no, para fijar `temperature` a través de Claude Code.
+
+Se comprobó además si la única vía que queda — llamar directamente a la API de Anthropic
+con `temperature=` en el body de la request — está a mi alcance en esta sesión:
+
+- No hay ninguna variable de entorno `ANTHROPIC_API_KEY` (ni ninguna otra con
+  `ANTHROPIC`/`CLAUDE` en el nombre que sea una clave de API).
+- El paquete `anthropic` (SDK de Python) no está instalado en este entorno.
+- La única credencial existente es la de la propia sesión de Claude Code, guardada
+  cifrada en `.claude/settings.local.json.bin` (no versionado). Extraerla para hacer
+  llamadas directas a la API por fuera de Claude Code sería usar una credencial real para
+  saltarse los controles de cuota y permisos del binding actual (P6) — no es algo que
+  deba intentar por mi cuenta ni aunque fuera técnicamente posible.
+
+**Conclusión de esta segunda pasada: el bloqueo está confirmado por dos vías
+independientes (inspección directa + fuente experta), y la única salida teórica (bypass a
+la API de Anthropic) tampoco está disponible en esta sesión por falta de credenciales —
+ni debería resolverse extrayendo una credencial existente para ese fin.**
+
 ## Por qué no se ha rodeado el bloqueo
 
 La única forma de controlar temperatura de verdad sería dejar de invocar al Evaluador vía
@@ -89,18 +119,25 @@ commit.
 
 ## Veredicto final
 
-**Bloqueado por arquitectura, no medido.** No se ha gastado ninguna llamada del Evaluador en
-esta tanda (el tope de 42 sigue intacto). Antes de reabrir este experimento hace falta una
-decisión humana explícita sobre una de estas dos vías, ninguna de las cuales corresponde
-resolver a un ciclo de auto-mejora en solitario:
+**Bloqueado por arquitectura y por falta de credenciales, confirmado por dos vías
+independientes — no medido.** No se ha gastado ninguna llamada del Evaluador en esta tanda
+(el tope de 42 sigue intacto). No se trata de una suposición ni de rendirse tras un primer
+tropiezo: se comprobó (1) el CLI y el frontmatter directamente, (2) una fuente experta
+citando documentación oficial, y (3) la disponibilidad real de la única vía de bypass —
+las tres apuntan al mismo sitio. Antes de reabrir este experimento hace falta una decisión
+humana explícita sobre una de estas dos vías, ninguna de las cuales corresponde resolver a
+un ciclo de auto-mejora en solitario:
 
 1. **Retirar `temperatura` de `agentes.*` en `novela/config.json`** como documentación
    engañosa (no vinculante), y aceptar que la temperatura del Evaluador es la que Claude Code
    fija por defecto para `haiku`, sin palanca. RSI futura se centraría en otras palancas que sí
    están conectadas (rúbrica, `mejora_minima`, número de pasadas de puntuación).
 2. **Escribir un anexo de binding nuevo** para el rol Evaluador que llame a la API de
-   Anthropic directamente (fuera de Claude Code) con `temperature=` explícito, aceptando que
-   eso separa a ese rol del resto del binding P1 y necesita su propia gestión de credenciales,
-   cuota y P6.
+   Anthropic directamente (fuera de Claude Code) con `temperature=` explícito. Esto exige,
+   como mínimo y antes de cualquier medición: provisionar una `ANTHROPIC_API_KEY` propia
+   (no la credencial cifrada de la sesión de Claude Code — esa no se toca), instalar el SDK
+   `anthropic`, y decidir cómo ese rol reporta su gasto a P6 (cuota), ya que quedaría fuera
+   del tope que hoy controla Claude Code. Nada de esto se ha hecho en esta sesión.
 
-Ninguna de las dos se ha aplicado en esta sesión.
+Ninguna de las dos se ha aplicado en esta sesión. Si se opta por la vía 2, avisar con la
+`ANTHROPIC_API_KEY` ya provisionada y confirmo antes de gastar ninguna llamada.
