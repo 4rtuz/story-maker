@@ -1,0 +1,185 @@
+# AGENTS.md
+
+Convenciones del harness de generación de novelas de suspense. Léelo antes de actuar.
+
+Documentación de referencia, solo cuando la necesites: `docs/architecture.md` (stack y estructura), `docs/definitions.md` (qué significa cada entidad), `docs/domain-knowledge.md` (diagramas), `docs/validators.md` (cómo se verifica cada cosa y qué riesgos están aceptados).
+
+## Qué es este proyecto
+
+Un sistema multiagente que escribe una novela de suspense completa a partir de una idea inicial. Siete roles se reparten el trabajo: `arquitecto`, `trazador`, `escritor`, `continuista`, `editor-estilo`, `lector-suspense` y `cronista`. Un orquestador los invoca en un bucle por capítulo y aplica gates de calidad entre paso y paso.
+
+## Monorepo
+
+Dos carpetas grandes. Todo lo demás en la raíz es compartido.
+
+| Carpeta | Stack | Qué hace |
+|---|---|---|
+| `backend/` | Python 3.12, FastAPI, Typer, Pydantic v2, `uv` | CLI `novela` (escribe) y API REST (`backend/api/`, solo lectura) |
+| `frontend/` | Vite + TypeScript + Three.js | Panel de solo lectura; consume la API del backend |
+
+Reglas:
+
+- El backend es lo único que toca `novelas/<slug>/`. El frontend nunca lee el disco: pasa por la API.
+- La API **no escribe**. No hay `POST` que mute una novela; mutar es trabajo del orquestador vía CLI. Si hace falta escribir, se añade un subcomando al CLI, no un verbo a la API.
+- Los modelos Pydantic de `backend/novela/models/` son también los de respuesta de la API. Una sola ontología.
+- FastAPI no contradice el «nunca añadir un SDK de API»: esa regla es sobre proveedores de modelos, y la API no llama a ninguno.
+
+Detalle de endpoints y arranque: `docs/architecture.md` §11.
+
+## Separación repo / workspace
+
+- El repositorio es el harness: `backend/`, `frontend/`, `docs/` y las definiciones de agentes.
+- `novelas/<slug>/` son datos de una novela. Está en `.gitignore`. Nunca lo versiones ni lo edites a mano.
+
+## Las cuatro ramas de contexto
+
+No las mezcles. Confundirlas es la causa más común de incoherencia.
+
+| Directorio | Qué es | Cómo cambia |
+|---|---|---|
+| `canon/` | Lo que es verdad del mundo | Versionado; solo el orquestador autoriza cambios |
+| `plan/` | Lo que debería pasar | Versionado |
+| `estado/state.json` | Lo que ya pasó | Fuente única de verdad |
+| `memoria/` | Resúmenes derivados | Reconstruible; nunca fuente de verdad |
+
+## Invariantes
+
+Estas reglas no se negocian. Si una tarea parece exigir romper una, para y pregunta.
+
+1. **`estado/state.json` es la única fuente de verdad sobre lo escrito.** No lo edites directamente: se actualiza con `novela aplicar-delta`.
+2. **`libro_de_hechos` y `conocimiento` son append-only.** Modificar o borrar una entrada existente es reescribir la historia y rompe toda verificación posterior. Solo se añaden entradas.
+3. **`canon/misterio.md` es secreto.** El `escritor` y el `editor-estilo` no lo leen nunca. Reciben solo las pistas listadas en la ficha de su capítulo.
+4. **Fair play.** Ninguna revelación sin al menos una pista plantada antes.
+5. **El contexto vive en disco, no en la conversación.** Nunca reconstruyas estado a partir de una sesión previa; léelo de `state.json` y `checkpoints/`.
+6. **Escritura atómica.** Todo fichero se escribe en `.tmp` y se renombra.
+7. **No se reescriben capítulos anteriores.** Si el problema del capítulo 7 nace del 5, para y pide intervención.
+8. **Un proceso por workspace.** Respeta `estado/state.lock`.
+
+## Cómo trabaja cada rol
+
+Cada agente recibe un *briefing* generado para esa invocación concreta en `runs/<run_id>/briefings/NN-<agente>.md`. Reglas comunes:
+
+- Lee solo el briefing y las rutas listadas dentro de él. No explores el workspace por tu cuenta.
+- Escribe solo en las rutas declaradas como salida.
+- Devuelve un informe breve. Los hallazgos completos van a `qa/`, no al canal de retorno.
+- Ante ambigüedad, falla explícitamente. No inventes.
+- Salida estructurada donde el contrato lo pida: JSON válido contra su esquema en `backend/schemas/`, sin prosa alrededor ni vallas de código.
+
+## CLI
+
+Operaciones deterministas. No llaman a ningún modelo y no consumen cuota.
+
+```
+novela estado <slug> --breve          cursor, hilos abiertos, capítulos hechos
+novela briefing <slug> <cap> <agente> genera el contexto de una invocación
+novela validar <slug> <cap>           esquema, longitud, pistas presentes, hilos
+novela aplicar-delta <slug> <cap>     única vía de escritura de state.json
+novela checkpoint <slug> <cap>
+novela pendiente <slug>               salida 0 si quedan capítulos
+novela auditar <slug>                 pistas huérfanas, hilos sin cerrar
+novela exportar <slug> --formato epub
+```
+
+Ejecuta `novela validar` antes de invocar a ningún agente de revisión: detecta gratis lo que no merece una llamada a un modelo.
+
+## Identificadores
+
+Prefijo de tipo más slug o secuencia. Son claves estables: el nombre visible de un personaje puede cambiar en la trama, su id no.
+
+```
+per-elena-vidal   personaje       pis-007   pista
+esc-casa-del-faro escenario       pfa-003   pista falsa
+hil-004           hilo            rev-002   revelación
+obj-011           objeto o prueba cap-01    capítulo
+```
+
+Capítulos con dos dígitos (`01`) hasta 99; tres si la novela pasa de 99, y entonces en todo el workspace desde el inicio. No se mezclan formatos.
+
+## Proceso: generar código (TDD)
+
+Ciclo obligatorio. No hay excepción por «es un cambio pequeño».
+
+1. **Spec primero** si el cambio tiene superficie: subcomando nuevo, endpoint, campo de esquema, contrato de agente. Si es un arreglo interno sin superficie, salta al paso 2.
+2. **Rojo.** Escribe el test y **ejecútalo para verlo fallar**. Un test que nunca has visto en rojo no prueba nada.
+3. **Verde.** El mínimo código que lo pasa.
+4. **Refactor** con la suite en verde.
+5. `uv run pytest` completo, `mypy --strict` y `ruff` antes de commitear.
+
+Reglas propias del proyecto:
+
+- **Ningún test llama a un modelo.** El bucle se prueba con un agente falso que escribe un capítulo prefabricado desde `backend/tests/fixtures/`.
+- Si tocas un gate de `validate.py` o una rama de `delta.py`, el test es property-based, no de ejemplo: ahí los ejemplos no cubren (`docs/validators.md` §3.6).
+- Si cambias un modelo Pydantic: regenera `backend/schemas/`, actualiza `docs/definitions.md` y ajusta el test de contrato, todo en el mismo commit.
+- **Cambiar el prompt de un agente no es código y no tiene TDD**: no es determinista. Va por spec y se valida con una novela de humo de 3 capítulos comparando scores.
+
+Un commit es un ciclo cerrado. No se commitea en rojo.
+
+## Proceso: modificar documentación
+
+Cuatro tipos de documento, cuatro reglas. No los mezcles.
+
+| Documento | Qué describe | Cuándo se toca |
+|---|---|---|
+| `AGENTS.md`, `CLAUDE.md` | Convenciones vigentes | Solo si cambia una convención |
+| `docs/architecture.md`, `definitions.md`, `domain-knowledge.md`, `validators.md` | El estado **actual** del sistema | En el mismo commit que el código que lo cambia |
+| `docs/specs/NNNN-<slug>.md` | Un cambio concreto **antes** de existir | Al proponerlo |
+| `docs/adr/NNNN-<slug>.md` | Una decisión con alternativas descartadas | Cuando revertirla sería caro |
+
+**Regla dura: la documentación de referencia describe lo que hay, no lo que habrá.** Nada de «próximamente» o «pendiente» en `architecture.md`. El futuro vive en `docs/specs/`.
+
+Ciclo de vida de una spec:
+
+1. Copia `docs/specs/_plantilla.md` a `docs/specs/NNNN-<slug>.md`, correlativo de cuatro dígitos. Estado `borrador`.
+2. Se discute **en el fichero**, no en la conversación: la conversación se pierde y el fichero es lo que lee el siguiente agente.
+3. Aceptada → estado `aceptada`. Sus criterios de aceptación son los tests del ciclo TDD, uno a uno. Una spec sin criterios verificables no se acepta.
+4. Implementada → estado `implementada`, sha del commit en el frontmatter, y en ese mismo commit se actualizan los docs de referencia que quedaron desfasados.
+5. Descartada → estado `descartada` con el motivo. **No se borra**: el motivo es lo que evita que alguien la reproponga en tres meses.
+
+Una spec que lleva dos versiones del harness en `borrador` está muerta. Ciérrala como `descartada`.
+
+## Proceso: ejecución
+
+**Puesta en marcha**
+
+```bash
+cd backend  && uv sync                              # Python 3.12
+cd frontend && npm install
+```
+
+**Desarrollo**
+
+```bash
+cd backend  && uv run uvicorn api.main:app --reload  # API, solo lectura
+cd frontend && npm run dev                           # panel, consume la API
+cd backend  && uv run pytest                         # sin llamadas a modelo, sin cuota
+```
+
+**Escribir una novela.** Interactivo, con `/clear` entre actos:
+
+```
+/novela-nueva <slug> --idea "..." --capitulos 24 --palabras 80000
+/novela-continuar <slug>
+/novela-auditar <slug>
+```
+
+Desatendido, una sesión por capítulo para acotar el contexto y el daño de un fallo:
+
+```bash
+while novela pendiente <slug>; do
+  claude -p "/novela-continuar <slug> --capitulos 1" || break
+done
+```
+
+El `|| break` es deliberado: ante un error el sistema para y deja el checkpoint, no insiste. Para reanudar, vuelve a lanzarlo — `/novela-continuar` lee `checkpoints/latest.json` y repite el último paso no confirmado. Nunca reconstruyas el estado desde una conversación previa.
+
+Si el bucle escribe `runs/<run_id>/intervencion.md`, ha agotado los intentos de un gate y necesita una decisión humana. Léelo antes de relanzar nada.
+
+El CLI no accede a la red salvo para emitir scores a Langfuse.
+
+## Nunca
+
+- Añadir un proveedor de modelos, un gateway o un SDK de API de modelos. Todo corre sobre la suscripción de Claude Code.
+- Dar al frontend acceso directo al workspace, o a la API capacidad de escritura.
+- Escribir claves en ficheros versionados.
+- Dejar prosa dentro de un fichero que el contrato define como JSON.
+- Ampliar `CLAUDE.md` o este fichero sin necesidad: se cargan en cada sesión y en cada subagente, y cada línea se paga muchas veces.

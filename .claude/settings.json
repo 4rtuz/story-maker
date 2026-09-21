@@ -1,0 +1,11 @@
+{
+  "extraKnownMarketplaces": {
+    "my-factory": {
+      "source": { "source": "github", "repo": "4rtuz/my-factory" }
+    }
+  },
+  "enabledPlugins": {
+    "ponytail@my-factory": true,
+    "taste-skill@my-factory": true
+  }
+}
