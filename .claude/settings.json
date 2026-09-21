@@ -4,7 +4,8 @@
     "taste-skill@my-factory": true,
     "mattpocock-skills@my-factory": true,
     "fastapi-skill@my-factory": true,
-    "find-skills@my-factory": true
+    "find-skills@my-factory": true,
+    "feature-sliced-design@my-factory": true
   },
   "extraKnownMarketplaces": {
     "my-factory": {
