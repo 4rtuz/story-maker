@@ -69,6 +69,28 @@ El orquestador nunca lee `capitulos/07.md`. Los subagentes leen y escriben fiche
 
 La lógica del bucle vive en `.claude/commands/novela-continuar.md`, no en código Python. El código Python es el conjunto de operaciones deterministas que el bucle invoca entre delegaciones.
 
+**Quién orquesta.** La sesión de Claude Code, no un proceso Python. No hay planificador que decida el siguiente paso: el orden es fijo y está escrito en `.claude/commands/novela-continuar.md`. La sesión aporta la delegación y el juicio en los gates; todo lo demás es determinista y vive en el CLI.
+
+**Secuencia y paralelismo.** Dentro de un capítulo hay un único punto de abanico: los tres agentes de revisión (`continuista`, `editor-estilo`, `lector-suspense`) leen el mismo capítulo, no se leen entre sí y escriben en ficheros distintos de `qa/`. Se invocan en paralelo, en un solo turno con tres llamadas a Task. El resto es estrictamente secuencial por dependencia de datos.
+
+El `cronista` queda fuera del abanico y se invoca **después** de evaluar los gates. Extraer el delta de un capítulo que va a reescribirse es trabajo tirado, y aplicarlo sobre un capítulo rechazado deja el estado por delante del texto, que es la forma más cara de corromper una novela.
+
+**Gates.** Tres barreras, de la más barata a la más cara:
+
+| Gate | Quién lo evalúa | Cuándo |
+|---|---|---|
+| Mecánico | `novela validar` (Python, sin cuota) | Tras el `escritor`, antes de cualquier revisión |
+| Continuidad | `continuista` → `qa/NN-continuidad.json` | Tras el abanico |
+| Tensión | `lector-suspense` → `qa/NN-suspense.json` | Tras el abanico |
+
+El primero descarta lo que no merece una llamada a un modelo: longitud fuera de rango, frontmatter inválido, pista planificada ausente, hilo que se cierra sin haberse abierto. Ejecutarlo antes de delegar en los revisores no es una optimización, es la regla.
+
+Los hallazgos del `editor-estilo` no son gate: se aplican, no bloquean. Un capítulo con prosa mejorable avanza; uno que contradice un hecho establecido, no.
+
+**Reintentos.** Máximo dos por gate. El reintento vuelve al `escritor` con el informe de QA como única entrada nueva: nunca un «está mal» genérico y nunca el capítulo entero de vuelta por el canal de conversación, que el agente ya sabe leer su propio fichero. Al tercer fallo el bucle escribe `runs/<run_id>/intervencion.md` y para. Dos formas distintas de fallar agotan el presupuesto igual que la misma dos veces: si un capítulo necesita tres intentos, el problema no está en el capítulo.
+
+**Estado del bucle.** Cada paso se identifica por `(run_id, capitulo, agente, intento)` y atraviesa tres situaciones: pendiente, ejecutado y confirmado. `novela checkpoint` confirma una sola vez, al final del capítulo y con el delta ya aplicado. Reanudar es repetir el primer paso no confirmado, siempre entero; por eso todos los pasos son idempotentes sobre ficheros de nombre determinista.
+
 ### 2.2 Selección de modelo por agente
 
 Sin acceso a `temperature`, el único parámetro de control que queda es el modelo, disponible en el frontmatter del subagente (`opus`, `sonnet`, `haiku` o `inherit`).
@@ -365,7 +387,7 @@ escritor:
   excluir: [canon/misterio]
 
 continuista:
-  presupuesto_tokens: 80000
+  presupuesto_tokens: 65000
   capas:
     - permanente: [canon/*, canon/misterio]
     - estado: [libro_de_hechos, linea_temporal, coartadas]
@@ -382,6 +404,75 @@ La receta se versiona y su identificador se escribe en `runs/<run_id>/manifest.j
 2. El frontmatter de `escritor.md` restringe `tools` para que no pueda leer rutas arbitrarias fuera de las autorizadas.
 
 El escritor recibe solo el contenido de las pistas listadas en `plan/capitulos/NN.md` para su capítulo. Un modelo que conoce la solución la filtra en el subtexto mucho antes de tiempo, y es un fallo invisible en revisión capítulo a capítulo.
+
+### 6.4 Memoria de corto y largo plazo
+
+`estado/state.json` (rama 4) y `memoria/` (rama 5) resuelven dos problemas distintos y se confunden con facilidad. El estado es lo que ha pasado, en forma de datos. La memoria es ese mismo material comprimido a varias resoluciones para que quepa en un briefing.
+
+| Horizonte | Qué contiene | Dónde vive | Ciclo de vida |
+|---|---|---|---|
+| Trabajo | El briefing de una invocación concreta | Contexto del subagente | Muere con la invocación |
+| Corto plazo | Capítulo anterior completo, resúmenes a párrafo de los 3 anteriores, hilos abiertos, posición temporal y espacial | `memoria/resumenes/` y campos volátiles de `state.json` | Se desplaza con el cursor |
+| Largo plazo | `libro_de_hechos`, `conocimiento`, `canon/`, resúmenes a una línea desde el capítulo 1 | `estado/state.json` y `canon/` | Append-only, no caduca |
+
+**La memoria de trabajo no persiste.** Es la consecuencia directa del principio 1: un subagente no recuerda la invocación anterior y no debe recordarla. Lo que tiene que sobrevivir se escribe en disco por el contrato de salida del agente; lo que se queda en el canal de retorno se pierde, y está bien que se pierda.
+
+**El corto plazo es una ventana deslizante de coste constante.** El `escritor` del capítulo 12 ve el 11 entero, el 9-10-11 a párrafo y el 1-8 a una línea. El del 13 ve la misma forma desplazada un lugar. Ningún capítulo cuesta más contexto que el anterior, y eso es lo que hace viable el capítulo 24.
+
+**El largo plazo no se carga, se consulta.** `libro_de_hechos` y `conocimiento` son append-only precisamente para ser indexables por id: el briefing del `continuista` no trae el libro entero, trae las entradas que tocan a los personajes, objetos y hilos presentes en el capítulo que revisa. Recordar aquí es seleccionar, no acumular.
+
+**La compresión ocurre una sola vez, al aplicar el delta.** `novela aplicar-delta` escribe `memoria/resumenes/NN.md` con las tres granularidades a la vez —escena, párrafo y una línea— a partir de la salida del `cronista`. No hay un segundo pase de resumido, ni se vuelve a abrir un capítulo cerrado para comprimirlo más. Degradar la resolución con la distancia es elegir qué granularidad entra en el briefing, no reescribir nada.
+
+**La memoria es derivada; el estado no.** Si `memoria/` se pierde, se regenera pasando el `cronista` por los capítulos ya escritos: cuesta cuota, no corrompe nada. Si `state.json` se pierde, se restaura del último checkpoint. Ante una discrepancia entre un resumen y el estado gana el estado, siempre y sin discusión.
+
+### 6.5 El techo de 100.000 tokens
+
+**Regla dura: ninguna invocación —ni la del orquestador ni la de un subagente— ensambla más de 100.000 tokens de contexto vivo.** Es un techo por invocación, no un presupuesto acumulado: cuenta cuánto hay simultáneamente en la ventana, no cuánto ha pasado por ella a lo largo de la novela. Está por debajo de la ventana real del modelo a propósito; ese margen es lo que absorbe el error de estimación.
+
+El presupuesto de briefing de una receta sale de restar lo que no es negociable:
+
+```
+briefing ≤ 100.000 − fijo − salida_esperada − margen
+           fijo   = 10.000   CLAUDE.md + AGENTS.md (~4.000) + prompt del agente y herramientas (~6.000)
+           margen = 15.000   sin asignar
+```
+
+| Agente | Salida esperada | Techo de briefing | Receta (§6.2) |
+|---|---|---|---|
+| `escritor` | ~15.000 (capítulo de 3.300 palabras ≈ 4.700, resto razonamiento) | 60.000 | 60.000 |
+| `continuista` | ~10.000 (JSON de hallazgos) | 65.000 | 65.000 |
+| `cronista` | ~5.000 (delta) | 70.000 | — |
+
+`CLAUDE.md` y `AGENTS.md` se pagan en cada subagente: por eso no ampliarlos es una regla y no una preferencia.
+
+Reparto interno del briefing del `escritor` en un capítulo 12 de 24:
+
+| Capa | Tokens | ¿Crece con la novela? |
+|---|---|---|
+| `canon/` permanente (premisa, mundo, estilo) | ~6.000 | No |
+| Personajes presentes en escena | ~3.000 | No, se filtra por escena |
+| Estado filtrado (hilos abiertos, conocimiento, objetos) | ~8.000 | Sí, sublinealmente |
+| Capítulo anterior completo | ~4.700 | No |
+| Resúmenes a párrafo (3) | ~450 | No |
+| Resúmenes a una línea (1..8) | ~200 | Sí, ~25 tokens por capítulo |
+| Ficha del capítulo actual y restricción de apertura | ~1.500 | No |
+
+Unos 24.000 sobre 60.000. El margen no sobra: es lo que permite que un capítulo con doce personajes en escena y cinco hilos abiertos siga cabiendo sin tocar la receta.
+
+**Dónde se aplica.** `novela briefing` cuenta lo que acaba de ensamblar y **falla** si supera el `presupuesto_tokens` de la receta. Nunca trunca en silencio: un briefing truncado es un agente que no sabe lo que no sabe.
+
+**Degradación cuando no cabe.** Orden fijo, de menos a más doloroso:
+
+1. Se recortan los resúmenes a una línea más antiguos.
+2. Los resúmenes a párrafo bajan a una línea.
+3. La lista de personajes se reduce a los que tienen diálogo en el capítulo.
+4. Se para y se pide intervención.
+
+`canon/` y el estado filtrado no se degradan nunca: son las dos capas cuya ausencia produce contradicción en vez de imprecisión.
+
+**El orquestador está sujeto al mismo techo y es quien va más justo,** porque su contexto es el único que no se vacía entre pasos. Acumula del orden de 6.000 a 8.000 tokens por capítulo entre salidas de Bash, informes de subagente y sus propias decisiones. Contra los ~90.000 útiles eso da unos diez capítulos por sesión, pero el coste real depende de cuántos reintentos haya habido y eso no se sabe de antemano: de ahí que el modo desatendido (§2.3) fije un capítulo por sesión y deje el margen sin gastar.
+
+**Cómo se cuenta.** Sin endpoint de conteo, `novela briefing` estima desde caracteres con una ratio conservadora para español —3,5 caracteres por token— y trata el resultado como cota superior. El error ronda el 10% y siempre por exceso, que es el lado correcto en el que equivocarse. Si algún día se mide y sobra margen sistemáticamente, la palanca es subir el presupuesto de las recetas, no el techo.
 
 ---
 
@@ -547,6 +638,8 @@ novela exportar <slug> --formato epub
 
 ## 9. Presupuesto
 
+Dos límites distintos que conviene no mezclar: el techo de contexto por invocación (§6.5) y la cuota de uso por ventana, que es de lo que trata esta sección.
+
 Con la suscripción desaparece el coste por llamada, pero no el límite: hay topes de uso por ventana. La consecuencia operativa es idéntica a la anterior, y por eso el diseño no cambia — checkpoint por capítulo y reanudación limpia siguen siendo el mecanismo central.
 
 `novela budget` registra en `runs/quota.json` invocaciones y capítulos completados por ventana, para estimar cuánto queda antes del corte y decidir si merece la pena empezar otro capítulo o parar en un punto limpio.
@@ -654,6 +747,6 @@ Contrato de acoplamiento: el frontend consume lo que la API devuelve tal cual. S
 
 1. **Sin temperatura, la variación depende del prompt.** La restricción de apertura por capítulo (§2.2) es una mitigación no probada. Si tras seis o siete capítulos la prosa converge, la siguiente palanca es variar el modelo del `escritor` entre capítulos o inyectar una consigna de estilo rotatoria desde el plan.
 2. **El `session_id` del hook.** El mapa de §10.2 asume que no se puede fijar desde fuera. Compruébalo: si se puede, la correlación con la ontología es directa y el apartado se simplifica.
-3. **Contexto de la sesión orquestadora.** Las cuatro reglas de §2.4 son la hipótesis de que un capítulo por sesión basta. Si en la práctica el orquestador aguanta tres o cuatro, el modo desatendido se abarata; si no aguanta ni uno completo, hay que partir el bucle en dos comandos.
+3. **Contexto de la sesión orquestadora.** Las cuatro reglas de §2.4 y la aritmética de §6.5 son la hipótesis de que un capítulo por sesión basta. Si en la práctica el orquestador aguanta tres o cuatro, el modo desatendido se abarata; si no aguanta ni uno completo, hay que partir el bucle en dos comandos.
 4. **`index_recuperable` pospuesto.** El índice vectorial sobre escenas queda fuera de la v1. Con 24 capítulos los resúmenes jerárquicos bastan; se justifica a partir de unas 40.
 5. **El escritor no reescribe capítulos anteriores.** Si un gate detecta que un problema del capítulo 7 nace del 5, el harness para y pide intervención. La reescritura retroactiva automática invalidaría el estado y los resúmenes de todo lo intermedio.
