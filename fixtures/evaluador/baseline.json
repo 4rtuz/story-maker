@@ -1,0 +1,451 @@
+{
+  "n_llamadas": 63,
+  "n_fallidas": 0,
+  "n_invalidas": 0,
+  "n_pares": 7,
+  "sigma_media_promedio": 0.317,
+  "gates_estables": 4,
+  "sigma_criterio_promedio": {
+    "tension": 0.2475,
+    "escaleta": 0.4949,
+    "voz": 0.5553,
+    "caracterizacion": 0.4507,
+    "ritmo": 0.5935,
+    "prosa": 0.3299
+  },
+  "discriminacion": {
+    "singancho": {
+      "auc": 0.7302,
+      "comparaciones": 63
+    },
+    "barajado": {
+      "auc": 0.9762,
+      "comparaciones": 63
+    }
+  },
+  "sigma_entre_borradores": 0.4071,
+  "valores_distintos_por_criterio": {
+    "tension": 4,
+    "escaleta": 4,
+    "voz": 4,
+    "caracterizacion": 4,
+    "ritmo": 4,
+    "prosa": 3
+  },
+  "coste_total": 3.4968,
+  "detalle_por_par": {
+    "01-c01-edce12e7": {
+      "medias": [
+        3.0,
+        2.83,
+        3.17
+      ],
+      "sigma_media": 0.17,
+      "gate_estable": false,
+      "criterios": {
+        "tension": {
+          "valores": [
+            3,
+            3,
+            3
+          ],
+          "sigma": 0.0
+        },
+        "escaleta": {
+          "valores": [
+            3,
+            3,
+            2
+          ],
+          "sigma": 0.5774
+        },
+        "voz": {
+          "valores": [
+            3,
+            3,
+            4
+          ],
+          "sigma": 0.5774
+        },
+        "caracterizacion": {
+          "valores": [
+            3,
+            3,
+            3
+          ],
+          "sigma": 0.0
+        },
+        "ritmo": {
+          "valores": [
+            3,
+            2,
+            4
+          ],
+          "sigma": 1.0
+        },
+        "prosa": {
+          "valores": [
+            3,
+            3,
+            3
+          ],
+          "sigma": 0.0
+        }
+      }
+    },
+    "02-c01-edce12e7": {
+      "medias": [
+        3.67,
+        3.33,
+        3.0
+      ],
+      "sigma_media": 0.335,
+      "gate_estable": true,
+      "criterios": {
+        "tension": {
+          "valores": [
+            4,
+            4,
+            3
+          ],
+          "sigma": 0.5774
+        },
+        "escaleta": {
+          "valores": [
+            4,
+            3,
+            3
+          ],
+          "sigma": 0.5774
+        },
+        "voz": {
+          "valores": [
+            3,
+            3,
+            3
+          ],
+          "sigma": 0.0
+        },
+        "caracterizacion": {
+          "valores": [
+            4,
+            4,
+            3
+          ],
+          "sigma": 0.5774
+        },
+        "ritmo": {
+          "valores": [
+            3,
+            3,
+            3
+          ],
+          "sigma": 0.0
+        },
+        "prosa": {
+          "valores": [
+            4,
+            3,
+            3
+          ],
+          "sigma": 0.5774
+        }
+      }
+    },
+    "03-c01-edce12e7": {
+      "medias": [
+        3.5,
+        3.33,
+        4.33
+      ],
+      "sigma_media": 0.5351,
+      "gate_estable": true,
+      "criterios": {
+        "tension": {
+          "valores": [
+            3,
+            3,
+            4
+          ],
+          "sigma": 0.5774
+        },
+        "escaleta": {
+          "valores": [
+            4,
+            4,
+            5
+          ],
+          "sigma": 0.5774
+        },
+        "voz": {
+          "valores": [
+            4,
+            3,
+            4
+          ],
+          "sigma": 0.5774
+        },
+        "caracterizacion": {
+          "valores": [
+            3,
+            4,
+            5
+          ],
+          "sigma": 1.0
+        },
+        "ritmo": {
+          "valores": [
+            3,
+            2,
+            4
+          ],
+          "sigma": 1.0
+        },
+        "prosa": {
+          "valores": [
+            4,
+            4,
+            4
+          ],
+          "sigma": 0.0
+        }
+      }
+    },
+    "04-c02-f2b1b61f": {
+      "medias": [
+        2.67,
+        3.33,
+        3.33
+      ],
+      "sigma_media": 0.3811,
+      "gate_estable": true,
+      "criterios": {
+        "tension": {
+          "valores": [
+            3,
+            3,
+            3
+          ],
+          "sigma": 0.0
+        },
+        "escaleta": {
+          "valores": [
+            3,
+            3,
+            4
+          ],
+          "sigma": 0.5774
+        },
+        "voz": {
+          "valores": [
+            2,
+            4,
+            3
+          ],
+          "sigma": 1.0
+        },
+        "caracterizacion": {
+          "valores": [
+            3,
+            3,
+            4
+          ],
+          "sigma": 0.5774
+        },
+        "ritmo": {
+          "valores": [
+            2,
+            3,
+            3
+          ],
+          "sigma": 0.5774
+        },
+        "prosa": {
+          "valores": [
+            3,
+            4,
+            3
+          ],
+          "sigma": 0.5774
+        }
+      }
+    },
+    "05-c03-0d834e01": {
+      "medias": [
+        2.5,
+        2.17,
+        2.33
+      ],
+      "sigma_media": 0.165,
+      "gate_estable": false,
+      "criterios": {
+        "tension": {
+          "valores": [
+            2,
+            2,
+            2
+          ],
+          "sigma": 0.0
+        },
+        "escaleta": {
+          "valores": [
+            3,
+            2,
+            3
+          ],
+          "sigma": 0.5774
+        },
+        "voz": {
+          "valores": [
+            3,
+            2,
+            2
+          ],
+          "sigma": 0.5774
+        },
+        "caracterizacion": {
+          "valores": [
+            2,
+            2,
+            2
+          ],
+          "sigma": 0.0
+        },
+        "ritmo": {
+          "valores": [
+            2,
+            2,
+            2
+          ],
+          "sigma": 0.0
+        },
+        "prosa": {
+          "valores": [
+            3,
+            3,
+            3
+          ],
+          "sigma": 0.0
+        }
+      }
+    },
+    "06-c03-0d834e01": {
+      "medias": [
+        3.33,
+        3.33,
+        2.83
+      ],
+      "sigma_media": 0.2887,
+      "gate_estable": true,
+      "criterios": {
+        "tension": {
+          "valores": [
+            3,
+            3,
+            3
+          ],
+          "sigma": 0.0
+        },
+        "escaleta": {
+          "valores": [
+            3,
+            3,
+            3
+          ],
+          "sigma": 0.0
+        },
+        "voz": {
+          "valores": [
+            3,
+            4,
+            3
+          ],
+          "sigma": 0.5774
+        },
+        "caracterizacion": {
+          "valores": [
+            3,
+            3,
+            3
+          ],
+          "sigma": 0.0
+        },
+        "ritmo": {
+          "valores": [
+            4,
+            3,
+            2
+          ],
+          "sigma": 1.0
+        },
+        "prosa": {
+          "valores": [
+            4,
+            4,
+            3
+          ],
+          "sigma": 0.5774
+        }
+      }
+    },
+    "07-c03-0d834e01": {
+      "medias": [
+        2.67,
+        2.83,
+        3.33
+      ],
+      "sigma_media": 0.3443,
+      "gate_estable": false,
+      "criterios": {
+        "tension": {
+          "valores": [
+            2,
+            3,
+            3
+          ],
+          "sigma": 0.5774
+        },
+        "escaleta": {
+          "valores": [
+            2,
+            3,
+            3
+          ],
+          "sigma": 0.5774
+        },
+        "voz": {
+          "valores": [
+            3,
+            3,
+            4
+          ],
+          "sigma": 0.5774
+        },
+        "caracterizacion": {
+          "valores": [
+            3,
+            2,
+            4
+          ],
+          "sigma": 1.0
+        },
+        "ritmo": {
+          "valores": [
+            2,
+            3,
+            3
+          ],
+          "sigma": 0.5774
+        },
+        "prosa": {
+          "valores": [
+            4,
+            3,
+            3
+          ],
+          "sigma": 0.5774
+        }
+      }
+    }
+  }
+}

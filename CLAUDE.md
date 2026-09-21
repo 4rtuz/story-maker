@@ -75,6 +75,15 @@ abierto — "Claude Code + OpenRouter + modelos `:free`" no es una combinación 
 smoke test de fase F0 (`docs/SETUP.md` §3) decide en diez minutos si funciona. Fuera de v1:
 agente lector-de-prueba, editor de estilo final, generación escena a escena, EPUB.
 
+## Automejora (experimento en curso)
+
+Calibración del Evaluador: bajar su σ sin perder discriminación. Contrato en
+`docs/automejora/pre-registro-calibracion-evaluador.md` — **no se edita tras ver
+resultados**. El fixture (`fixtures/evaluador/`, 14 prompts históricos recuperados de
+Langfuse, congelados por sha256) y `baseline.json` son de solo lectura. El veredicto de un
+candidato lo dicta `scripts/calibrar_evaluador.py`, nunca el modelo, por el mismo motivo por
+el que la aceptación de un capítulo la calcula `harness decide`. El holdout se mide una vez.
+
 ## Carga de contexto de la spec
 
 `docs/suspense-novel-harness.md` (1.899 líneas) **no se carga entero, nunca**. Está troceada en
