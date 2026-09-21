@@ -55,7 +55,7 @@ mindmap
       config.yaml
       canon/
       plan/
-      estado/state.json
+      estado/estado.db
       memoria/resumenes/
       capitulos/
       qa/
@@ -249,7 +249,7 @@ flowchart TD
         LEC --> G2{"tension, fair play<br/>y longitud ok"}
         G2 -->|no| FIX
         G2 -->|si| CRO["cronista"]
-        CRO ==> UPD[("estado/state.json<br/>+ memoria/resumenes")]
+        CRO ==> UPD[("estado/estado.db<br/>+ memoria/resumenes")]
         UPD --> CKP["checkpoint"]
     end
 
@@ -329,8 +329,8 @@ flowchart TB
     subgraph R7["cronista"]
         direction LR
         i22["capitulos/NN.md aprobado"] --> a7(["cronista"])
-        i23["state.json actual"] --> a7
-        a7 --> o10["state.json actualizado"]
+        i23["estado.db actual"] --> a7
+        a7 --> o10["estado.db actualizado"]
         a7 --> o11["memoria/resumenes/NN.md"]
         a7 --> o12["checkpoints/NN.json"]
     end

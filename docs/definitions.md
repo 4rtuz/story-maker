@@ -198,7 +198,7 @@ Lo que debería ocurrir. Se genera una vez a partir del canon y puede revisarse,
 
 ## 4. ESTADO NARRATIVO
 
-Lo que ya ocurrió. Fuente única de verdad sobre el texto existente. Vive en un `state.json` validado contra esquema, no en la conversación de ningún agente.
+Lo que ya ocurrió. Fuente única de verdad sobre el texto existente. Vive en `estado/estado.db`, una base SQLite con una tabla por colección, no en la conversación de ningún agente. La mutabilidad que declara cada entrada de abajo la impone el esquema: las colecciones append-only tienen triggers que abortan cualquier `UPDATE` o `DELETE`.
 
 **`cursor`** — `{capitulo_actual, fase, ultimo_paso_completado}`. Lo primero que lee el orquestador al reanudar. Sin él no hay recuperación posible tras un corte.
 `objeto` · **MUTABLE** · orquestador → orquestador
@@ -272,7 +272,7 @@ El contexto persiste como ficheros, no como historial de conversación. Cada sub
 
 **`plan/`** — `escaleta.md` y `capitulos/NN.md`. La ficha de capítulo es el prompt de trabajo del escritor.
 
-**`estado/state.json`** — Rama 4 completa, validada contra JSON Schema en cada escritura. Si no valida, el paso falla; no se escribe estado corrupto.
+**`estado/estado.db`** — Rama 4 completa en SQLite. Cada escritura es una transacción y cada fila pasa por las restricciones del esquema: si alguna falla, la transacción se deshace entera y no se escribe estado corrupto. Se lee con `novela estado`; ningún agente la abre.
 
 **`memoria/resumenes/NN.md`** — Resúmenes jerárquicos, un fichero por capítulo con las tres granularidades.
 
@@ -350,9 +350,9 @@ Subagentes de Claude Code. Cada uno tiene un contrato explícito: `{rol, entrada
 
 ## 10. GUARDARRAÍLES
 
-**`esquema_validado`** — `state.json` y el frontmatter de cada capítulo se validan contra JSON Schema. Escritura inválida, paso fallido.
+**`esquema_validado`** — El estado lo validan las restricciones del esquema SQL de `estado.db` fila a fila, y los modelos Pydantic en la frontera: al leer un delta y al serializar para la API. El frontmatter de cada capítulo se valida contra JSON Schema. Escritura inválida, paso fallido.
 
-**`inmutabilidad`** — El libro de hechos y la verdad oculta solo se amplían. Editar una entrada previa es reescribir la historia y rompe toda verificación posterior.
+**`inmutabilidad`** — El libro de hechos y la verdad oculta solo se amplían. Editar una entrada previa es reescribir la historia y rompe toda verificación posterior. No es una regla que se compruebe: los triggers de las tablas append-only la hacen imposible.
 
 **`aislamiento_del_secreto`** — El escritor no recibe `misterio.verdad_oculta`. Un modelo que conoce la solución la filtra en el subtexto mucho antes de tiempo.
 

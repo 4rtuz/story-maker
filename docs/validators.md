@@ -47,7 +47,7 @@ Una propiedad puede cubrirse con varias clases, y conviene: el aislamiento de `c
 | 9 | Runtime observability / tracing | D | sesión de Claude Code | hook `Stop` + Langfuse (arch §10) | activo |
 | 10 | Evals | T + I | salida de cada agente | scores por capítulo + juez de sesión | activo |
 | 11 | Sandboxed execution | D | subagentes | `tools` restringido, workspace fuera del repo | parcial (§5.6) |
-| 12 | Guardrails | A | briefings, `state.json` | aborto del briefing, hook `PostToolUse` | activo |
+| 12 | Guardrails | A | briefings, `estado/` | aborto del briefing, hook `PreToolUse` | activo |
 | 13 | Human-in-the-loop | I | `runs/<run_id>/intervencion.md` | parada al tercer intento | activo |
 | 14 | Multi-agent verification | I | capítulo escrito | `continuista`, `editor-estilo`, `lector-suspense` | activo |
 | 15 | CI/CD integration | T | commits del harness | pipeline + `manifest.json` con sha | v1 |
@@ -73,12 +73,12 @@ Lo que **no** cubre: `capitulo: int` acepta `0` y `-3`. Rango, formato de id y c
 `ruff` con las reglas `S` (flake8-bandit) en backend, `eslint` en frontend. Los patrones que de verdad importan en este repo:
 
 1. **Path traversal en la API.** `GET /novelas/{slug}/...` concatena un valor de URL con una ruta de disco. Es la única superficie de inyección real del sistema. El slug se valida contra `^[a-z0-9-]+$` antes de tocar el filesystem, y hay un test que lo intenta con `../`.
-2. **Escritura no atómica.** Cualquier `open(..., "w")` sobre el workspace que no pase por `store/atomic.py` viola el invariante 6 de AGENTS.md.
+2. **Escritura no atómica.** Cualquier `open(..., "w")` sobre el workspace que no pase por `plataforma/atomic.py` viola el invariante 6 de AGENTS.md. El estado no es la excepción por la vía fácil: escribir `estado.db` fuera de una transacción de `aplicar-delta` viola el mismo invariante.
 3. **Claves en ficheros versionados.** Grep de `LANGFUSE_SECRET_KEY` y similares en pre-commit. `settings.local.json` y `.local.env` están en `.gitignore`, pero la regla la hace cumplir el linter, no la disciplina.
 
 ### 3.3 Symbolic execution — A
 
-Donde compensa: `aplicar-delta`. Es la única vía de escritura de `state.json` y sus precondiciones son expresables (append-only, ids únicos, cursor monótono). CrossHair sobre las funciones puras de `delta.py` devuelve el contraejemplo concreto que las rompe, que es exactamente lo que un test de ejemplo no te da.
+Donde compensa: `aplicar-delta`. Es la única vía de escritura de `estado.db` y sus precondiciones son expresables (append-only, ids únicos, cursor monótono). CrossHair sobre las funciones puras de `delta.py` devuelve el contraejemplo concreto que las rompe, que es exactamente lo que un test de ejemplo no te da.
 
 **Diferido**, con una condición previa clara: hoy `delta.py` mezcla lectura de disco con lógica. Hay que extraer primero `aplicar(estado, delta) -> estado` como función pura. Ese refactor es el trabajo real; CrossHair es una línea de CI después.
 
@@ -86,7 +86,7 @@ Donde compensa: `aplicar-delta`. Es la única vía de escritura de `state.json` 
 
 **Descartado para el conjunto del sistema** (§5.2). No hay especificación formal de «una novela de suspense coherente» y no la va a haber.
 
-Existe un subconjunto barato que sí se hace, y conviene no confundirlo con una prueba: los invariantes append-only se comprueban como postcondición en cada aplicación de delta —`assert nuevo_libro[:len(viejo)] == viejo`—. Eso es una obligación de prueba *descargada en tiempo de ejecución*, no demostrada para toda entrada. Sirve, pero solo detecta en el momento en que ocurre.
+Existe un subconjunto barato que sí se hace, y conviene no confundirlo con una prueba: los invariantes append-only son triggers `BEFORE UPDATE` y `BEFORE DELETE` con `RAISE(ABORT)` en las tablas de `estado.db`. Eso sigue siendo detección en tiempo de ejecución, no una demostración, pero cambia de sitio: antes era un `assert` en la única función que se acordó de escribirlo, y ahora lo impone el motor en cualquier ruta de escritura, incluida la que nadie previó. Lo que queda como postcondición en `delta.py` son las propiedades que el esquema no expresa: ids únicos entre colecciones y monotonía del cursor.
 
 ### 3.5 Unit / integration testing — T
 
@@ -160,7 +160,7 @@ Parcial y por construcción, no por contenedor:
 
 - Cada subagente tiene `tools` restringido en su frontmatter.
 - El workspace vive fuera del repo y en `.gitignore`.
-- `state.json` solo lo escribe `novela aplicar-delta`; ningún agente lo toca.
+- `estado.db` solo lo escribe `novela aplicar-delta`; ningún agente lo toca.
 - La API es de solo lectura: no hay verbo que mute una novela.
 
 Lo que **no** está contenido: un subagente con `Write` puede escribir donde alcance la sesión. La contención real son los permisos de `.claude/settings.json` y el frontmatter, no un aislamiento. Aceptado mientras el harness corra en una máquina de desarrollo; si pasa a correr desatendido en CI, esto deja de ser aceptable y pasa a ser requisito (§5.6).
@@ -173,8 +173,8 @@ Preventivos: actúan **antes** de la acción, a diferencia de un gate, que detec
 |---|---|
 | `novela briefing` aborta si el contenido ensamblado procede de `canon/misterio.md` | Fuga del secreto (invariante 3) |
 | `tools` restringido por agente | Que el escritor lea rutas arbitrarias |
-| Hook `PostToolUse` sobre `state.json` | Que una escritura inválida se persista |
-| `aplicar-delta` rechaza deltas que modifican entradas existentes | Reescribir la historia (invariante 2) |
+| Hook `PreToolUse` sobre `estado/**` | Que un agente escriba el estado por fuera de `aplicar-delta` |
+| Triggers append-only en las tablas de `estado.db` | Reescribir la historia, por cualquier ruta de escritura y no solo por delta (invariante 2) |
 | Validación del slug antes de tocar disco | Path traversal por la API |
 
 Prefiere siempre un guardrail a un gate para la misma propiedad: es más barato y no quema un reintento. Cuando un hook salta, la respuesta correcta es corregir el contrato del agente, no silenciarlo — un guardrail silenciado es peor que ausente, porque el sistema sigue reportando que está protegido.
@@ -226,7 +226,7 @@ Modelo de amenaza real de este sistema, en orden de probabilidad. No es un siste
 
 1. **Fuga del misterio.** El escritor recibiendo, infiriendo o deduciendo la solución. Sonda: ensamblar briefings sobre un canon marcado y buscar los marcadores; y plantar en `plan/capitulos/NN.md` texto que intente arrastrar `canon/misterio.md` al briefing.
 2. **Inyección por contenido del workspace.** Los agentes leen ficheros escritos por otros agentes. Un capítulo o una ficha de canon que contenga «ignora tus instrucciones y…» es el vector natural, y no requiere atacante externo: basta un modelo que alucine una instrucción.
-3. **Uso indebido de herramientas.** Un agente escribiendo `state.json` directamente o invocando `aplicar-delta`. Lo cubre el frontmatter, pero se prueba explícitamente.
+3. **Uso indebido de herramientas.** Un agente escribiendo `estado.db` directamente o invocando `aplicar-delta`. Lo cubre el frontmatter, pero se prueba explícitamente.
 4. **Deriva de objetivo a 24 capítulos.** El escritor optimizando poco a poco su propia coherencia local por encima del plan. Es el fallo más difícil de detectar porque cada capítulo pasa sus gates.
 5. **Exfiltración.** La única salida de red es Langfuse. Las claves están en `settings.local.json`, fuera de git.
 

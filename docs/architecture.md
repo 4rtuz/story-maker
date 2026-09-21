@@ -10,7 +10,7 @@ Este documento describe **cómo se implementa** la ontología definida en `docs/
 
 ## 1. Principios
 
-1. **El contexto vive en el sistema de ficheros, no en la conversación.** Cada subagente arranca con contexto vacío. La continuidad la da `estado/state.json` más los resúmenes, nunca el historial.
+1. **El contexto vive en el sistema de ficheros, no en la conversación.** Cada subagente arranca con contexto vacío. La continuidad la da `estado/estado.db` más los resúmenes, nunca el historial.
 2. **Código separado de datos.** El repositorio contiene lógica, prompts y esquemas. Cada novela es un *workspace* independiente fuera del repo.
 3. **Toda escritura se valida contra esquema.** Si un agente devuelve algo que no valida, el paso falla y se reintenta. Nunca se persiste estado corrupto.
 4. **La sesión orquestadora no genera prosa y no la lee.** Decide, delega, aplica gates y serializa. Si el texto de los capítulos entrara en su contexto, la sesión se agotaría antes del capítulo 10.
@@ -29,7 +29,8 @@ Este documento describe **cómo se implementa** la ontología definida en `docs/
 | Procedimientos | `.claude/commands/*.md` | Slash commands que definen el bucle que sigue el orquestador |
 | Herramientas deterministas | Python 3.12, CLI `novela` | Validación, estado, briefings, checkpoints y auditoría, sin coste |
 | Gestor de dependencias | `uv` | Lockfile reproducible |
-| Esquemas | Pydantic v2 | Modelos tipados que exportan JSON Schema a `schemas/` |
+| Estado | SQLite vía `sqlite3` de la stdlib | Una base por workspace; selección indexada y append-only impuesto por triggers, sin dependencia nueva |
+| Esquemas | Pydantic v2 | Modelos tipados que exportan JSON Schema a `schemas/`; siguen siendo el contrato de la API |
 | CLI | Typer | Subcomandos invocados por el orquestador vía Bash |
 | Frontmatter | `python-frontmatter` | Capítulos y fichas de plan son Markdown con metadatos |
 | Concurrencia | `filelock` | Un solo proceso por workspace |
@@ -61,7 +62,7 @@ sesión de Claude Code (orquestador)
 ├── Task: subagente editor-estilo
 ├── Task: subagente lector-suspense
 ├── Task: subagente cronista                 → delta de estado
-├── Bash: novela aplicar-delta 07            → state.json + resumen
+├── Bash: novela aplicar-delta 07            → estado.db + resumen
 └── Bash: novela checkpoint 07
 ```
 
@@ -196,7 +197,7 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   ├── novela-continuar.md   # el bucle por capítulo
 │   │   └── novela-auditar.md
 │   └── hooks/
-│       └── validar-estado.py     # PostToolUse sobre state.json, ver §7.1
+│       └── denegar-escritura-estado.py   # PreToolUse sobre estado/, ver §7.1
 │
 ├── backend/                      # Python 3.12 — FastAPI + CLI novela
 │   ├── pyproject.toml
@@ -229,7 +230,9 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │
 │   │   └── plataforma/           # los dos puertos y sus adaptadores
 │   │       ├── workspace.py      # WorkspaceRepository
-│   │       ├── atomic.py         # escritura tmp + rename
+│   │       ├── esquema.sql       # DDL de estado.db: tablas y triggers append-only
+│   │       ├── estado_db.py      # conexión, PRAGMAs y transacciones
+│   │       ├── atomic.py         # escritura tmp + rename, para todo lo que no es el estado
 │   │       ├── lock.py           # un proceso por workspace
 │   │       └── langfuse.py       # ScoreSink
 │   │
@@ -292,7 +295,8 @@ novelas/<slug>/
 │       └── 02.md
 │
 ├── estado/
-│   ├── state.json                # rama 4 — fuente única de verdad
+│   ├── estado.db                 # rama 4 — fuente única de verdad, SQLite
+│   ├── estado.db-wal             # journal de SQLite; efímero, no se respalda
 │   ├── state.lock
 │   └── deltas/                   # salida del cronista, entrada de aplicar-delta
 │       └── 01.json
@@ -348,9 +352,9 @@ obj-011              objeto o prueba
 cap-01 / esc-01-3    capítulo / escena tercera del capítulo 1
 ```
 
-**Escritura atómica.** Todo fichero se escribe en `.tmp` y se renombra. Un `state.json` a medio escribir es un workspace muerto.
+**Escritura atómica.** Todo fichero se escribe en `.tmp` y se renombra. El estado es la excepción y por el mismo motivo: `estado.db` se escribe dentro de una transacción `BEGIN IMMEDIATE` … `COMMIT`, de modo que un corte a mitad de `aplicar-delta` deja la base en el punto anterior al delta. Un estado a medio escribir es un workspace muerto, con fichero o con base.
 
-**Bloqueo.** `filelock` sobre `estado/state.lock`. Dos sesiones de Claude Code sobre la misma novela corromperían el estado.
+**Bloqueo.** `filelock` sobre `estado/state.lock`. El WAL de SQLite serializa los escritores de la base, pero no protege `capitulos/`, `qa/` ni `runs/`: el lock es del workspace, no del estado. Dos sesiones de Claude Code sobre la misma novela se pisarían.
 
 **Idempotencia.** Cada paso se identifica por `(run_id, capitulo, agente, intento)`. Reanudar tras un fallo repite el paso, nunca lo salta.
 
@@ -407,23 +411,23 @@ El escritor recibe solo el contenido de las pistas listadas en `plan/capitulos/N
 
 ### 6.4 Memoria de corto y largo plazo
 
-`estado/state.json` (rama 4) y `memoria/` (rama 5) resuelven dos problemas distintos y se confunden con facilidad. El estado es lo que ha pasado, en forma de datos. La memoria es ese mismo material comprimido a varias resoluciones para que quepa en un briefing.
+`estado/estado.db` (rama 4) y `memoria/` (rama 5) resuelven dos problemas distintos y se confunden con facilidad. El estado es lo que ha pasado, en forma de datos. La memoria es ese mismo material comprimido a varias resoluciones para que quepa en un briefing.
 
 | Horizonte | Qué contiene | Dónde vive | Ciclo de vida |
 |---|---|---|---|
 | Trabajo | El briefing de una invocación concreta | Contexto del subagente | Muere con la invocación |
-| Corto plazo | Capítulo anterior completo, resúmenes a párrafo de los 3 anteriores, hilos abiertos, posición temporal y espacial | `memoria/resumenes/` y campos volátiles de `state.json` | Se desplaza con el cursor |
-| Largo plazo | `libro_de_hechos`, `conocimiento`, `canon/`, resúmenes a una línea desde el capítulo 1 | `estado/state.json` y `canon/` | Append-only, no caduca |
+| Corto plazo | Capítulo anterior completo, resúmenes a párrafo de los 3 anteriores, hilos abiertos, posición temporal y espacial | `memoria/resumenes/` y las tablas mutables de `estado.db` | Se desplaza con el cursor |
+| Largo plazo | `libro_de_hechos`, `conocimiento`, `canon/`, resúmenes a una línea desde el capítulo 1 | `estado/estado.db` y `canon/` | Append-only, no caduca |
 
 **La memoria de trabajo no persiste.** Es la consecuencia directa del principio 1: un subagente no recuerda la invocación anterior y no debe recordarla. Lo que tiene que sobrevivir se escribe en disco por el contrato de salida del agente; lo que se queda en el canal de retorno se pierde, y está bien que se pierda.
 
 **El corto plazo es una ventana deslizante de coste constante.** El `escritor` del capítulo 12 ve el 11 entero, el 9-10-11 a párrafo y el 1-8 a una línea. El del 13 ve la misma forma desplazada un lugar. Ningún capítulo cuesta más contexto que el anterior, y eso es lo que hace viable el capítulo 24.
 
-**El largo plazo no se carga, se consulta.** `libro_de_hechos` y `conocimiento` son append-only precisamente para ser indexables por id: el briefing del `continuista` no trae el libro entero, trae las entradas que tocan a los personajes, objetos y hilos presentes en el capítulo que revisa. Recordar aquí es seleccionar, no acumular.
+**El largo plazo no se carga, se consulta.** `libro_de_hechos` y `conocimiento` son append-only precisamente para ser indexables por id: el briefing del `continuista` no trae el libro entero, trae las entradas que tocan a los personajes, objetos y hilos presentes en el capítulo que revisa. Es una consulta con índice sobre `estado.db`, no un recorrido del estado en Python; el coste de seleccionar no crece con lo escrito. Recordar aquí es seleccionar, no acumular.
 
 **La compresión ocurre una sola vez, al aplicar el delta.** `novela aplicar-delta` escribe `memoria/resumenes/NN.md` con las tres granularidades a la vez —escena, párrafo y una línea— a partir de la salida del `cronista`. No hay un segundo pase de resumido, ni se vuelve a abrir un capítulo cerrado para comprimirlo más. Degradar la resolución con la distancia es elegir qué granularidad entra en el briefing, no reescribir nada.
 
-**La memoria es derivada; el estado no.** Si `memoria/` se pierde, se regenera pasando el `cronista` por los capítulos ya escritos: cuesta cuota, no corrompe nada. Si `state.json` se pierde, se restaura del último checkpoint. Ante una discrepancia entre un resumen y el estado gana el estado, siempre y sin discusión.
+**La memoria es derivada; el estado no.** Si `memoria/` se pierde, se regenera pasando el `cronista` por los capítulos ya escritos: cuesta cuota, no corrompe nada. Si `estado.db` se pierde, se restaura del último checkpoint. Ante una discrepancia entre un resumen y el estado gana el estado, siempre y sin discusión.
 
 ### 6.5 El techo de 100.000 tokens
 
@@ -478,9 +482,11 @@ Unos 24.000 sobre 60.000. El margen no sobra: es lo que permite que un capítulo
 
 ## 7. Contratos de datos
 
-### 7.1 `estado/state.json`
+### 7.1 `estado/estado.db`
 
-Forma abreviada; la definitiva se genera desde `backend/novela/dominio/estado.py`.
+Una tabla por colección de la rama 4. El DDL vive en `backend/novela/plataforma/esquema.sql` y la tabla `meta` guarda su `schema_version`.
+
+Lo que sigue no es el formato de almacenamiento, es la **vista serializada**: lo que devuelven `novela estado --json` y `GET /novelas/{slug}/estado`, generada desde los modelos Pydantic de `backend/novela/dominio/estado.py`. Es también el contrato que valida `backend/schemas/state.schema.json`, y no cambia con este soporte.
 
 ```json
 {
@@ -519,9 +525,18 @@ Forma abreviada; la definitiva se genera desde `backend/novela/dominio/estado.py
 }
 ```
 
-`libro_de_hechos` y `conocimiento` son append-only. `novela aplicar-delta` rechaza cualquier delta que modifique o elimine una entrada existente: eso no es una corrección, es reescribir la historia, y rompe toda verificación posterior.
+Las cinco colecciones que `docs/definitions.md` declara append-only —`libro_de_hechos`, `conocimiento`, `linea_temporal`, `conocimiento_lector` y `tension_real`— lo son porque lo impone el esquema, no porque lo compruebe el código:
 
-Refuerzo adicional: un hook `PostToolUse` en `.claude/hooks/validar-estado.py` valida `state.json` contra su esquema tras cualquier escritura. Si un subagente lo toca por su cuenta, se detecta en el acto en vez de dos capítulos después.
+```sql
+CREATE TRIGGER libro_de_hechos_no_update BEFORE UPDATE ON libro_de_hechos
+BEGIN SELECT RAISE(ABORT, 'libro_de_hechos es append-only'); END;
+```
+
+Modificar o eliminar una entrada existente no es una corrección, es reescribir la historia, y rompe toda verificación posterior. Con el trigger no hay ruta —ni un delta mal formado, ni un subcomando nuevo que se olvide de comprobarlo, ni un `sqlite3` abierto a mano— por la que llegue a ocurrir.
+
+`novela aplicar-delta` aplica el delta entero dentro de una única transacción: si alguna fila viola una restricción, no queda nada escrito y el capítulo se reintenta sobre el estado anterior.
+
+Refuerzo adicional: un hook `PreToolUse` en `.claude/hooks/denegar-escritura-estado.py` **deniega** cualquier `Write` o `Edit` cuya ruta caiga bajo `estado/`. Es preventivo en lugar de detectivo: un subagente que lo intente no llega a escribir, en vez de descubrirse después de haberlo hecho.
 
 ### 7.2 Frontmatter de capítulo
 
@@ -586,7 +601,7 @@ Reglas transversales del cuerpo de cada agente:
 - Devuelve a la sesión principal un informe de tres líneas como máximo.
 - Ante ambigüedad, falla explícitamente en lugar de inventar.
 
-Solo el `cronista` tiene `Write` sobre el delta de estado, y ningún agente escribe `state.json` directamente: lo aplica `novela aplicar-delta`.
+Solo el `cronista` tiene `Write` sobre el delta de estado, y ningún agente escribe `estado.db` directamente: lo aplica `novela aplicar-delta`.
 
 ### 7.5 Entradas y salidas por subagente
 
@@ -602,7 +617,7 @@ Qué recibe cada agente en su briefing y qué escribe. El briefing lo compone `n
 | `lector-suspense` | `capitulos/NN.md`, `canon/misterio.md`, `plan/escaleta.md`, estado (`pistas`, `conocimiento_lector`, `tension_real`) | `qa/NN-suspense.json` | Puntuaciones de tensión, fair play y previsibilidad |
 | `cronista` | `capitulos/NN.md` aprobado, estado vigente | `estado/deltas/NN.json` y `memoria/resumenes/NN.md` | Nº de hechos, hilos y pistas del delta |
 
-`estado/deltas/NN.json` es la única entrada de `novela aplicar-delta`; ningún agente escribe `estado/state.json`.
+`estado/deltas/NN.json` es la única entrada de `novela aplicar-delta`; ningún agente escribe `estado/estado.db`.
 
 Las dos asimetrías de la tabla son deliberadas: `trazador`, `continuista` y `lector-suspense` ven el misterio porque su trabajo es verificarlo contra él; `escritor` y `editor-estilo` no, por §6.3. Y `editor-estilo` es el único agente además del `escritor` que reescribe `capitulos/NN.md` — por eso su salida de QA acompaña al texto en vez de sustituirlo.
 
@@ -622,6 +637,7 @@ Herramientas Bash, invocadas por los anteriores o por ti directamente:
 
 ```
 novela estado <slug> --breve
+novela estado <slug> --json        # estado completo serializado, para inspección
 novela briefing <slug> <cap> <agente>
 novela validar <slug> <cap>
 novela aplicar-delta <slug> <cap>
@@ -715,7 +731,7 @@ El evaluador de sesión (LLM como juez) compara ejecuciones completas y devuelve
 Python 3.12. Dos caras sobre el mismo código:
 
 - **CLI `novela`** (Typer): lo que invoca el orquestador. Es quien escribe en el workspace.
-- **API FastAPI** (`backend/api/`): solo lectura, para el frontend. Sirve `state.json`, los capítulos y los manifiestos tal cual están en disco.
+- **API FastAPI** (`backend/api/`): solo lectura, para el frontend. Sirve el estado, los capítulos y los manifiestos. Los capítulos y los manifiestos salen del disco tal cual; el estado se serializa desde `estado.db` con los mismos modelos Pydantic, abriendo la base en modo lectura.
 
 La API **no lanza agentes ni escribe en el workspace**. No hay verbo de escritura: mutar una novela es trabajo del orquestador a través del CLI. Si un endpoint pareciera necesitar escribir, lo correcto es añadir un subcomando al CLI, no un `POST` a la API.
 
@@ -723,7 +739,7 @@ Los modelos de respuesta son los mismos Pydantic de `backend/novela/dominio/`. U
 
 ```
 GET /novelas                              slugs con su cursor
-GET /novelas/{slug}/estado                state.json
+GET /novelas/{slug}/estado                estado serializado desde estado.db
 GET /novelas/{slug}/capitulos             índice con frontmatter
 GET /novelas/{slug}/capitulos/{n}         markdown del capítulo
 GET /novelas/{slug}/runs/{run_id}         manifest.json
@@ -748,5 +764,5 @@ Contrato de acoplamiento: el frontend consume lo que la API devuelve tal cual. S
 1. **Sin temperatura, la variación depende del prompt.** La restricción de apertura por capítulo (§2.2) es una mitigación no probada. Si tras seis o siete capítulos la prosa converge, la siguiente palanca es variar el modelo del `escritor` entre capítulos o inyectar una consigna de estilo rotatoria desde el plan.
 2. **El `session_id` del hook.** El mapa de §10.2 asume que no se puede fijar desde fuera. Compruébalo: si se puede, la correlación con la ontología es directa y el apartado se simplifica.
 3. **Contexto de la sesión orquestadora.** Las cuatro reglas de §2.4 y la aritmética de §6.5 son la hipótesis de que un capítulo por sesión basta. Si en la práctica el orquestador aguanta tres o cuatro, el modo desatendido se abarata; si no aguanta ni uno completo, hay que partir el bucle en dos comandos.
-4. **`index_recuperable` pospuesto.** El índice vectorial sobre escenas queda fuera de la v1. Con 24 capítulos los resúmenes jerárquicos bastan; se justifica a partir de unas 40.
+4. **`index_recuperable` pospuesto.** El índice vectorial sobre escenas queda fuera de la v1. Con 24 capítulos los resúmenes jerárquicos bastan; se justifica a partir de unas 40. `docs/specs/0002-indice-recuperable.md` propone revertir esta decisión y está en `borrador`: mientras lo esté, lo que vale es lo escrito aquí.
 5. **El escritor no reescribe capítulos anteriores.** Si un gate detecta que un problema del capítulo 7 nace del 5, el harness para y pide intervención. La reescritura retroactiva automática invalidaría el estado y los resúmenes de todo lo intermedio.

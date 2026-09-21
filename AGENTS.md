@@ -39,19 +39,19 @@ No las mezcles. Confundirlas es la causa más común de incoherencia.
 |---|---|---|
 | `canon/` | Lo que es verdad del mundo | Versionado; solo el orquestador autoriza cambios |
 | `plan/` | Lo que debería pasar | Versionado |
-| `estado/state.json` | Lo que ya pasó | Fuente única de verdad |
+| `estado/estado.db` | Lo que ya pasó | Fuente única de verdad; SQLite |
 | `memoria/` | Resúmenes derivados | Reconstruible; nunca fuente de verdad |
 
 ## Invariantes
 
 Estas reglas no se negocian. Si una tarea parece exigir romper una, para y pregunta.
 
-1. **`estado/state.json` es la única fuente de verdad sobre lo escrito.** No lo edites directamente: se actualiza con `novela aplicar-delta`.
-2. **`libro_de_hechos` y `conocimiento` son append-only.** Modificar o borrar una entrada existente es reescribir la historia y rompe toda verificación posterior. Solo se añaden entradas.
+1. **`estado/estado.db` es la única fuente de verdad sobre lo escrito.** Base SQLite; no la abras para escribir: se actualiza con `novela aplicar-delta`. Para leerla, `novela estado`.
+2. **`libro_de_hechos` y `conocimiento` son append-only.** Modificar o borrar una entrada existente es reescribir la historia y rompe toda verificación posterior. Solo se añaden entradas; sus tablas tienen triggers que abortan cualquier `UPDATE` o `DELETE`.
 3. **`canon/misterio.md` es secreto.** El `escritor` y el `editor-estilo` no lo leen nunca. Reciben solo las pistas listadas en la ficha de su capítulo.
 4. **Fair play.** Ninguna revelación sin al menos una pista plantada antes.
-5. **El contexto vive en disco, no en la conversación.** Nunca reconstruyas estado a partir de una sesión previa; léelo de `state.json` y `checkpoints/`.
-6. **Escritura atómica.** Todo fichero se escribe en `.tmp` y se renombra.
+5. **El contexto vive en disco, no en la conversación.** Nunca reconstruyas estado a partir de una sesión previa; léelo de `estado.db` y `checkpoints/`.
+6. **Escritura atómica.** Todo fichero se escribe en `.tmp` y se renombra. El estado es la excepción: `estado.db` se escribe en una transacción, nunca por copia de fichero.
 7. **No se reescriben capítulos anteriores.** Si el problema del capítulo 7 nace del 5, para y pide intervención.
 8. **Un proceso por workspace.** Respeta `estado/state.lock`.
 
@@ -71,9 +71,10 @@ Operaciones deterministas. No llaman a ningún modelo y no consumen cuota.
 
 ```
 novela estado <slug> --breve          cursor, hilos abiertos, capítulos hechos
+novela estado <slug> --json           estado completo serializado, para inspección
 novela briefing <slug> <cap> <agente> genera el contexto de una invocación
 novela validar <slug> <cap>           esquema, longitud, pistas presentes, hilos
-novela aplicar-delta <slug> <cap>     única vía de escritura de state.json
+novela aplicar-delta <slug> <cap>     única vía de escritura de estado.db
 novela checkpoint <slug> <cap>
 novela pendiente <slug>               salida 0 si quedan capítulos
 novela auditar <slug>                 pistas huérfanas, hilos sin cerrar

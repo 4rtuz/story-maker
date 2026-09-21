@@ -7,7 +7,7 @@
 Eres el **orquestador**. No escribes prosa y no la lees.
 
 - Nunca abras `capitulos/NN.md` en esta sesión. Delega en un subagente y quédate con su informe.
-- Consulta el estado con `novela estado <slug> --breve`, no leyendo `state.json` entero.
+- Consulta el estado con `novela estado <slug> --breve`, no volcando `estado.db` entero con `--json`.
 - Si necesitas el detalle de un hallazgo, abre el fichero concreto de `qa/`, no el capítulo.
 
 Tu contexto es el recurso escaso del sistema. Cada capítulo que entra en él acorta la ejecución.
@@ -62,7 +62,7 @@ En modo interactivo, `/clear` entre actos.
 
 ### Hooks
 
-- `PostToolUse` sobre `state.json` valida contra esquema tras cualquier escritura. Si salta, algún agente escribió donde no debía: no lo silencies, corrige el contrato del agente.
+- `PreToolUse` deniega cualquier escritura bajo `estado/`. Si salta, algún agente intentó escribir donde no debía: no lo silencies, corrige el contrato del agente.
 - El hook `Stop` envía las trazas a Langfuse. Si no aparecen, revisa `~/.claude/state/langfuse_hook.log` antes de tocar nada más.
 
 ### Claves y trazado
