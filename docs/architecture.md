@@ -110,6 +110,38 @@ Es el riesgo específico de poner el orquestador dentro de Claude Code, y se con
 
 ## 3. Estructura del repositorio
 
+### 3.0 Metodología
+
+Cuatro decisiones, cada una respondiendo a una pregunta distinta. No se solapan y no hay una quinta.
+
+| Decisión | Qué decide |
+|---|---|
+| **Vertical slices** / package by feature | Dónde vive cada cosa |
+| **Núcleo funcional con cáscara imperativa** | Cómo se estructura por dentro cada slice |
+| **DDD táctico** | Qué hay en `dominio/` |
+| **Dos puertos**: `WorkspaceRepository` y `ScoreSink` | Lo único que queda del hexágono; viven en `plataforma/` |
+
+**Vertical slices.** Una carpeta por caso de uso, no por capa técnica. Un subcomando del CLI es un slice: su parseo, su lógica y sus tests están juntos. Añadir `novela presupuesto` es crear una carpeta, no tocar siete. Borrarlo es borrar una carpeta. No hay `services/`, `handlers/` ni `utils/` transversales: si dos slices necesitan lo mismo, o baja a `dominio/` porque es una regla del negocio, o a `plataforma/` porque es I/O; si no es ninguna de las dos, se duplica y ya se verá.
+
+En el frontend la misma regla con otro nombre — package by feature: `features/lanzar/`, `features/progreso/`, `features/lectura/`. Las tres pantallas de §11.2 son las tres carpetas.
+
+**Núcleo funcional con cáscara imperativa.** Dentro de cada slice, `cmd.py` es la cáscara: lee argumentos, toma el lock, carga ficheros, imprime y sale con código. Todo lo demás del slice — `gates.py`, `assemble.py`, `apply.py` — son funciones puras: reciben datos, devuelven datos, no tocan disco ni reloj ni red. Esa frontera es la que hace posible lo que ya exige el proceso: tests sin llamadas a modelo, y tests property-based sobre gates y deltas (`docs/validators.md` §3.6). Una función pura se prueba con mil entradas generadas; una que abre ficheros, no.
+
+Regla práctica: si un fichero del núcleo importa `pathlib`, `open`, `datetime.now` o `requests`, está mal colocado.
+
+**DDD táctico en `dominio/`.** Ahí vive la ontología de `docs/definitions.md` como código: `Estado`, `Canon`, `Plan`, `Pista`, `LibroDeHechos`. Entidades con identidad estable (los ids de §5, que no cambian aunque cambie el nombre visible del personaje), objetos de valor inmutables, y las invariantes dentro del propio modelo: `LibroDeHechos` no expone forma de modificar ni borrar una entrada, solo de añadir. Un invariante que se pueda expresar como tipo no se escribe como validación suelta.
+
+`dominio/` no importa nada de `slices/` ni de `plataforma/`, y no sabe que existe un sistema de ficheros. Son los mismos modelos Pydantic que responde la API (§11.1): una sola ontología.
+
+**Los dos puertos.** Del hexágono sobrevive solo lo que tiene más de una implementación real:
+
+- `WorkspaceRepository` — leer y escribir el workspace, con escritura atómica y lock. Segunda implementación: los workspaces sintéticos de `backend/tests/fixtures/`.
+- `ScoreSink` — emitir scores y trazas. Segunda implementación: el no-op cuando `TRACE_TO_LANGFUSE` está apagado (§10.1).
+
+Todo lo demás se llama directamente. Nada de repositorio por entidad, capa de casos de uso, DTOs entre dominio y API, ni interfaz con una sola implementación: cuando aparezca la segunda, se extrae entonces.
+
+### 3.1 El árbol
+
 ```
 novela-harness/                    # monorepo: backend/ + frontend/
 ├── CLAUDE.md                     # convenciones; corto a propósito, ver §2.4
@@ -155,27 +187,29 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │       └── capitulos.py
 │   │
 │   ├── novela/                   # CLI determinista; cero llamadas a modelo
-│   │   ├── cli.py                # Typer
-│   │   ├── briefing.py           # ensamblado de contexto (rama 5)
-│   │   ├── recipes.py            # MEMORIA.recetas_de_ensamblado
-│   │   ├── validate.py           # gates baratos
-│   │   ├── delta.py              # aplicación del delta al estado
-│   │   ├── checkpoint.py
-│   │   ├── budget.py             # ventana de uso y degradación
-│   │   ├── audit.py              # pistas huérfanas, hilos abiertos
-│   │   ├── models/               # Pydantic: la ontología como código
+│   │   ├── cli.py                # Typer: solo registra el cmd.py de cada slice
+│   │   │
+│   │   ├── slices/               # un caso de uso por carpeta, ver §3.0
+│   │   │   ├── briefing/         # cmd.py · assemble.py · recipes.py · test_briefing.py
+│   │   │   ├── validacion/       # cmd.py · gates.py · test_gates.py
+│   │   │   ├── delta/            # cmd.py · apply.py · violaciones.py · test_delta.py
+│   │   │   ├── checkpoint/
+│   │   │   ├── auditoria/        # pistas huérfanas, hilos abiertos
+│   │   │   ├── presupuesto/      # ventana de uso y degradación
+│   │   │   └── export/           # cmd.py · markdown.py · epub.py
+│   │   │
+│   │   ├── dominio/              # la ontología como código; sin I/O, sin framework
 │   │   │   ├── config.py         # rama 1
-│   │   │   ├── canon.py          # rama 2
-│   │   │   ├── plan.py           # rama 3
-│   │   │   ├── state.py          # rama 4
+│   │   │   ├── canon.py          # rama 2 — Canon, Pista
+│   │   │   ├── plan.py           # rama 3 — Plan
+│   │   │   ├── estado.py         # rama 4 — Estado, LibroDeHechos (append-only)
 │   │   │   └── qa.py
-│   │   ├── store/
-│   │   │   ├── workspace.py
-│   │   │   ├── atomic.py         # escritura tmp + rename
-│   │   │   └── lock.py
-│   │   └── export/
-│   │       ├── markdown.py
-│   │       └── epub.py
+│   │   │
+│   │   └── plataforma/           # los dos puertos y sus adaptadores
+│   │       ├── workspace.py      # WorkspaceRepository
+│   │       ├── atomic.py         # escritura tmp + rename
+│   │       ├── lock.py           # un proceso por workspace
+│   │       └── langfuse.py       # ScoreSink
 │   │
 │   ├── config/
 │   │   ├── default.yaml          # valores por defecto de parametros_obra
@@ -188,17 +222,21 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   ├── delta.schema.json
 │   │   └── qa-informe.schema.json
 │   │
-│   └── tests/
-│       ├── test_gates.py
-│       ├── test_briefing.py
-│       ├── test_delta.py
+│   └── tests/                    # solo lo transversal; el test de un slice vive con él
 │       ├── test_api.py
+│       ├── test_contratos.py     # Pydantic ↔ schemas/
 │       └── fixtures/             # workspaces sintéticos, sin llamadas a modelo
 │
 ├── frontend/                     # Vite + TypeScript + Three.js, solo lectura
 │   ├── package.json
 │   ├── vite.config.ts
-│   └── src/
+│   └── src/                      # package by feature, ver §3.0
+│       ├── features/
+│       │   ├── lanzar/           # formulario, generación de config.yaml
+│       │   ├── progreso/         # cursor, curva de tensión, hilos abiertos, cuota
+│       │   └── lectura/          # escena Three.js, navegación 3D del libro
+│       ├── shared/               # cliente de la API, tipos, componentes base
+│       └── app/                  # routing, layout
 │
 └── novelas/                      # workspaces, en .gitignore
     └── <slug>/
@@ -233,7 +271,9 @@ novelas/<slug>/
 │
 ├── estado/
 │   ├── state.json                # rama 4 — fuente única de verdad
-│   └── state.lock
+│   ├── state.lock
+│   └── deltas/                   # salida del cronista, entrada de aplicar-delta
+│       └── 01.json
 │
 ├── memoria/                      # rama 5 — DERIVADO, reconstruible
 │   └── resumenes/
@@ -349,7 +389,7 @@ El escritor recibe solo el contenido de las pistas listadas en `plan/capitulos/N
 
 ### 7.1 `estado/state.json`
 
-Forma abreviada; la definitiva se genera desde `backend/novela/models/state.py`.
+Forma abreviada; la definitiva se genera desde `backend/novela/dominio/estado.py`.
 
 ```json
 {
@@ -456,6 +496,24 @@ Reglas transversales del cuerpo de cada agente:
 - Ante ambigüedad, falla explícitamente en lugar de inventar.
 
 Solo el `cronista` tiene `Write` sobre el delta de estado, y ningún agente escribe `state.json` directamente: lo aplica `novela aplicar-delta`.
+
+### 7.5 Entradas y salidas por subagente
+
+Qué recibe cada agente en su briefing y qué escribe. El briefing lo compone `novela briefing` a partir de la receta del agente (§6.2); ninguna entrada se lee por exploración libre del workspace.
+
+| Agente | Entradas | Salidas en disco | Retorno a la sesión |
+|---|---|---|---|
+| `arquitecto` | `config.yaml` (idea semilla, `parametros_obra`) | `canon/premisa.md`, `canon/mundo.md`, `canon/estilo.md`, `canon/misterio.md`, `canon/personajes/*.md` | Lista de ids creados y conteo por tipo |
+| `trazador` | `config.yaml`, `canon/*` **incluido** `misterio.md` | `plan/escaleta.md`, `plan/capitulos/NN.md` | Nº de capítulos planificados, pistas plantadas/pagadas por acto |
+| `escritor` | `plan/capitulos/NN.md`, `canon/premisa`, `canon/mundo`, `canon/estilo`, fichas de los personajes en escena, estado (personajes, conocimiento, hilos abiertos, objetos), resúmenes (§6.2), restricción de apertura. En reintento, además `qa/NN-*.json`. **Nunca** `canon/misterio.md` | `capitulos/NN.md` con su frontmatter (§7.2) | Título, palabras, escenas |
+| `continuista` | `capitulos/NN.md`, `canon/*` incluido `misterio.md`, estado (`libro_de_hechos`, `linea_temporal`, coartadas) | `qa/NN-continuidad.json` (§7.3) | `veredicto` y hallazgos por gravedad |
+| `editor-estilo` | `capitulos/NN.md`, `canon/estilo.md` con sus párrafos canónicos y prohibiciones. **Nunca** `canon/misterio.md` | `capitulos/NN.md` reescrito y `qa/NN-estilo.json` | `veredicto` y hallazgos por gravedad |
+| `lector-suspense` | `capitulos/NN.md`, `canon/misterio.md`, `plan/escaleta.md`, estado (`pistas`, `conocimiento_lector`, `tension_real`) | `qa/NN-suspense.json` | Puntuaciones de tensión, fair play y previsibilidad |
+| `cronista` | `capitulos/NN.md` aprobado, estado vigente | `estado/deltas/NN.json` y `memoria/resumenes/NN.md` | Nº de hechos, hilos y pistas del delta |
+
+`estado/deltas/NN.json` es la única entrada de `novela aplicar-delta`; ningún agente escribe `estado/state.json`.
+
+Las dos asimetrías de la tabla son deliberadas: `trazador`, `continuista` y `lector-suspense` ven el misterio porque su trabajo es verificarlo contra él; `escritor` y `editor-estilo` no, por §6.3. Y `editor-estilo` es el único agente además del `escritor` que reescribe `capitulos/NN.md` — por eso su salida de QA acompaña al texto en vez de sustituirlo.
 
 ---
 
@@ -568,7 +626,7 @@ Python 3.12. Dos caras sobre el mismo código:
 
 La API **no lanza agentes ni escribe en el workspace**. No hay verbo de escritura: mutar una novela es trabajo del orquestador a través del CLI. Si un endpoint pareciera necesitar escribir, lo correcto es añadir un subcomando al CLI, no un `POST` a la API.
 
-Los modelos de respuesta son los mismos Pydantic de `backend/novela/models/`. Una sola ontología, un solo sitio donde cambiarla.
+Los modelos de respuesta son los mismos Pydantic de `backend/novela/dominio/`. Una sola ontología, un solo sitio donde cambiarla.
 
 ```
 GET /novelas                              slugs con su cursor
