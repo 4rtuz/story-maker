@@ -172,7 +172,7 @@ Preventivos: actúan **antes** de la acción, a diferencia de un gate, que detec
 | Guardrail | Impide |
 |---|---|
 | `novela briefing` aborta si el contenido ensamblado procede de `canon/misterio.md` | Fuga del secreto (invariante 3) |
-| `tools` restringido por agente | Que el escritor lea rutas arbitrarias |
+| `tools` restringido por agente | Que un agente descubra ficheros que su briefing no nombra (sin `Glob` ni `Grep`), ejecute el CLI, delegue o invoque skills. **No** impide leer una ruta conocida: eso sería una regla `deny` |
 | Hook `PreToolUse` sobre `estado/**` | Que un agente escriba el estado por fuera de `aplicar-delta` |
 | Triggers append-only en las tablas de `estado.db` | Reescribir la historia, por cualquier ruta de escritura y no solo por delta (invariante 2) |
 | Validación del slug antes de tocar disco | Path traversal por la API |

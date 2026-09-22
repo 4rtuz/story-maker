@@ -74,3 +74,7 @@ El trazado no captura el contexto ensamblado, así que los ficheros de `runs/<ru
 ### Permisos
 
 Los agentes de escritura tienen `tools` restringido en su frontmatter. Si uno necesita una herramienta que no tiene, la respuesta correcta es revisar si la tarea le corresponde, no ampliarle los permisos.
+
+`tools` restringe capacidad y descubrimiento, no rutas: sin `Glob` ni `Grep` un agente solo alcanza lo que su briefing le nombra. Si lo que falta es una ruta, se arregla en la receta.
+
+Los plugins y skills del repositorio son para desarrollar el harness. Ningún agente lleva `Skill`.

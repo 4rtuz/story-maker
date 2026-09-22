@@ -405,7 +405,9 @@ La receta se versiona y su identificador se escribe en `runs/<run_id>/manifest.j
 `canon/misterio.md` está excluido por receta del `escritor` y del `editor-estilo`. Dos capas de refuerzo, porque una regla en el prompt no basta:
 
 1. `novela briefing` aborta si el contenido resultante contiene texto procedente de ese fichero.
-2. El frontmatter de `escritor.md` restringe `tools` para que no pueda leer rutas arbitrarias fuera de las autorizadas.
+2. Ningún agente tiene `Glob` ni `Grep` en su frontmatter. Sin herramientas de búsqueda, un agente solo alcanza las rutas que su briefing le nombra, y al `escritor` y al `editor-estilo` el briefing nunca le nombra el misterio.
+
+Conviene ser exacto sobre qué hace `tools`, porque de ello depende el invariante 3: restringe **capacidad y descubrimiento**, no rutas. `Read` no lleva lista blanca de ficheros, así que un agente que conozca la ruta puede leerla. Restringir por ruta exige una regla `deny` en los permisos, que hoy no existe; `docs/specs/0005-contencion-de-agentes.md` la propone junto con la medida que la hace viable para los siete agentes a la vez.
 
 El escritor recibe solo el contenido de las pistas listadas en `plan/capitulos/NN.md` para su capítulo. Un modelo que conoce la solución la filtra en el subtexto mucho antes de tiempo, y es un fallo invisible en revisión capítulo a capítulo.
 
@@ -594,6 +596,20 @@ model: opus
 ---
 ```
 
+`tools` por agente:
+
+| Agente | `tools` | Por qué |
+|---|---|---|
+| `arquitecto`, `trazador`, `escritor`, `continuista`, `lector-suspense`, `cronista` | `Read, Write` | Leen rutas que el briefing nombra y crean ficheros nuevos |
+| `editor-estilo` | `Read, Edit, Write` | Único que modifica un fichero existente, `capitulos/NN.md` |
+
+Ninguno tiene `Glob`, `Grep`, `Bash`, `Task`, `Skill`, `WebFetch` ni `WebSearch`. Cada ausencia hace mecánica una regla que si no sería solo una petición en el prompt:
+
+- Sin `Glob` ni `Grep`, «no explores el workspace por tu cuenta» deja de depender de la obediencia del modelo (§6.3).
+- Sin `Bash`, un agente no puede ejecutar el CLI y saltarse el orden del bucle.
+- Sin `Task`, no puede delegar y crear un árbol de invocaciones fuera del presupuesto de §6.5.
+- Sin `Skill`, no alcanza los plugins del repositorio, que son herramientas para desarrollar el harness y no forman parte del sistema que escribe novelas.
+
 Reglas transversales del cuerpo de cada agente:
 
 - Lee solo el briefing indicado y las rutas listadas en él.
@@ -766,3 +782,6 @@ Contrato de acoplamiento: el frontend consume lo que la API devuelve tal cual. S
 3. **Contexto de la sesión orquestadora.** Las cuatro reglas de §2.4 y la aritmética de §6.5 son la hipótesis de que un capítulo por sesión basta. Si en la práctica el orquestador aguanta tres o cuatro, el modo desatendido se abarata; si no aguanta ni uno completo, hay que partir el bucle en dos comandos.
 4. **`index_recuperable` pospuesto.** El índice vectorial sobre escenas queda fuera de la v1. Con 24 capítulos los resúmenes jerárquicos bastan; se justifica a partir de unas 40. `docs/specs/0002-indice-recuperable.md` propone revertir esta decisión y está en `borrador`: mientras lo esté, lo que vale es lo escrito aquí.
 5. **El escritor no reescribe capítulos anteriores.** Si un gate detecta que un problema del capítulo 7 nace del 5, el harness para y pide intervención. La reescritura retroactiva automática invalidaría el estado y los resúmenes de todo lo intermedio.
+6. **El progreso que ve el panel es de grano grueso.** `estado.db` solo cambia en `aplicar-delta`, al final del capítulo: durante los minutos que dura uno, el *polling* de §11.2 devuelve lo mismo una y otra vez, y un capítulo en curso no se distingue de un bucle colgado. `docs/specs/0003-log-de-run-en-vivo.md` propone servir `runs/<run_id>/harness.log` por la API y está en `borrador`: mientras lo esté, los cinco endpoints de §11.1 son los que hay.
+7. **Las tres barreras de contención están enunciadas, no puestas.** `.claude/` contiene hoy un único fichero, `settings.json`, con plugins de desarrollo: no hay definiciones de agente, ni hooks, ni permisos. El invariante 3 se sostiene solo sobre el aborto de `novela briefing`, y el 1 solo sobre los triggers append-only de `estado.db`. `docs/specs/0005-contencion-de-agentes.md` propone incrustar el misterio en el briefing —lo que permite denegar su ruta con una sola regla para los siete agentes—, crear los dos hooks y sacar los plugins del fichero versionado. Está en `borrador`: mientras lo esté, §6.3 y §7.4 describen el contrato de los agentes, no lo que hay en disco.
+8. **El arranque pasa por un humano.** El formulario del panel produce un comando para copiar porque la API no escribe y FastAPI no puede invocar modelos (§2, «fuera del stack»). `docs/specs/0004-lanzamiento-desde-el-panel.md` propone una cola en disco que la API alimenta, un supervisor de shell que la vacía y un `run.sh` que levanta ambos, de modo que no exista un modo «panel sin supervisor»; cambiaría la frase «no hay verbo de escritura» de §11.1 por «la API no muta una novela», y el comando de arranque de esta misma sección. Está en `borrador`: mientras lo esté, el camino de arranque es el de §11.2, y queda sin resolver si `config.yaml` lo genera el formulario o lo escribe el CLI a partir de los flags de `/novela-nueva`.
