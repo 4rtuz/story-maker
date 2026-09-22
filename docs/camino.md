@@ -4,9 +4,9 @@ Cómo viaja un dato desde la idea inicial hasta un capítulo aprobado, y cómo
 vuelve al navegador. Detalle de cada pieza en `architecture.md`.
 
 **Estado.** Lo dibujado con borde discontinuo no existe todavía: la cola, el
-supervisor, `run.sh` y el log en vivo son las specs `0003` y `0004`, ambas en
-`borrador`. Hasta que se implementen, el arranque lo hace un humano pegando el
-comando `/novela-nueva` en una terminal (`architecture.md` §11.2 y §12.8).
+supervisor, `run.sh` y el log en vivo son decisiones abiertas, resumidas en
+`architecture.md` §12.6 y §12.8. Hasta que se aborden, el arranque lo hace un
+humano pegando el comando `/novela-nueva` en una terminal (§11.2).
 
 ```mermaid
 flowchart TD
@@ -94,7 +94,7 @@ flowchart TD
 ## Cómo leerlo
 
 - Línea sólida: información que se **escribe**. Punteada: información que solo se **mira**.
-- Borde discontinuo: propuesto en una spec en `borrador`, todavía no existe.
+- Borde discontinuo: decisión abierta de `architecture.md` §12, todavía no existe.
 - Una sola flecha entra en `estado.db`, y viene de `aplicar-delta`.
 - La API escribe en un único sitio, `_cola/`, y nunca dentro de `novelas/<slug>/`.
   El prefijo `_` no es un slug válido, así que la separación se sostiene por
