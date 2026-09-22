@@ -110,7 +110,7 @@ La verdad del mundo narrativo. No describe lo que ha pasado en el texto, sino lo
 **`arco_previsto`** — Estado inicial → estado final, con los capítulos donde se producen los cambios de escalón. Es plan, no estado: lo real vive en la rama 4.
 `objeto` · **VERSIONADO** · arquitecto → trazador
 
-**`relaciones[]`** — `{con, tipo, tensión, historia compartida}`. Define el punto de partida; la evolución se registra en `estado.grafo_relaciones`.
+**`relaciones[]`** — `{con, tipo, tensión, historia compartida}`. Define el punto de partida; la evolución se registra en `estado.relaciones`.
 `lista` · **VERSIONADO** · arquitecto → escritor
 
 **`coartada_y_cronologia_privada`** — Dónde estuvo realmente cada personaje en cada momento crítico, se cuente o no. Es la estructura que hace verificable el misterio: sin ella, el culpable puede estar en dos sitios a la vez y nadie lo detecta.
@@ -135,10 +135,10 @@ Subárbol de acceso restringido. Es la única parte del canon sujeta a aislamien
 **`pistas_falsas[]`** — Información que apunta a una conclusión equivocada sin mentir al lector. Lleva `{a_quién_apunta, cuándo_se_desmonta}`: una pista falsa que nunca se desmonta es un cabo suelto, no un giro.
 `lista` · **APPEND-ONLY** · arquitecto → trazador
 
-**`revelaciones[]`** — Momentos en que una parte de la verdad oculta pasa al conocimiento del lector. Cada una debe tener al menos una pista plantada antes; esa es la regla que verifica el gate de fair play.
+**`revelaciones[]`** — Momentos en que una parte de la verdad oculta pasa al conocimiento del lector. `{id, contenido, pistas_que_la_pagan, capitulo_previsto, quien_la_recibe, impacto}`. `pistas_que_la_pagan` es una lista de referencias a `pistas[]` con **mínimo uno**: es lo que hace el fair play verificable por aritmética en vez de por inferencia, y lo que lo convierte en guardarraíl —una revelación sin pista no se puede ni escribir— en lugar de en un hallazgo de la auditoría final. `quien_la_recibe` distingue `lector`, `personaje` o `ambos`, porque una revelación a un personaje no mueve `conocimiento_lector`.
 `lista` · **APPEND-ONLY** · arquitecto → trazador, lector de suspense
 
-**`giros[]`** — Revelaciones que además invalidan una creencia previa del lector. Registran explícitamente `qué_creía_el_lector_antes`, porque sin ese campo el giro no es evaluable.
+**`giros[]`** — Revelaciones que además invalidan una creencia previa del lector: llevan los campos de `revelaciones[]` más `que_creia_el_lector_antes`, obligatorio, porque sin ese campo el giro no es evaluable.
 `lista` · **APPEND-ONLY** · arquitecto → lector de suspense
 
 **`reloj`** — El límite temporal de la trama: qué ocurre si no se resuelve y cuándo. Es lo que convierte misterio en suspense.
@@ -200,41 +200,43 @@ Lo que debería ocurrir. Se genera una vez a partir del canon y puede revisarse,
 
 Lo que ya ocurrió. Fuente única de verdad sobre el texto existente. Vive en `estado/estado.db`, una base SQLite con una tabla por colección, no en la conversación de ningún agente. La mutabilidad que declara cada entrada de abajo la impone el esquema: las colecciones append-only tienen triggers que abortan cualquier `UPDATE` o `DELETE`.
 
-**`cursor`** — `{capitulo_actual, fase, ultimo_paso_completado}`. Lo primero que lee el orquestador al reanudar. Sin él no hay recuperación posible tras un corte.
+**`cursor`** — `{capitulo, fase, ultimo_paso, intento}`. Lo primero que lee el orquestador al reanudar. Sin él no hay recuperación posible tras un corte. `fase` es `escritura | revision | registro | cerrado`; `ultimo_paso` es uno de los nueve pasos del bucle; `intento` se persiste porque la parada al tercero depende de él.
 `objeto` · **MUTABLE** · orquestador → orquestador
 
 **`linea_temporal[]`** — Cada escena escrita con su momento diegético y duración. Permite detectar el error más común del formato largo: dos cosas ocurriendo simultáneamente en sitios distintos.
 `lista` · **APPEND-ONLY** · cronista → continuista
 
-**`estado_personajes[]`** — Por personaje: ubicación, estado físico y emocional, condición vital, objetivo activo y última aparición. Es el estado de entrada de la siguiente escena en que aparezca.
+**`personajes[]`** — Por personaje: ubicación, estado físico y emocional, condición vital, objetivo activo y última aparición. Es el estado de entrada de la siguiente escena en que aparezca.
 `mapa` · **MUTABLE** · cronista → escritor, continuista
 
 **`conocimiento[]`** — Qué sabe cada personaje y desde qué capítulo. En suspense es la estructura más importante del estado: casi todo el género consiste en administrar asimetrías de información.
 `mapa` · **APPEND-ONLY** · cronista → escritor, continuista
 
-**`grafo_relaciones`** — Aristas entre personajes con su estado actual de confianza, sospecha o alianza. Evoluciona; el canon solo fijó el punto de partida.
+**`relaciones`** — Aristas entre personajes con su estado actual de confianza, sospecha o alianza. Evoluciona; el canon solo fijó el punto de partida.
 `grafo` · **MUTABLE** · cronista → escritor
 
-**`inventario_objetos_pruebas[]`** — `{objeto, poseedor, ubicación, capitulo_introduccion, relevancia}`. Los objetos con relevancia alta son pistas materiales y no pueden desaparecer sin explicación.
+**`objetos[]`** — `{id, poseedor, ubicacion, capitulo_intro, relevancia}`, con `relevancia` en `alta | media | baja`. Los objetos con relevancia alta son pistas materiales y no pueden desaparecer sin explicación.
 `lista` · **MUTABLE** · cronista → continuista
 
 **`libro_de_hechos[]`** — Registro de hechos afirmados por el texto, con capítulo de origen y cita. Es el contrato de no contradicción: una vez que el texto afirma algo, es verdad para siempre. El continuista valida contra esta lista antes que contra ninguna otra cosa.
 `lista` · **APPEND-ONLY, INMUTABLE por entrada** · cronista → continuista
 
-**`hilos_abiertos[]` / `hilos_cerrados[]`** — Subtramas y preguntas pendientes con el capítulo en que se abrieron. Un hilo abierto sin cerrar a tres capítulos del final es una alerta.
+**`hilos[]`** — Subtramas y preguntas pendientes, en una sola colección con `estado` (`abierto | cerrado`) como discriminante, y el capítulo en que se abrieron. Un hilo abierto sin cerrar a tres capítulos del final es una alerta.
 `listas` · **MUTABLE** · cronista → orquestador, auditoría
 
-**`pistas_estado[]`** — Ciclo de vida de cada pista: `plantada`, `pagada`, `pendiente`, `huérfana`. Derivado del cruce entre plan y texto escrito; una pista plantada y nunca pagada es el fallo de calidad más caro del género.
+**`pistas[]`** — Ciclo de vida de cada pista: `plantada`, `pagada`, `pendiente`, `huérfana`. Derivado del cruce entre plan y texto escrito; una pista plantada y nunca pagada es el fallo de calidad más caro del género.
 `mapa` · **DERIVADO** · cronista → auditoría final
 
-**`conocimiento_del_lector`** — Qué sabe el lector en este punto, frente a lo que saben los personajes. La diferencia entre ambos es la ironía dramática, y es un parámetro que se dosifica, no un subproducto.
+**`conocimiento_lector`** — Qué sabe el lector en este punto, frente a lo que saben los personajes. La diferencia entre ambos es la ironía dramática, y es un parámetro que se dosifica, no un subproducto.
 `objeto` · **APPEND-ONLY** · cronista → lector de suspense
 
-**`curva_tension_real[]`** — Puntuación efectiva por capítulo escrito, emitida por el lector de suspense. Se compara contra la curva objetivo del plan.
+**`tension_real[]`** — Puntuación efectiva por capítulo escrito, emitida por el lector de suspense. Se compara contra la curva objetivo del plan.
 `lista` · **APPEND-ONLY** · lector de suspense → orquestador
 
-**`metricas_acumuladas`** — Palabras totales y desviación respecto al plan. Alimenta la decisión de comprimir o expandir los capítulos restantes.
+**`metricas`** — Palabras totales y desviación respecto al plan. `desviacion_vs_plan` es una fracción con signo, no un porcentaje. Alimenta la decisión de comprimir o expandir los capítulos restantes.
 `objeto` · **DERIVADO** · cronista → orquestador
+
+Los nombres de esta rama son los del documento serializado de `architecture.md` §7.1, que es el que valida `state.schema.json`, el que responde la API y el que nombra las tablas de `esquema.sql`. Un nombre por campo: no hay alias.
 
 ---
 
@@ -278,7 +280,7 @@ El contexto persiste como ficheros, no como historial de conversación. Cada sub
 
 **`capitulos/NN.md`** — Salida final, con frontmatter que declara capítulo, pov, palabras y pistas tratadas.
 
-**`qa/NN-informe.md`** — Hallazgos del continuista y del lector de suspense. Es el único input del reintento.
+**`qa/NN-<agente>.json`** — Un fichero por agente —`continuidad`, `estilo`, `suspense`— más `validacion`, que lo escribe el CLI. Formato en `architecture.md` §7.3. Es el único input del reintento.
 
 **`checkpoints/`** — Snapshots de estado y cursor. Permiten reanudar sin reprocesar y sin gastar requests.
 
@@ -356,7 +358,7 @@ Subagentes de Claude Code. Cada uno tiene un contrato explícito: `{rol, entrada
 
 **`aislamiento_del_secreto`** — El escritor no recibe `misterio.verdad_oculta`. Un modelo que conoce la solución la filtra en el subtexto mucho antes de tiempo.
 
-**`fair_play`** — Ninguna revelación sin al menos una pista plantada previamente. Se verifica automáticamente cruzando `revelaciones` con `pistas_estado`.
+**`fair_play`** — Ninguna revelación sin al menos una pista plantada previamente. Se verifica automáticamente cruzando `revelaciones.pistas_que_la_pagan` con `pistas`: toda pista que paga una revelación tiene que estar plantada en un capítulo anterior.
 
 **`limites_longitud`** — Por capítulo y acumulado, con corrección progresiva del objetivo de los capítulos restantes.
 

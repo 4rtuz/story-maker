@@ -1,14 +1,14 @@
 ---
 spec: 0001
 titulo: "El backend: CLI `novela`, dominio, estado en SQLite y API de lectura"
-estado: borrador
+estado: aceptada
 autor: "arturo.soto"
 fecha: 2026-09-22
-version: 0.1
+version: 0.2
 afecta: [backend, esquemas, docs]
 depende_de: []
 sustituye: []
-adr: []
+adr: [0001]
 commit: null
 ---
 
@@ -48,6 +48,10 @@ Debajo de esa obviedad hay tres huecos que la documentación de referencia no ci
 
 **Dos documentos dicen cosas distintas sobre quién escribe `memoria/`.** `architecture.md` §6.4 dice que `novela aplicar-delta` escribe `memoria/resumenes/NN.md` a partir de la salida del `cronista`; la tabla de §7.5 se lo atribuye al `cronista` directamente. No es un matiz: decide si `memoria/` es un artefacto validado contra esquema o texto libre de un agente, y si reconstruirlo cuesta cuota.
 
+**La ontología se contradice a sí misma en cuatro sitios.** `definitions.md` §4 y `architecture.md` §7.1 nombran distinto ocho campos del estado —`estado_personajes` frente a `personajes`, `curva_tension_real` frente a `tension_real`, y seis más— y dan a `cursor` tres campos en un documento y cuatro en el otro. `revelaciones[]` no declara ni un campo pese a que RF-22 tiene que cruzarla con las pistas. El prefijo `esc-` sirve a escenario (`esc-casa-del-faro`) y a escena (`esc-07-2`) sin regla que los separe, y `hec-` se usa en §7.1 y §7.3 sin figurar en la tabla de identificadores. Nada de esto se puede dejar para después: el primer modelo Pydantic lo encuentra.
+
+**Seis colecciones append-only no tienen quien las sostenga.** `definitions.md` §2 declara append-only `misterio.verdad_oculta`, `misterio.pistas`, `pistas_falsas`, `revelaciones`, `giros` y `estilo.prohibiciones`. Todas viven en markdown, no en SQLite, así que el trigger del invariante 2 no las alcanza. O lo impone el modelo o no lo impone nadie.
+
 **El árbol y las convenciones no coinciden en la ruta de los modelos.** `architecture.md` §3.1 los pone en `backend/novela/dominio/`; `AGENTS.md` y `docs/validators.md` §3.1 los llaman `backend/novela/models/`. Cualquiera de las dos vale, pero no las dos: la regla dura de `validators.md` —«ningún dato cruza de disco o de agente al código sin pasar por un modelo de …»— necesita una única ruta a la que apuntar.
 
 ## 3. Actores y partes implicadas
@@ -70,11 +74,15 @@ Debajo de esa obviedad hay tres huecos que la documentación de referencia no ci
 
 ## 5. Propuesta
 
-### 5.0 Los tres huecos de §2, resueltos
+### 5.0 Los huecos de §2, resueltos
 
 1. **Se añade `novela nueva <slug>`**, que crea el árbol de `architecture.md` §4, escribe `config.yaml` a partir de `config/default.yaml` más los flags, y crea `estado.db` ejecutando `plataforma/esquema.sql`. El slash command `/novela-nueva` pasa a ser lo que ya pretendía ser: `novela nueva` y después la delegación al `arquitecto`.
 2. **`memoria/resumenes/NN.md` lo escribe `novela aplicar-delta`**, como dice §6.4. El delta del `cronista` transporta las tres granularidades en `resumen: {linea, parrafo, escena}`, validadas contra `delta.schema.json`; el CLI las renderiza al fichero dentro de la misma operación. Así `memoria/` es derivado de verdad: se reconstruye recorriendo `estado/deltas/*.json`, sin volver a invocar al `cronista` y sin gastar cuota. La tabla de §7.5 queda desfasada y se corrige en el mismo commit.
 3. **La ruta es `backend/novela/dominio/`**, la de §3.1, porque es la que nombra la metodología de §3.0. `AGENTS.md` y `validators.md` §3.1 se corrigen.
+4. **Los nombres canónicos del estado son los de §7.1**, sin alias. Es el documento que valida `state.schema.json`, el que responde la API y el que nombra las tablas; `definitions.md` es un diccionario y cede ante el contrato. `cursor` tiene cuatro campos, `{capitulo, fase, ultimo_paso, intento}`: el `intento` se persiste porque la parada al tercero y el model checking de §13 dependen de él. Un alias dejaría los dos nombres vivos, que es exactamente cómo se llegó a la divergencia.
+5. **`revelaciones[]` gana campos**: `{id, contenido, pistas_que_la_pagan, capitulo_previsto, quien_la_recibe, impacto}`, y `giros[]` añade `que_creia_el_lector_antes`. `pistas_que_la_pagan` lleva **mínimo una** referencia, y eso es lo que convierte el fair play en guardarraíl: una revelación sin pista no se puede escribir en el canon, en vez de detectarse en la auditoría con la novela terminada. Sin el campo, RF-22 tendría que inferir qué pista paga qué revelación, y `pista.capitulo_pagado` no lo dice: dice cuándo se pagó, no qué pagó.
+6. **`esc-` se desambigua por expresión regular**: escenario es `^esc-[a-z][a-z0-9-]*$` y escena es `^esc-\d{2,3}-\d+$`, disjuntas por construcción. Se descarta renombrar escena a otro prefijo: los ids son claves estables y ya aparecen en §5, §7.1 y el frontmatter. `hec-` se añade a la tabla de identificadores.
+7. **Las seis colecciones append-only del canon las sostiene el tipo** (RF-28). Un único `ColeccionAppendOnly[T]` en `dominio/` sirve a las seis y a `LibroDeHechos`: expone `añadir()`, devuelve tupla en vez de la lista interna, y no expone forma de modificar ni de borrar. En la rama 4 el tipo evita escribir el bug y el trigger lo caza igual; en el canon el tipo es la única línea.
 
 ### 5.1 Forma del backend
 
@@ -197,6 +205,8 @@ El OpenAPI se commitea; CI falla si el fichero commiteado no coincide con el que
 | RF-25 | La API valida el slug contra `^[a-z0-9-]+$` antes de construir ninguna ruta | debe |
 | RF-26 | `backend/schemas/*.json` se generan desde los modelos Pydantic y se versionan; cada documento lleva su `schema_version` | debe |
 | RF-27 | Todo subcomando añade una línea a `runs/<run_id>/harness.log`, con volcado línea a línea | debería |
+| RF-28 | Los modelos de `canon.py` no exponen forma de modificar ni de borrar una entrada de las seis colecciones que `definitions.md` §2 declara append-only | debe |
+| RF-29 | `run_id` se toma de `NOVELA_RUN_ID` si está definida y casa `^r-\d{8}-\d{4}$`; si no, lo genera el CLI. Una variable con formato inválido aborta | debe |
 
 ## 7. Requisitos no funcionales
 
@@ -236,7 +246,9 @@ novela exportar <slug> --formato md|epub
 | `GET /novelas/{slug}/capitulos/{n}` | markdown del capítulo | 200 · 404 |
 | `GET /novelas/{slug}/runs/{run_id}` | `manifest.json` | 200 · 404 |
 
-**Esquemas** — todos **nuevos**, en `backend/schemas/`: `config.schema.json`, `state.schema.json`, `canon.schema.json`, `plan-capitulo.schema.json`, `delta.schema.json`, `qa-informe.schema.json`. `delta.schema.json` incluye `resumen: {linea, parrafo, escena}` (§5.0).
+**Variables de entorno** — **nuevas**. `NOVELA_RUN_ID` fija el run del capítulo (RF-29); `NOVELAS_DIR` reubica la raíz de workspaces, y es como los tests apuntan a los fixtures. `TRACE_TO_LANGFUSE` ya existía y solo activa el sink con el valor exacto `"true"`.
+
+**Esquemas** — todos **nuevos**, en `backend/schemas/`: `config.schema.json`, `state.schema.json`, `canon.schema.json`, `plan-capitulo.schema.json`, `delta.schema.json`, `qa-informe.schema.json`. `delta.schema.json` incluye `resumen: {linea, parrafo, escena}` (§5.0), con `resumen.escena` indexado por id de escena. `canon.schema.json` incluye los campos de `revelaciones[]` y `giros[]` de §5.0.5.
 
 **Contrato de agente** — **compatible** con §7.5, con una corrección: el `cronista` escribe solo `estado/deltas/NN.json`; `memoria/resumenes/NN.md` pasa a escribirlo `aplicar-delta`.
 
@@ -288,6 +300,10 @@ No aplica: no existe ninguna novela empezada ni ningún `estado.db` previo. Es l
 - [ ] **CA-27** (RNF-01) `validar` sobre un capítulo de 4.000 palabras termina en < 2 s
 - [ ] **CA-28** (RNF-03) un test recorre el árbol de imports del CLI y de la API y falla si aparece cualquier cliente de modelo
 - [ ] **CA-29** (RNF-05) el OpenAPI commiteado coincide con el generado; CI falla si no
+- [ ] **CA-30** (RF-28) property-based sobre canons generados: ningún método público de las seis colecciones append-only del canon reduce su longitud ni altera una entrada existente
+- [ ] **CA-31** (RNF-01) `novela estado --breve` sobre el fixture de 24 capítulos termina en < 500 ms
+- [ ] **CA-32** (RNF-07) un fichero versionado que contenga `LANGFUSE_SECRET_KEY` o equivalente hace fallar el pre-commit
+- [ ] **CA-33** (RF-29) con `NOVELA_RUN_ID` definida, el briefing se escribe bajo ese run; con un valor que no casa el formato, el comando aborta sin crear directorio
 
 ## 12. Trazabilidad
 
@@ -321,6 +337,13 @@ No aplica: no existe ninguna novela empezada ni ningún `estado.db` previo. Es l
 | RNF-01 | CA-27 | `novela/slices/validacion/test_validacion.py::test_rendimiento` | pendiente |
 | RNF-03 | CA-28 | `tests/test_contratos.py::test_sin_clientes_de_modelo` | pendiente |
 | RNF-05 | CA-29 | `tests/test_contratos.py::test_openapi_al_dia` | pendiente |
+| RF-28 | CA-30 | `novela/dominio/test_canon.py::test_append_only_sin_trigger` | pendiente |
+| RF-29 | CA-33 | `novela/plataforma/test_run.py::test_run_id_de_entorno` | pendiente |
+| RNF-01 | CA-31 | `novela/slices/estado/test_estado.py::test_breve_rendimiento` | pendiente |
+| RNF-02 | CA-05, CA-11 | `novela/slices/estado/test_estado.py::test_breve_acotado`, `briefing/test_briefing.py::test_presupuesto_excedido_falla` | pendiente |
+| RNF-04 | CA-04, CA-17 | `novela/plataforma/test_atomic.py::test_corte_deja_fichero_anterior`, `slices/delta/test_delta.py::test_transaccion_todo_o_nada` | pendiente |
+| RNF-06 | — | No aplica: no hay ninguna novela empezada | cerrado |
+| RNF-07 | CA-26, CA-32 | `tests/test_api.py::test_path_traversal`, `tests/test_contratos.py::test_sin_claves_versionadas` | pendiente |
 
 ## 13. Verificación
 
@@ -344,9 +367,10 @@ Métodos de `docs/validators.md` que cubren este cambio:
 | Área | Cambio |
 |---|---|
 | Invariantes | Ninguno se toca. Cuatro pasan de estar descritos a estar impuestos por código: 1, 2, 6 y 8 |
-| Esquemas | Se crean los seis de `backend/schemas/` y el test de contrato que los mantiene al día |
+| Esquemas | Se crean los seis de `backend/schemas/` y el test de contrato que los mantiene al día. `canon.schema.json` estrena los campos de `revelaciones[]` (§5.0.5) |
 | Contratos de agente | Uno: el `cronista` deja de escribir `memoria/resumenes/NN.md`. Su frontmatter no cambia |
-| Docs de referencia | En el mismo commit que el código: `architecture.md` §7.5 (salidas del `cronista`), `architecture.md` §8 y `AGENTS.md` (aparece `novela nueva`), `AGENTS.md` y `validators.md` §3.1 (`backend/novela/models/` → `dominio/`), `definitions.md` §6 (`qa/NN-informe.md` → `qa/NN-<agente>.json`) |
+| Docs de referencia | **Ya corregidos** al aceptar esta spec: todos eran incoherencias entre documentos vigentes, no descripciones de código futuro, así que dejarlos habría sido dejar la referencia contradiciéndose durante toda la implementación. `definitions.md` §2.4 (campos de `revelaciones` y `giros`), §4 (ocho nombres alineados con §7.1, `cursor` a cuatro campos) y §6 (`qa/NN-informe.md` → `qa/NN-<agente>.json`); `architecture.md` §5 y `AGENTS.md` (identificadores, con `hec-` y `esc-` desambiguado), §8 y `AGENTS.md` (aparecen `novela nueva` y `novela auditar`), §7.5 (el `cronista` deja de escribir `memoria/`, que ya contradecía a §6.4 del mismo documento); `domain-knowledge.md` (nodos de estado, ficheros de `qa/` y salidas del `cronista` en los diagramas 3, 4 y 5); `AGENTS.md` y `validators.md` §3.1 (`backend/novela/models/` → `dominio/`); `_plantilla.md` (misma ruta). Nada queda pendiente |
+| ADR | Se escribe `docs/adr/0001-orquestador-en-claude-code.md`, que `architecture.md` §3.1 ya nombraba y no existía |
 | Frontend | Nada que romper: no existe. La fase 4 le entrega el OpenAPI del que generará sus tipos |
 
 ## 15. Alternativas descartadas
@@ -360,8 +384,14 @@ Métodos de `docs/validators.md` que cubren este cambio:
 
 ## 16. Preguntas abiertas
 
-- [ ] ¿`novela nueva` es el nombre, o `novela init`? El resto del CLI usa verbos, `nueva` es adjetivo, y `/novela-nueva` ya existe como slash command — arturo
-- [ ] ¿El slice `presupuesto/` y `novela budget` entran como fase 5 de esta spec o en otra? Depende de si la política de degradación de §9 se automatiza o se queda como decisión del orquestador — arturo
-- [ ] ¿`run_id` lo genera el CLI en el primer subcomando del capítulo, o lo fija el orquestador por variable de entorno? Lo segundo permitiría alinearlo con el `session_id` de Langfuse y cerrar de paso `architecture.md` §12.2 — arturo
-- [ ] ¿La fase 4 se implementa ahora o cuando exista la primera novela terminada? No bloquea al bucle, y el frontend no existe todavía — arturo
-- [ ] ¿El delta del `cronista` y `memoria/resumenes/NN.md` llevan identificador de escena desde la fase 2? Cuesta un campo y una sección ahora; no llevarlo convierte las dos capas baratas del índice (§12.4) en una migración con reproceso el día que se aborden. La pregunta no es si se hace el índice, sino si esta spec se lo deja posible — arturo
+Ninguna. Las cinco que esta spec tuvo en `borrador` se cerraron al pasar a `aceptada`; el
+razonamiento de cada una está en `docs/implementation-plans/0001-backend/decisiones-abiertas.md`
+hasta que la spec se implemente.
+
+| Pregunta | Decisión |
+|---|---|
+| ¿`novela nueva` o `novela init`? | **`nueva`**. El CLI ya mezcla verbos, sustantivos y un adjetivo, así que no hay convención que romper, y `/novela-nueva` ya existe en tres documentos |
+| ¿El slice `presupuesto/` y `novela budget` entran aquí? | **No**. Spec posterior: sin una ejecución real no hay con qué calibrar los umbrales de §9, y hoy la degradación la decide el orquestador. RF-27 deja la materia prima registrada |
+| ¿`run_id` lo genera el CLI o el orquestador? | **Los dos, con precedencia** (RF-29). Cierra `architecture.md` §12.2 y hace deterministas las rutas de `runs/`, que es lo que el golden de CA-08 necesita |
+| ¿La fase 4 ahora o al terminar la primera novela? | **Ahora, y la última**. Los modelos de respuesta ya existen desde la fase 1; lo que se gana es establecer CA-25 antes de que exista código que asuma escritura. Los dos `GET` de §12.6 siguen fuera |
+| ¿Identificador de escena en el delta desde la fase 2? | **Sí**. Cuesta un campo hoy; añadirlo después exige reprocesar cada capítulo con el `cronista`, que es cuota y además no determinista |

@@ -6,7 +6,7 @@ apoyarse.
 **Al terminar existe**: la ontología como código, `estado.db` con sus triggers, escritura
 atómica, lock de workspace, y tres subcomandos — `nueva`, `estado`, `pendiente`.
 
-**Cierra**: RF-01 a RF-07, RF-26. CA-01 a CA-07, CA-28.
+**Cierra**: RF-01 a RF-07, RF-26, RF-28. CA-01 a CA-07, CA-28, CA-30, CA-31, CA-32.
 
 Antes de empezar, lee las convenciones de ciclo del [README](README.md): rojo visto fallar,
 un commit por ciclo, property-based donde toca.
@@ -54,7 +54,13 @@ __pycache__/
 `novelas/` es la que importa: `AGENTS.md` lo declara ignorado y no lo está. Un `git add -A` antes
 de esta línea versiona un workspace entero, y con él el misterio de una novela en curso.
 
-**Commit**: `chore(backend): arranque con uv, mypy estricto y ruff con reglas S`
+**Y monta el pre-commit**, que RNF-07 exige y hasta ahora no tenía tarea: `ruff` con reglas `S`
+más un grep que rechace `LANGFUSE_SECRET_KEY` y equivalentes en cualquier fichero versionado.
+`validators.md` §3.2 lo remata: «la regla la hace cumplir el linter, no la disciplina».
+
+**Cierra**: CA-32, RNF-07 en su mitad de claves.
+
+**Commit**: `chore(backend): arranque con uv, mypy estricto, ruff y pre-commit`
 
 ---
 
@@ -86,24 +92,18 @@ hec-014              ^hec-\d{3}$             hecho
 cap-01               ^cap-\d{2,3}$           capítulo
 ```
 
-Tres cosas que la tabla de `AGENTS.md` no resuelve y esta tarea sí:
+Estas expresiones son las de `architecture.md` §5 y `AGENTS.md`, que ya las traen desde la spec
+0.2: cópialas, no las inventes. Dos detalles sobre por qué son así:
 
-**`esc-` está colisionado.** Escenario es `esc-casa-del-faro`, escena es `esc-07-2`. Las dos
-regex de arriba son disjuntas por construcción: la de escenario exige que el primer carácter tras
-el guion sea una letra. Sin eso, el validador de escenario traga ids de escena y el error aparece
-tres fases después, en una consulta de `linea_temporal` que devuelve vacío sin fallar.
-
-**`hec-` no está en la tabla de prefijos** de `AGENTS.md` ni de `architecture.md` §5, pero §7.1 y
-§7.3 lo usan en sus ejemplos. Es una omisión de la tabla, no del dominio.
+**`esc-` sirve a escenario y a escena.** Las dos regex son disjuntas por construcción: la de
+escenario exige letra tras el guion, la de escena exige dígito. Sin esa distinción el validador de
+escenario traga ids de escena y el error aparece tres fases después, en una consulta de
+`linea_temporal` que devuelve vacío sin fallar.
 
 **El número de capítulo es un tipo**, no un `int`: rango `1..num_capitulos`, y formato de dos o
 tres dígitos según `num_capitulos`. `architecture.md` §5 lo dice y es una regla de todo el
 workspace: no se mezclan formatos. Conviene que el formateo viva aquí y no disperso en seis
 `f"{n:02d}"`.
-
-**En el mismo commit**: corrige `AGENTS.md` y `validators.md` §3.1, que dicen
-`backend/novela/models/`. La ruta es `dominio/` (spec §5.0.3). Este es el primer commit que la
-crea, así que es el suyo.
 
 **Cierra**: nada de la spec directamente; es base de todo lo demás.
 
@@ -146,9 +146,9 @@ cierra con «etc.» en el primero: ciérralo con lo que hay y añade el enum, no
 
 **Construye**: `backend/novela/dominio/canon.py`.
 
-**Rojo**: `novela/dominio/test_canon.py::test_colecciones_append_only_sin_trigger`. Para cada una
-de las seis colecciones append-only del canon, intentar modificar o borrar una entrada existente
-debe ser imposible — no «debe fallar en runtime»: el modelo no expone el método.
+**Rojo**: `novela/dominio/test_canon.py::test_append_only_sin_trigger`. **Property-based** sobre
+canons generados: ningún método público de las seis colecciones append-only reduce su longitud ni
+altera una entrada existente. No «debe fallar en runtime»: el modelo no expone el método.
 
 **Verde**: los cinco subárboles de `definitions.md` §2 — premisa, mundo, personajes, misterio,
 estilo.
@@ -167,9 +167,14 @@ append-only, todas en el canon**:
 | `estilo.prohibiciones` | §2.5 |
 
 El canon vive en markdown, no en SQLite: **no hay trigger que las proteja**. Para la rama 4 el
-append-only lo impone el motor; para estas seis, o lo impone el modelo o no lo impone nadie. El
-patrón de `LibroDeHechos` —expone `añadir()`, no expone forma de modificar ni de borrar— se
-aplica a las seis.
+append-only lo impone el motor; para estas seis, o lo impone el modelo o no lo impone nadie.
+
+**Un solo tipo para las siete.** `ColeccionAppendOnly[T]`: entradas congeladas, expone `añadir()`,
+`__iter__` y `__len__`, y devuelve una tupla en vez de la lista interna para que no se escape una
+referencia mutable. Sin `__setitem__`, sin `remove`, sin `clear`. Sirve igual a `LibroDeHechos` de
+la rama 4 (tarea 1.6). Siete usos, una implementación.
+
+Esto es **RF-28**, que la spec 0.2 añadió precisamente porque nada lo obligaba.
 
 `estilo.prohibiciones` tiene además dos escritores, `arquitecto` y `editor-estilo`: es la única
 colección del canon que crece durante la ejecución, cuando el editor detecta un patrón repetido.
@@ -187,6 +192,12 @@ Campos que la prosa enumera en línea y el modelo necesita separados:
   `capitulo_pagado` admite `None`: una pista plantada y no pagada existe, y es precisamente el
   hallazgo que busca `novela auditar`
 - `pista_falsa`: `{a_quien_apunta, cuando_se_desmonta}`
+- `revelacion`: `{id, contenido, pistas_que_la_pagan, capitulo_previsto, quien_la_recibe,
+  impacto}`. **`pistas_que_la_pagan` lleva mínimo una referencia**, y ese mínimo es lo que
+  convierte el fair play en guardarraíl: una revelación sin pista no se puede escribir en el
+  canon, en vez de aparecer en la auditoría con la novela terminada. `quien_la_recibe` distingue
+  `lector`, `personaje` y `ambos`, porque una revelación a un personaje no mueve
+  `conocimiento_lector`
 - `giro`: es una revelación con `que_creia_el_lector_antes` obligatorio. Sin ese campo el giro no
   es evaluable, y `definitions.md` §2.4 lo dice así
 - `estilo.ritmo`: longitud media de frase y proporción diálogo/acción/interioridad. **Campos
@@ -241,10 +252,11 @@ La tarea más cargada de la fase. Léela entera antes de escribir nada.
 **Verde**: el contrato serializado de `architecture.md` §7.1, que es lo que devuelven
 `novela estado --json` y `GET /novelas/{slug}/estado`.
 
-### Decisión: mandan los nombres de §7.1
+### Los nombres canónicos
 
-`definitions.md` §4 y `architecture.md` §7.1 **no coinciden en ocho campos**. Esta es la tabla de
-traducción, y la dirección es una sola:
+`definitions.md` §4 y `architecture.md` §7.1 llevaban ocho campos con nombres distintos. **La spec
+0.2 lo cerró a favor de §7.1 y `definitions.md` ya está corregido**, así que los dos documentos
+dicen hoy lo mismo. Esta tabla queda por si te encuentras el nombre viejo en algún sitio:
 
 | `definitions.md` §4 | `architecture.md` §7.1 — **este** |
 |---|---|
@@ -257,24 +269,26 @@ traducción, y la dirección es una sola:
 | `curva_tension_real` | `tension_real` |
 | `metricas_acumuladas` | `metricas` |
 
-Ganan los de §7.1 porque son los que salen por la API, los que valida `state.schema.json` y los
-que tendrán tabla en `esquema.sql`. Si quieres conservar el nombre largo, que sea un `alias`.
+**Sin alias.** Un alias deja los dos nombres vivos y funcionando, que es exactamente cómo se
+llegó a la divergencia.
 
-`cursor` tiene además dos formas: `definitions.md` declara `{capitulo_actual, fase,
-ultimo_paso_completado}` y §7.1 declara `{capitulo, fase, ultimo_paso, intento}`. **Cuatro campos,
-los de §7.1.** `intento` no es opcional: el model checking de la tarea 2.18 enumera
-`fase × ultimo_paso × intento`, y sin el tercero no hay máquina de estados que enumerar.
+`cursor` son cuatro campos: `{capitulo, fase, ultimo_paso, intento}`. `intento` no es opcional: el
+model checking de la tarea 2.18 enumera `fase × ultimo_paso × intento`, y sin el tercero no hay
+máquina de estados que enumerar.
 
 ### Enums que hay que cerrar aquí
 
-`architecture.md` los deja abiertos y tres tareas distintas los van a necesitar. Se deciden una
-vez, aquí:
+`architecture.md` los dejaba abiertos. Los de `cursor` ya están en `definitions.md` §4 desde la
+spec 0.2; el resto se fijan aquí y **se documentan en `definitions.md` en este mismo commit**: un
+enum que solo vive en Python es un contrato que el `continuista` no puede consultar.
 
 | Enum | Valores | Fuente |
 |---|---|---|
 | `cursor.fase` | `escritura`, `revision`, `registro`, `cerrado` | derivado del bucle de §2.1 |
 | `cursor.ultimo_paso` | `briefing`, `escritor`, `validar`, `continuista`, `editor-estilo`, `lector-suspense`, `cronista`, `aplicar-delta`, `checkpoint` | los pasos del bucle de §2.1 |
 | `pista.estado` | `plantada`, `pagada`, `pendiente`, `huerfana` | `definitions.md` §4 — **son cuatro**; el diagrama 3 de `domain-knowledge.md` solo enseña tres, y se queda corto |
+| `revelacion.quien_la_recibe` | `lector`, `personaje`, `ambos` | `definitions.md` §2.4 |
+| `revelacion.impacto` | `alta`, `media`, `baja` | `definitions.md` §2.4 |
 | `hilo.estado` | `abierto`, `cerrado` | §7.1 |
 | `personaje.condicion` | `viva`, `muerta`, `desaparecida` | §7.1 muestra `"viva"` |
 | `objeto.relevancia` | `alta`, `media`, `baja` | §7.1 muestra `"alta"` |
@@ -351,10 +365,6 @@ hallazgo que el reintento del escritor no sabe interpretar.
 
 Lo usan cuatro productores: `continuista`, `editor-estilo`, `lector-suspense` y el propio
 `novela validar` (tarea 2.9). Un solo modelo para los cuatro.
-
-**En el mismo commit**: corrige `definitions.md` §6, que dice `qa/NN-informe.md` — markdown y un
-fichero único. Lo vigente es `qa/NN-<agente>.json`, JSON y un fichero por agente
-(`architecture.md` §4 y §7.5).
 
 **Commit**: `feat(dominio): informe de QA, contrato de los cuatro productores`
 
@@ -571,15 +581,17 @@ de `AGENTS.md`.
   `--breve` imprime **≤ 12 líneas** e incluye cursor, hilos abiertos y palabras.
 - `tests/test_contratos.py::test_state_schema_al_dia` extendido — `--json` valida contra
   `state.schema.json`.
+- `novela/slices/estado/test_estado.py::test_breve_rendimiento` — `--breve` termina en
+  **< 500 ms** sobre el workspace de 24 capítulos.
 
 **Verde**: `--breve` imprime cursor, capítulos hechos, hilos abiertos, pistas pendientes de pagar
 y palabras acumuladas. `--json` serializa el contrato de §7.1 desde los modelos.
 
 El límite de doce líneas es un requisito, no una guía de estilo: `--breve` es lo que el
 orquestador paga en contexto muchas veces por novela, y es el único subcomando cuyo coste se
-multiplica por el número de capítulos.
+multiplica por el número de capítulos. El umbral de 500 ms es la otra mitad del mismo argumento.
 
-**Cierra**: CA-05, CA-06, RF-05, RF-06.
+**Cierra**: CA-05, CA-06, CA-31, RF-05, RF-06, RNF-01 en su mitad de `--breve`.
 
 **Commit**: `feat(cli): novela estado, breve y json`
 

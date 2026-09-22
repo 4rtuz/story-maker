@@ -342,15 +342,22 @@ novelas/<slug>/
 **Identificadores.** Prefijo de tipo más slug o secuencia. Son claves estables: el nombre visible de un personaje puede cambiar en la trama, su id no.
 
 ```
-per-elena-vidal      personaje
-esc-casa-del-faro    escenario
-pis-007              pista
-pfa-003              pista falsa
-rev-002              revelación
-hil-004              hilo
-obj-011              objeto o prueba
-cap-01 / esc-01-3    capítulo / escena tercera del capítulo 1
+per-elena-vidal      personaje          ^per-[a-z0-9-]+$
+esc-casa-del-faro    escenario          ^esc-[a-z][a-z0-9-]*$
+esc-01-3             escena             ^esc-\d{2,3}-\d+$
+pis-007              pista              ^pis-\d{3}$
+pfa-003              pista falsa        ^pfa-\d{3}$
+rev-002              revelación         ^rev-\d{3}$
+hil-004              hilo               ^hil-\d{3}$
+obj-011              objeto o prueba    ^obj-\d{3}$
+hec-014              hecho              ^hec-\d{3}$
+cap-01               capítulo           ^cap-\d{2,3}$
 ```
+
+`esc-` sirve a escenario y a escena, y las dos expresiones son disjuntas por construcción: la de
+escenario exige letra tras el guion, la de escena exige dígito. Sin esa distinción el validador de
+escenario acepta ids de escena y el error no aparece hasta una consulta vacía sobre
+`linea_temporal`.
 
 **Escritura atómica.** Todo fichero se escribe en `.tmp` y se renombra. El estado es la excepción y por el mismo motivo: `estado.db` se escribe dentro de una transacción `BEGIN IMMEDIATE` … `COMMIT`, de modo que un corte a mitad de `aplicar-delta` deja la base en el punto anterior al delta. Un estado a medio escribir es un workspace muerto, con fichero o con base.
 
@@ -631,7 +638,7 @@ Qué recibe cada agente en su briefing y qué escribe. El briefing lo compone `n
 | `continuista` | `capitulos/NN.md`, `canon/*` incluido `misterio.md`, estado (`libro_de_hechos`, `linea_temporal`, coartadas) | `qa/NN-continuidad.json` (§7.3) | `veredicto` y hallazgos por gravedad |
 | `editor-estilo` | `capitulos/NN.md`, `canon/estilo.md` con sus párrafos canónicos y prohibiciones. **Nunca** `canon/misterio.md` | `capitulos/NN.md` reescrito y `qa/NN-estilo.json` | `veredicto` y hallazgos por gravedad |
 | `lector-suspense` | `capitulos/NN.md`, `canon/misterio.md`, `plan/escaleta.md`, estado (`pistas`, `conocimiento_lector`, `tension_real`) | `qa/NN-suspense.json` | Puntuaciones de tensión, fair play y previsibilidad |
-| `cronista` | `capitulos/NN.md` aprobado, estado vigente | `estado/deltas/NN.json` y `memoria/resumenes/NN.md` | Nº de hechos, hilos y pistas del delta |
+| `cronista` | `capitulos/NN.md` aprobado, estado vigente | `estado/deltas/NN.json` | Nº de hechos, hilos y pistas del delta |
 
 `estado/deltas/NN.json` es la única entrada de `novela aplicar-delta`; ningún agente escribe `estado/estado.db`.
 
@@ -659,6 +666,7 @@ novela validar <slug> <cap>
 novela aplicar-delta <slug> <cap>
 novela checkpoint <slug> <cap>
 novela pendiente <slug>            # código de salida: 0 si quedan capítulos
+novela auditar <slug>              # pistas huérfanas, hilos sin cerrar, fair play
 novela exportar <slug> --formato epub
 ```
 

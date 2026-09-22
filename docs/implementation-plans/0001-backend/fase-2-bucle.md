@@ -6,7 +6,7 @@ a fin.
 **Al terminar existe**: `briefing`, `validar`, `aplicar-delta` y `checkpoint`. Con eso, un
 capítulo se puede escribir, revisar, registrar y cerrar sin intervención manual.
 
-**Cierra**: RF-08 a RF-21, RF-27. CA-08 a CA-22, CA-27.
+**Cierra**: RF-08 a RF-21, RF-27, RF-29. CA-08 a CA-22, CA-27, CA-33.
 
 Es la fase larga y la que más superficie tiene. Requiere la fase 1 terminada —los modelos, el
 lock, la escritura atómica y los fixtures—, pero no requiere leer su documento.
@@ -44,11 +44,18 @@ cerrarse. Lo segundo se comprueba leyendo el log desde otro descriptor mientras 
 
 **Verde**: generación de `run_id`, `manifest.json` y un logger con volcado línea a línea.
 
-**El `run_id` viene de dos sitios** (decisión 3 del README): si `NOVELA_RUN_ID` está definida, se
-usa; si no, el CLI genera `r-AAAAMMDD-HHMM`. Tres líneas, y compran dos cosas: alinear el run con
-el `session_id` de Langfuse —lo que cierra `architecture.md` §12.2— y hacer deterministas las
-rutas de `runs/` en los tests, que es lo que el golden de la tarea 2.6 necesita para comparar
-byte a byte.
+**El `run_id` viene de dos sitios**, y ahora es **RF-29**: si `NOVELA_RUN_ID` está definida se
+usa; si no, el CLI genera `r-AAAAMMDD-HHMM`. El valor de entorno **se valida contra
+`^r-\d{8}-\d{4}$`**: una variable con basura aborta en vez de crear `runs/<lo-que-sea>/`. Es una
+cadena de fuera del proceso que se convierte en ruta, con la misma precaución que el slug.
+
+Segundo test, entonces: `test_run.py::test_run_id_de_entorno` — con la variable definida el
+briefing se escribe bajo ese run; con un valor que no casa el formato, el comando aborta sin crear
+directorio (CA-33).
+
+Compra dos cosas: alinear el run con el `session_id` de Langfuse —lo que cierra
+`architecture.md` §12.2— y hacer deterministas las rutas de `runs/` en los tests, que es lo que el
+golden de la tarea 2.6 necesita para comparar byte a byte.
 
 `manifest.json` lleva sha del commit, versión de recetas, y versiones de canon y plan vigentes.
 Sin él, comparar dos ejecuciones es comparar dos anécdotas (`validators.md` §4.7).
@@ -58,7 +65,7 @@ servir el log en vivo por la API y lo dice explícitamente: antes de escribir na
 comprobar que el harness vacía el buffer línea a línea, porque si volcara al final, no sirve de
 nada. Esta tarea es esa comprobación, hecha por adelantado.
 
-**Cierra**: CA-13, RF-13, RF-27.
+**Cierra**: CA-13, CA-33, RF-13, RF-27, RF-29.
 
 **Commit**: `feat(plataforma): run, manifiesto y log con volcado línea a línea`
 
@@ -101,17 +108,23 @@ de esta tarea. Lo que se sabe de cada una sale de §7.5 (entradas por agente) y 
 
 | Agente | Presupuesto | Entradas, de §7.5 | ¿Ve el misterio? |
 |---|---|---|---|
-| `arquitecto` | por fijar | `config.yaml` | Lo escribe |
-| `trazador` | por fijar | `config.yaml`, `canon/*` incluido `misterio.md` | **Sí** |
+| `arquitecto` | 50.000 | `config.yaml` | Lo escribe |
+| `trazador` | 55.000 | `config.yaml`, `canon/*` incluido `misterio.md` | **Sí** |
 | `escritor` | 60.000 | ya en §6.2 | No |
 | `continuista` | 65.000 | ya en §6.2 | **Sí** |
-| `editor-estilo` | por fijar | `capitulos/NN.md`, `canon/estilo.md` con párrafos canónicos y prohibiciones | No |
-| `lector-suspense` | por fijar | `capitulos/NN.md`, `canon/misterio.md`, `plan/escaleta.md`, estado (`pistas`, `conocimiento_lector`, `tension_real`) | **Sí** |
-| `cronista` | 70.000 | `capitulos/NN.md` aprobado, estado vigente | No documentado |
+| `editor-estilo` | 68.000 | `capitulos/NN.md`, `canon/estilo.md` con párrafos canónicos y prohibiciones | No |
+| `lector-suspense` | 67.000 | `capitulos/NN.md`, `canon/misterio.md`, `plan/escaleta.md`, estado (`pistas`, `conocimiento_lector`, `tension_real`) | **Sí** |
+| `cronista` | 70.000 | `capitulos/NN.md` aprobado, estado vigente | No |
 
-Los presupuestos que faltan se derivan de la aritmética de §6.5: `100.000 − 10.000 fijo −
-salida_esperada − 15.000 margen`. Para un agente que devuelve un JSON de hallazgos, la salida
-esperada ronda los 10.000.
+Los presupuestos que faltan, derivados de la aritmética de §6.5 —`100.000 − 10.000 fijo −
+salida_esperada − 15.000 margen`—: `arquitecto` 50.000, `trazador` 55.000, `editor-estilo` 68.000,
+`lector-suspense` 67.000. El `cronista` lleva 70.000, que ya viene de §6.5.
+
+**Techo conocido, y conviene que quede escrito en el YAML**: la salida de `arquitecto` y
+`trazador` **escala con `num_capitulos`**, porque el segundo emite una ficha por capítulo. A 24
+capítulos estos números sobran; a 99 el `trazador` no cabe. Estos presupuestos suponen
+`num_capitulos ≤ 30`; más allá, o se re-derivan o el `trazador` escribe por actos en varias
+invocaciones. No lo generalices ahora: es un problema que nadie tiene.
 
 La receta se versiona, y su identificador se escribe en `manifest.json` (tarea 2.1). Es lo que
 convierte un cambio de prompt en un despliegue comparable (`validators.md` §4.8).
@@ -406,6 +419,10 @@ existe: no se está inventando una entidad.
 `schema_version` en el propio documento, como todos los contratos de agente
 (`validators.md` §3.8).
 
+**En el mismo commit**: lleva el ejemplo trabajado a `architecture.md` §7.x, junto a los otros dos
+contratos de agente —§7.2 el frontmatter, §7.3 el informe de QA—. El delta es el tercero y es el
+único sin ejemplo, siendo el que tiene el consumidor más estricto. Es donde alguien lo buscará.
+
 **Cierra**: parte de RF-16, RF-18.
 
 **Commit**: `feat(schemas): delta del cronista con las tres granularidades`
@@ -494,18 +511,15 @@ hay que comprobar que **nada** de la transacción quedó.
 
 **Verde**: renderiza, dentro de la misma operación que aplica el delta.
 
-**Este es un cambio de contrato de agente**, el único de la spec. `architecture.md` §7.5 dice hoy
-que `memoria/resumenes/NN.md` lo escribe el `cronista`; §6.4 dice que lo escribe
-`novela aplicar-delta`. Gana §6.4 (spec §5.0.2), y la razón no es de gusto: si lo escribe el
-agente, `memoria/` es texto libre no validado y reconstruirlo cuesta cuota. Si lo escribe el CLI
-desde el delta, `memoria/` es derivado de verdad — se reconstruye recorriendo
-`estado/deltas/*.json`, sin volver a invocar a nadie.
+**Este es el único cambio de contrato de agente de la spec.** `architecture.md` §7.5 atribuía
+`memoria/resumenes/NN.md` al `cronista` y §6.4 a `novela aplicar-delta`; ganó §6.4 (spec §5.0.2) y
+los documentos ya están corregidos. La razón no es de gusto: si lo escribe el agente, `memoria/`
+es texto libre no validado y reconstruirlo cuesta cuota. Si lo escribe el CLI desde el delta,
+`memoria/` es derivado de verdad — se reconstruye recorriendo `estado/deltas/*.json`, sin volver
+a invocar a nadie.
 
 Conserva **granularidad por escena** en el fichero, no solo párrafo y línea. Misma razón que la
 tarea 2.11: es lo que deja abierta la capa léxica del índice recuperable.
-
-**En el mismo commit**: corrige la celda de salidas del `cronista` en `architecture.md` §7.5. El
-`cronista` escribe **solo** `estado/deltas/NN.json`. Su frontmatter no cambia.
 
 **Cierra**: CA-19, RF-18.
 

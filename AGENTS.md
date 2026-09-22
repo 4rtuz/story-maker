@@ -21,7 +21,7 @@ Reglas:
 
 - El backend es lo único que toca `novelas/<slug>/`. El frontend nunca lee el disco: pasa por la API.
 - La API **no escribe**. No hay `POST` que mute una novela; mutar es trabajo del orquestador vía CLI. Si hace falta escribir, se añade un subcomando al CLI, no un verbo a la API.
-- Los modelos Pydantic de `backend/novela/models/` son también los de respuesta de la API. Una sola ontología.
+- Los modelos Pydantic de `backend/novela/dominio/` son también los de respuesta de la API. Una sola ontología.
 - FastAPI no contradice el «nunca añadir un SDK de API»: esa regla es sobre proveedores de modelos, y la API no llama a ninguno.
 
 Detalle de endpoints y arranque: `docs/architecture.md` §11.
@@ -70,6 +70,7 @@ Cada agente recibe un *briefing* generado para esa invocación concreta en `runs
 Operaciones deterministas. No llaman a ningún modelo y no consumen cuota.
 
 ```
+novela nueva <slug> --idea "..."      crea el workspace y estado.db
 novela estado <slug> --breve          cursor, hilos abiertos, capítulos hechos
 novela estado <slug> --json           estado completo serializado, para inspección
 novela briefing <slug> <cap> <agente> genera el contexto de una invocación
@@ -90,9 +91,13 @@ Prefijo de tipo más slug o secuencia. Son claves estables: el nombre visible de
 ```
 per-elena-vidal   personaje       pis-007   pista
 esc-casa-del-faro escenario       pfa-003   pista falsa
-hil-004           hilo            rev-002   revelación
+esc-01-3          escena          rev-002   revelación
+hil-004           hilo            hec-014   hecho
 obj-011           objeto o prueba cap-01    capítulo
 ```
+
+`esc-` sirve a escenario y a escena: escenario lleva letra tras el guion (`esc-casa-del-faro`),
+escena lleva dígito (`esc-01-3`). Las expresiones que los validan son disjuntas.
 
 Capítulos con dos dígitos (`01`) hasta 99; tres si la novela pasa de 99, y entonces en todo el workspace desde el inicio. No se mezclan formatos.
 
@@ -117,13 +122,14 @@ Un commit es un ciclo cerrado. No se commitea en rojo.
 
 ## Proceso: modificar documentación
 
-Cuatro tipos de documento, cuatro reglas. No los mezcles.
+Cinco tipos de documento, cinco reglas. No los mezcles.
 
 | Documento | Qué describe | Cuándo se toca |
 |---|---|---|
 | `AGENTS.md`, `CLAUDE.md` | Convenciones vigentes | Solo si cambia una convención |
 | `docs/architecture.md`, `definitions.md`, `domain-knowledge.md`, `validators.md` | El estado **actual** del sistema | En el mismo commit que el código que lo cambia |
 | `docs/specs/NNNN-<slug>.md` | Un cambio concreto **antes** de existir | Al proponerlo |
+| `docs/implementation-plans/NNNN-<slug>/` | Cómo se ejecuta una spec aceptada | Al aceptarla; se borra al implementarla |
 | `docs/adr/NNNN-<slug>.md` | Una decisión con alternativas descartadas | Cuando revertirla sería caro |
 
 **Regla dura: la documentación de referencia describe lo que hay, no lo que habrá.** Nada de «próximamente» o «pendiente» en `architecture.md`. El futuro vive en `docs/specs/`.

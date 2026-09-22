@@ -64,7 +64,7 @@ Una propiedad puede cubrirse con varias clases, y conviene: el aislamiento de `c
 Dos fronteras, y la segunda es la que importa.
 
 - **Estática**: `mypy --strict` sobre `backend/`, `tsc --noEmit` sobre `frontend/`. Los tipos del frontend se generan desde el OpenAPI del backend (§3.8), así que no pueden derivar por su cuenta.
-- **En el borde**: todo lo que llega de disco o de un agente es `Any` hasta que un modelo Pydantic lo parsea. **Regla dura: ningún dato cruza de disco o de agente al código sin pasar por un modelo de `backend/novela/models/`.** `json.load()` suelto en el código de negocio es un bug, no un atajo.
+- **En el borde**: todo lo que llega de disco o de un agente es `Any` hasta que un modelo Pydantic lo parsea. **Regla dura: ningún dato cruza de disco o de agente al código sin pasar por un modelo de `backend/novela/dominio/`.** `json.load()` suelto en el código de negocio es un bug, no un atajo.
 
 Lo que **no** cubre: `capitulo: int` acepta `0` y `-3`. Rango, formato de id y consistencia referencial son validadores Pydantic, no tipos.
 

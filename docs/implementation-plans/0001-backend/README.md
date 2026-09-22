@@ -19,19 +19,27 @@ contrato. Cuando la spec pase a `implementada`, se borra.
 Cada fase se lee sola. Quien implemente la 2 no necesita abrir la 1 ni la 4: este README es lo
 único que se lee siempre.
 
+Y uno más, que no es una fase: [decisiones-abiertas.md](decisiones-abiertas.md) — las catorce
+cosas que estaban sin decidir, con el razonamiento de cada una. **Ya están todas cerradas** y
+volcadas a la spec y a los docs de referencia; ese fichero queda como registro del porqué, que es
+lo que evita que alguien las reproponga dentro de tres meses.
+
 ## Estado de partida
 
-`backend/` está vacío. `git ls-files` devuelve once ficheros, todos Markdown salvo
-`.claude/settings.json`. La primera línea de Python del proyecto es la tarea 1.1.
+`backend/` está vacío. La primera línea de Python del proyecto es la tarea 1.1.
 
-## Las cinco preguntas abiertas de §16, resueltas
+Lo que **ya no** hay que hacer, porque se corrigió al aceptar la spec: los nombres de la rama 4
+en `definitions.md`, los campos de `revelaciones[]` y `giros[]`, la línea de `qa/`, las tablas de
+identificadores de `architecture.md` §5 y `AGENTS.md` (con `hec-` y `esc-` desambiguado), la lista
+de subcomandos de §8, la ruta `models/` → `dominio/` y el ADR 0001. Quien implemente se encuentra
+la documentación de referencia ya coherente.
 
-`_plantilla.md` dice que una spec no se acepta con preguntas abiertas. Estas son **propuestas del
-plan, pendientes de confirmación de arturo**. La spec no se toca hasta que confirme; entonces se
-actualiza §16 y pasa a `aceptada` en un commit aparte.
+## Las cinco preguntas de §16, cerradas
 
-| # | Pregunta | Decisión | Motivo | Si se decide lo contrario |
-|---|---|---|---|---|
+Ya están en la spec, que pasó a `aceptada` en la versión 0.2. Se repiten aquí porque tres de ellas
+cambian lo que hay que teclear.
+
+| # | Pregunta | Decisión | Motivo | Qué costaría revertirla |
 | 1 | ¿`novela nueva` o `novela init`? | **`nueva`** | El CLI ya mezcla verbos y sustantivos (`estado`, `briefing`, `checkpoint`, `pendiente`); `nueva` no desentona. `/novela-nueva` ya existe en tres documentos | Renombrar en la tarea 1.14 y en el slash command. Coste: una hora, y solo antes de que exista el primer workspace |
 | 2 | ¿`presupuesto/` y `novela budget` como fase 5? | **No entra** | Sin una ejecución real no hay con qué calibrar umbrales, y la política de degradación la decide hoy el orquestador | Spec 0003 posterior, cuando la novela de humo dé números. No bloquea nada |
 | 3 | ¿`run_id` lo genera el CLI o lo fija el orquestador? | **Los dos: `NOVELA_RUN_ID` si está definida, si no lo genera el CLI** | Tres líneas. Cierra `architecture.md` §12.2 alineando con el `session_id` de Langfuse, y hace deterministas las rutas de `runs/` en los tests — que es justo lo que el golden de CA-08 necesita | Si solo lo genera el CLI, el golden de CA-08 necesita otro mecanismo para fijar la ruta. Es la decisión más barata de las cinco y la que más paga |
@@ -85,7 +93,7 @@ los necesita.
 
 ## Matriz RF → fase → tarea
 
-Los 27 requisitos funcionales de la spec §6, cada uno con la tarea que lo cierra.
+Los 29 requisitos funcionales de la spec §6, cada uno con la tarea que lo cierra.
 
 | RF | Qué exige | Fase | Tarea |
 |---|---|---|---|
@@ -116,8 +124,10 @@ Los 27 requisitos funcionales de la spec §6, cada uno con la tarea que lo cierr
 | RF-25 | Slug validado antes de construir ruta | 4 | 4.2 |
 | RF-26 | `schemas/` generados y versionados | 1 | 1.8 |
 | RF-27 | Línea en `harness.log`, volcado línea a línea | 2 | 2.1 |
+| RF-28 | Append-only del canon sostenido por el tipo | 1 | 1.4 |
+| RF-29 | `run_id` de `NOVELA_RUN_ID` con fallback | 2 | 2.1 |
 
-Los 29 criterios de aceptación van nombrados en la tarea que los cierra, dentro de cada fichero
+Los 33 criterios de aceptación van nombrados en la tarea que los cierra, dentro de cada fichero
 de fase.
 
 ## Qué hay que arreglar por el camino
@@ -126,31 +136,34 @@ Cuatro desfases entre la documentación de referencia y lo que esta spec decide.
 manda corregirlos **en el mismo commit que el código que los cambia** — no al final, no en un
 commit de limpieza.
 
-| Qué | Dónde | Commit de destino |
-|---|---|---|
-| `backend/novela/models/` → `dominio/` | `AGENTS.md`, `validators.md` §3.1 | Tarea 1.2, el primer commit que crea `dominio/` |
-| `qa/NN-informe.md` → `qa/NN-<agente>.json` | `definitions.md` §6 | Tarea 1.7, con `qa.py` |
-| Aparece `novela nueva` en la lista de subcomandos | `architecture.md` §8, `AGENTS.md` | Tarea 1.14 |
-| El `cronista` deja de escribir `memoria/resumenes/NN.md` | `architecture.md` §7.5 | Tarea 2.15 |
+**Ninguno.** Los cuatro que había —y tres más que aparecieron después— describían incoherencias
+entre documentos vigentes, no código futuro, así que se corrigieron todos al aceptar la spec. La
+documentación de referencia está hoy de acuerdo consigo misma.
 
-Y una cosa que no es desfase sino agujero: **`.gitignore` tiene una sola línea** (`.local.env`) y
-no ignora `novelas/`, que `AGENTS.md` declara ignorado. Se arregla en la tarea 1.1, que es lo
-primero que se hace, porque un `git add -A` antes de eso versiona un workspace entero.
+Lo que sí sigue vivo es la otra mitad de la regla: **si una tarea cambia un modelo Pydantic,
+regenera `backend/schemas/` y actualiza `definitions.md` en ese mismo commit.**
+
+Y dos agujeros que no son desfase:
+
+- **`.gitignore` tiene una sola línea** (`.local.env`) y no ignora `novelas/`, que `AGENTS.md`
+  declara ignorado. Tarea 1.1, lo primero que se hace: un `git add -A` antes de eso versiona un
+  workspace entero.
+- **No hay pre-commit**, y RNF-07 exige que ninguna clave acabe en fichero versionado. CA-32 lo
+  cubre desde la tarea 1.1.
 
 ## Huecos de la documentación que la implementación va a encontrar
 
-Ninguno bloquea: los cuatro tienen resolución propuesta en su tarea. Se listan aquí porque son
-los que cuestan un día si aparecen con el código ya escrito.
+Quedan dos, y ninguno bloquea. Los otros dos que había aquí —los nombres de la rama 4 y los
+campos de `revelaciones[]`— se cerraron en la spec 0.2.
 
 1. **No hay DDL en ningún sitio.** `architecture.md` §7.1 dice «una tabla por colección de la
-   rama 4» y enseña un trigger de ejemplo. Nada más. → tarea 1.9.
-2. **`definitions.md` y el contrato serializado de §7.1 no coinciden en ocho nombres de campo**
-   de la rama 4, ni en la forma de `cursor`. Mandan los de §7.1: son los que salen por la API y
-   los que tendrán tabla. → tarea 1.6.
-3. **No existe ni un ejemplo del delta del `cronista`**, y es la única entrada de
-   `aplicar-delta`. Su forma hay que derivarla. → tarea 2.11.
-4. **Faltan cinco de las siete recetas** de `config/recipes.yaml`: §6.2 solo trae `escritor` y
-   `continuista`. → tarea 2.2.
+   rama 4» y enseña un trigger de ejemplo. Nada más. Derivarlo es trabajo de la tarea 1.9.
+2. **No existe ni un ejemplo del delta del `cronista`**, y es la única entrada de
+   `aplicar-delta`. La tarea 2.11 lo deriva y propone que el ejemplo acabe en `architecture.md`
+   §7.x, junto a los otros dos contratos de agente.
+3. **Faltan cinco de las siete recetas** de `config/recipes.yaml`: §6.2 solo trae `escritor` y
+   `continuista`. La tarea 2.2 las escribe, con presupuestos derivados de la aritmética de §6.5 y
+   un techo conocido de 30 capítulos.
 
 ## Qué queda fuera
 

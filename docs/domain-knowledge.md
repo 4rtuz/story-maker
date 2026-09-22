@@ -186,17 +186,17 @@ flowchart LR
 
     subgraph E["4 ESTADO NARRATIVO — lo que ya paso"]
         direction TB
-        E1["cursor<br/>capitulo · fase · ultimo paso"]
+        E1["cursor<br/>capitulo · fase · ultimo paso · intento"]
         E2["linea temporal diegetica"]
-        E3["estado de personajes<br/>ubicacion · animo · vivo o muerto"]
+        E3["personajes<br/>ubicacion · animo · condicion"]
         E4["conocimiento por personaje<br/>que sabe y desde cuando"]
-        E5["grafo de relaciones<br/>confianza · sospecha · alianza"]
-        E6["inventario de objetos y pruebas"]
+        E5["relaciones<br/>confianza · sospecha · alianza"]
+        E6["objetos y pruebas"]
         E7["libro de hechos inmutable"]
-        E8["hilos abiertos y cerrados"]
-        E9["estado de pistas<br/>plantada · pagada · huerfana"]
-        E10["conocimiento del lector<br/>ironia dramatica"]
-        E11["curva de tension real"]
+        E8["hilos<br/>abierto o cerrado"]
+        E9["pistas<br/>plantada · pagada · pendiente · huerfana"]
+        E10["conocimiento lector<br/>ironia dramatica"]
+        E11["tension real"]
     end
 
     subgraph M["5 MEMORIA — que entra en cada prompt"]
@@ -249,7 +249,7 @@ flowchart TD
         LEC --> G2{"tension, fair play<br/>y longitud ok"}
         G2 -->|no| FIX
         G2 -->|si| CRO["cronista"]
-        CRO ==> UPD[("estado/estado.db<br/>+ memoria/resumenes")]
+        CRO ==> UPD[("aplicar-delta<br/>estado.db + memoria/resumenes")]
         UPD --> CKP["checkpoint"]
     end
 
@@ -306,7 +306,7 @@ flowchart TB
         i13["libro de hechos + linea temporal"] --> a4
         i14["canon/ + canon/misterio.md<br/>acceso completo"] --> a4
         i15["coartadas y cronologia privada"] --> a4
-        a4 --> o6["qa/NN-informe.md<br/>contradicciones estructuradas"]
+        a4 --> o6["qa/NN-continuidad.json<br/>contradicciones estructuradas"]
     end
 
     subgraph R5["editor de estilo"]
@@ -322,7 +322,7 @@ flowchart TB
         i19["capitulos/NN.md"] --> a6(["lector de suspense"])
         i20["plan: tension objetivo · pistas"] --> a6
         i21["conocimiento del lector"] --> a6
-        a6 --> o8["qa/NN-informe.md<br/>tension · fair play · previsibilidad"]
+        a6 --> o8["qa/NN-suspense.json<br/>tension · fair play · previsibilidad"]
         a6 --> o9["scores a Langfuse"]
     end
 
@@ -331,8 +331,8 @@ flowchart TB
         i22["capitulos/NN.md aprobado"] --> a7(["cronista"])
         i23["estado.db actual"] --> a7
         a7 --> o10["estado.db actualizado"]
-        a7 --> o11["memoria/resumenes/NN.md"]
-        a7 --> o12["checkpoints/NN.json"]
+        a7 --> o11["el delta es su unica salida"]
+        a7 --> o12["memoria/ y checkpoints/<br/>los escribe el CLI"]
     end
 
     R1 --> R2 --> R3 --> R4 --> R5 --> R6 --> R7

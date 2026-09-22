@@ -86,7 +86,7 @@ Solo los que este cambio pone en juego. Borra las filas que no apliquen; una tab
 Lo que otro componente puede depender de después de este cambio.
 
 - **CLI**: firma exacta del subcomando, opciones, códigos de salida.
-- **API**: método, ruta, modelo de respuesta (`backend/novela/models/`), status codes.
+- **API**: método, ruta, modelo de respuesta (`backend/novela/dominio/`), status codes.
 - **Esquemas**: ficheros de `backend/schemas/` que se crean o cambian, campo a campo.
 - **Contrato de agente**: entradas del briefing, rutas de salida, `tools` permitidas.
 - **Ficheros del workspace**: qué se escribe, dónde y en qué orden.
