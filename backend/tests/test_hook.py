@@ -19,7 +19,7 @@ MOTIVO = "denegar-escritura-estado:"
 
 
 def _hook(
-    entrada: dict[str, Any] | str, cwd: Path, entorno: dict[str, str] | None = None
+    entrada: object, cwd: Path, entorno: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess[str]:
     """Sin NOVELA_SESSION_ID por defecto: si la suite corre desde una shell del bucle, la regla 5
     no puede contaminar los tests de las otras cuatro."""
@@ -52,12 +52,13 @@ def _escritura(ruta: str, cwd: Path, agente: str | None = "Explore") -> dict[str
 def test_falla_cerrado(tmp_path: Path) -> None:
     """CA-04 (RF-06): lo que no entiende lo deniega con 2, porque cualquier otro código deja pasar
     la acción. Una herramienta que el matcher no debería dejar pasar también."""
-    for entrada in (
+    entradas: list[object] = [
         "esto no es JSON",
         {"tool_name": "Write", "tool_input": {}},
         {"tool_name": "Frobnicate", "tool_input": {"file_path": "README.md"}},
         [],
-    ):
+    ]
+    for entrada in entradas:
         resultado = _hook(entrada, tmp_path)
         assert resultado.returncode == 2, entrada
         assert resultado.stderr.startswith(MOTIVO), resultado.stderr
