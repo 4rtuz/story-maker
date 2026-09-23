@@ -460,7 +460,8 @@ Se rellena durante la implementación.
 
 | Requisito | Criterio | Test | Estado |
 |---|---|---|---|
-| RF-01 a RF-03 | CA-01 | `backend/tests/test_contratos.py::test_agentes_de_claude` | pendiente |
+| RF-01 a RF-03 | CA-01 | `backend/tests/test_contratos.py::test_agentes_de_claude` | hecho |
+| RF-04, RF-24 | CA-02 | `backend/tests/test_contratos.py::test_agentes_nombran_sus_salidas` | hecho |
 
 ## 13. Verificación
 

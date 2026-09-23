@@ -635,17 +635,17 @@ Solo el `cronista` tiene `Write` sobre el delta de estado, y ningún agente escr
 
 ### 7.5 Entradas y salidas por subagente
 
-Qué recibe cada agente en su briefing y qué escribe. El briefing lo compone `novela briefing` a partir de la receta del agente (§6.2); ninguna entrada se lee por exploración libre del workspace.
+Qué recibe cada agente en su briefing y qué escribe. El briefing lo compone `novela briefing` a partir de la receta del agente (§6.2); ninguna entrada se lee por exploración libre del workspace. El briefing no incrusta esquemas: el cuerpo de cada agente en `.claude/agents/` nombra el suyo, relativo a la raíz del repo, y `test_contratos.py` comprueba que existe (spec 0003, RF-24).
 
 | Agente | Entradas | Salidas en disco | Retorno a la sesión |
 |---|---|---|---|
-| `arquitecto` | `config.yaml` (idea semilla, `parametros_obra`) | `canon/premisa.md`, `canon/mundo.md`, `canon/estilo.md`, `canon/misterio.md`, `canon/personajes/*.md` | Lista de ids creados y conteo por tipo |
-| `trazador` | `config.yaml`, `canon/*` **incluido** `misterio.md` | `plan/escaleta.md`, `plan/capitulos/NN.md` | Nº de capítulos planificados, pistas plantadas/pagadas por acto |
-| `escritor` | `plan/capitulos/NN.md`, `canon/premisa`, `canon/mundo`, `canon/estilo`, fichas de los personajes en escena, estado (personajes, conocimiento, hilos abiertos, objetos), resúmenes (§6.2), restricción de apertura. En reintento, además `qa/NN-*.json`. **Nunca** `canon/misterio.md` | `capitulos/NN.md` con su frontmatter (§7.2) | Título, palabras, escenas |
-| `continuista` | `capitulos/NN.md`, `canon/*` incluido `misterio.md`, estado (`libro_de_hechos`, `linea_temporal`, coartadas) | `qa/NN-continuidad.json` (§7.3) | `veredicto` y hallazgos por gravedad |
-| `editor-estilo` | `capitulos/NN.md`, `canon/estilo.md` con sus párrafos canónicos y prohibiciones. **Nunca** `canon/misterio.md` | `capitulos/NN.md` reescrito y `qa/NN-estilo.json` | `veredicto` y hallazgos por gravedad |
-| `lector-suspense` | `capitulos/NN.md`, `canon/misterio.md`, `plan/escaleta.md`, estado (`pistas`, `conocimiento_lector`, `tension_real`) | `qa/NN-suspense.json` | Puntuaciones de tensión, fair play y previsibilidad |
-| `cronista` | `capitulos/NN.md` aprobado, estado vigente | `estado/deltas/NN.json` | Nº de hechos, hilos y pistas del delta |
+| `arquitecto` | `config.yaml` (idea semilla, `parametros_obra`); su esquema, `backend/schemas/canon.schema.json` | `canon/premisa.md`, `canon/mundo.md`, `canon/estilo.md`, `canon/misterio.md`, `canon/personajes/*.md` | Lista de ids creados y conteo por tipo |
+| `trazador` | `config.yaml`, `canon/*` **incluido** `misterio.md`; sus esquemas, `backend/schemas/escaleta.schema.json` y `plan-capitulo.schema.json` | `plan/escaleta.md`, `plan/capitulos/NN.md` | Nº de capítulos planificados, pistas plantadas/pagadas por acto |
+| `escritor` | `plan/capitulos/NN.md`, `canon/premisa`, `canon/mundo`, `canon/estilo`, fichas de los personajes en escena, estado (personajes, conocimiento, hilos abiertos, objetos), resúmenes (§6.2), restricción de apertura. En reintento, además `qa/NN-*.json`. Su esquema, `backend/schemas/capitulo.schema.json`. **Nunca** `canon/misterio.md` | `capitulos/NN.md` con su frontmatter (§7.2) | Título, palabras, escenas |
+| `continuista` | `capitulos/NN.md`, `canon/*` incluido `misterio.md`, estado (`libro_de_hechos`, `linea_temporal`, coartadas); su esquema, `backend/schemas/qa-informe.schema.json` | `qa/NN-continuidad.json` (§7.3) | `veredicto` y hallazgos por gravedad |
+| `editor-estilo` | `capitulos/NN.md`, `canon/estilo.md` con sus párrafos canónicos y prohibiciones; su esquema, `backend/schemas/qa-informe.schema.json`. **Nunca** `canon/misterio.md` | `capitulos/NN.md` reescrito y `qa/NN-estilo.json` | `veredicto` y hallazgos por gravedad |
+| `lector-suspense` | `capitulos/NN.md`, `canon/misterio.md`, `plan/escaleta.md`, estado (`pistas`, `conocimiento_lector`, `tension_real`); su esquema, `backend/schemas/qa-informe.schema.json` | `qa/NN-suspense.json` | Puntuaciones de tensión, fair play y previsibilidad |
+| `cronista` | `capitulos/NN.md` aprobado, estado vigente; su esquema, `backend/schemas/delta.schema.json` | `estado/deltas/NN.json` | Nº de hechos e hilos del delta (no lleva pistas, §7.6) |
 
 `estado/deltas/NN.json` es la única entrada de `novela aplicar-delta`; ningún agente escribe `estado/estado.db`.
 

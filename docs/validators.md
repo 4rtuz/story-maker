@@ -27,7 +27,7 @@ Una propiedad puede cubrirse con varias clases, y conviene: el aislamiento de `c
 
 ## 2. Tabla resumen
 
-**Estado a 2026-09-23: la spec 0001 está implementada y lo que depende de `.claude/` sigue sin existir.** Corren hoy, en pre-commit o en CI (`.github/workflows/ci.yml`): 1 y 2 sobre `backend/` —no hay `frontend/`, así que ni `tsc` ni `eslint`—; 5; 6 sobre las funciones puras de la spec 0001; 7 sobre `gates.py` y `apply.py`; 8 en sus dos primeros contratos, el OpenAPI commiteado y los JSON Schema de `backend/schemas/`; 9 en lo que cierra la spec 0001 —`validar`, `checkpoint` y las precondiciones de `aplicar-delta`—, sin `validar-plan` ni `validar-delta`; 13 en su parte de código —aborto del briefing por texto del misterio, triggers append-only, validación del slug—; 16 sin el `sucio` del manifiesto; 19 y 24. No hay agentes, hooks ni slash commands en `.claude/`, así que 10, 11 —salvo el emisor de scores de `checkpoint`—, 12, el hook y el `tools` de 13, 14, 15, 20 y 27 no corren hasta la spec que construya `.claude/`, que es la 0003 (en borrador). Tampoco corre ninguna fila del 28 (§4.17). 18, 21, 22, 23, 25 y 26 no están construidos. La columna sigue diciendo qué se espera de cada método; este párrafo, cuál corre de verdad.
+**Estado a 2026-09-23: la spec 0001 está implementada y lo que depende de `.claude/` sigue sin existir.** Corren hoy, en pre-commit o en CI (`.github/workflows/ci.yml`): 1 y 2 sobre `backend/` —no hay `frontend/`, así que ni `tsc` ni `eslint`—; 5; 6 sobre las funciones puras de la spec 0001; 7 sobre `gates.py` y `apply.py`; 8 en sus dos primeros contratos, el OpenAPI commiteado y los JSON Schema de `backend/schemas/`; 9 en lo que cierra la spec 0001 —`validar`, `checkpoint` y las precondiciones de `aplicar-delta`—, sin `validar-plan` ni `validar-delta`; 13 en su parte de código —aborto del briefing por texto del misterio, triggers append-only, validación del slug—; 16 sin el `sucio` del manifiesto; 19 y 24. Los siete agentes de `.claude/agents/` existen, y CI comprueba su frontmatter: corren el tercer contrato de 8 en su parte de agentes y el `tools` de 13. No hay hooks ni slash commands, así que 10, 11 —salvo el emisor de scores de `checkpoint`—, 12, el hook de 13, 14, 15, 20 y 27 no corren hasta que la spec 0003 los construya. Del 28 (§4.17) corren F-01 a F-03. 18, 21, 22, 23, 25 y 26 no están construidos. La columna sigue diciendo qué se espera de cada método; este párrafo, cuál corre de verdad.
 
 Decirlo aquí, y no solo en `architecture.md` §12.7, es parte del método: un catálogo que se lee como inventario de protecciones vigentes es peor que no tenerlo, por la misma razón que un guardarraíl silenciado (§4.4).
 
@@ -420,14 +420,15 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 
 | # | Fallo | Consecuencia | Verificador | Clase | Estado |
 |---|---|---|---|---|---|
-| F-01 | El frontmatter deriva: `tools`, `model` o `name` distintos de la tabla, o YAML inválido | Un agente con `Bash` o `Glob`, o uno que Claude Code no carga | Test de contrato sobre `.claude/agents/*.md` | T | 0003, CA-01 |
-| F-02 | El cuerpo no nombra una de sus salidas | El agente escribe donde cree, el hook lo para y se pierde un reintento | Cada salida aparece como subcadena del cuerpo | T | 0003, CA-02 |
-| F-03 | Se renombra o desaparece el esquema de `backend/schemas/` que nombra el cuerpo | El agente adivina la forma y el primer capítulo falla `validar` | Toda ruta `backend/schemas/*.json` citada en un cuerpo existe. Es una aserción más en el test de CA-02 | T | 0003, CA-02 (RF-24) |
+| F-01 | El frontmatter deriva: `tools`, `model` o `name` distintos de la tabla, o YAML inválido | Un agente con `Bash` o `Glob`, o uno que Claude Code no carga | Test de contrato sobre `.claude/agents/*.md` | T | activo (CA-01) |
+| F-02 | El cuerpo no nombra una de sus salidas | El agente escribe donde cree, el hook lo para y se pierde un reintento | Cada salida aparece como subcadena del cuerpo | T | activo (CA-02) |
+| F-03 | Se renombra o desaparece el esquema de `backend/schemas/` que nombra el cuerpo | El agente adivina la forma y el primer capítulo falla `validar` | Toda ruta `backend/schemas/*.json` citada en un cuerpo existe. Es una aserción más en el test de CA-02 | T | activo (CA-02, RF-24) |
 | F-04 | Se cambia un prompt sin commitear | Dos ejecuciones con el mismo sha y prompts distintos | `sucio` y `hashes_claude` en el manifiesto (§4.7) | A + T | 0003, CA-08 |
 | F-05 | `CLAUDE.md` o `AGENTS.md` cambian entre dos ejecuciones | Se cargan en cada subagente y cambian su conducta, pero no entran en `hashes_claude` ni en las rutas que vigila `sucio` | Añadir los dos ficheros a `hashes_claude` y a las rutas de `sucio` | A + T | 0003, CA-08 (RF-12) |
 | F-06 | Un informe de QA malformado, o sin `veredicto` | El orquestador lee basura en el gate y puede aprobar | El procedimiento cuenta un `veredicto` ausente o ilegible como rechazo. Después, `novela gate` lo valida contra el modelo | D; A | 0003, CA-18 (RF-29); 0002 |
 | F-07 | Un revisor lee `capitulos/NN.md` del disco en vez del texto incrustado, mientras el `editor-estilo` lo reescribe en el mismo turno | Veredicto sobre una versión intermedia que la custodia no ve, porque su briefing lleva el hash correcto | El cuerpo del agente manda juzgar lo incrustado. No hay verificador mecánico | I | U (§5.15) |
 | F-08 | Un retorno de más de tres líneas | Consume el contexto del orquestador | Auditoría de trayectoria (§4.16) | A | 0002 |
+| F-09 | En un reintento, el `arquitecto` no puede reescribir `canon/misterio.md`: el `deny` le impide leerlo, y `Write` no sobrescribe un fichero que el agente no ha leído | Un canon inválido por el misterio gasta los dos reintentos del gate del `arquitecto` y acaba en intervención | Ninguno. El cuerpo del agente manda fallar citando la causa | — | propuesto |
 
 **Hook `PreToolUse`**
 
@@ -504,7 +505,7 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 |---|---|---|---|---|---|
 | F-70 | Un baseline de una sola ejecución | Se usa como referencia una sola muestra con σ alta | El baseline declara su número de ejecuciones y no sirve para aceptar cambios de prompt hasta tener varias (§4.8) | — | U (§5.16) |
 
-Ninguna fila queda en **propuesto**. Las que lo estaban entraron en la spec 0003 v0.3 (§16, «Enmiendas de la v0.3»), agrupadas en tres bloques:
+Una fila está en **propuesto**: F-09, encontrada al escribir los agentes. Las que lo estaban antes entraron en la spec 0003 v0.3 (§16, «Enmiendas de la v0.3»), agrupadas en tres bloques:
 
 - **endurecer el hook**: F-14, F-19, F-20 y F-24;
 - **comprobaciones previas y controles positivos**: F-11, F-22, F-50, F-60, F-62 y F-63;

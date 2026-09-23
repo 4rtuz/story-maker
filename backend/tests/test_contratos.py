@@ -3,6 +3,7 @@
 import ast
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -10,6 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import jsonschema
+import yaml
 from typer.testing import CliRunner
 
 from api.main import app as api
@@ -152,3 +154,78 @@ def test_api_no_importa_slices() -> None:
     montaje en solo lectura de test_api cubre el efecto; esto cubre la causa, y nombra el import
     el día que un router tire de delta/apply.py «solo para reutilizar la serialización»."""
     assert [m for m in _cargados("api.main") if m.startswith("novela.slices")] == []
+
+
+# --- Harness ↔ Claude Code (validators.md §3.8, tercer contrato) -----------------------------
+
+AGENTES_DIR = RAIZ_REPO / ".claude" / "agents"
+
+# spec 0003 §5.1: tools, model y salidas relativas a novelas/<slug>/. El hook lleva su propia
+# copia de las salidas (no puede importar backend/); test_hook comprueba que casan.
+CONTRATO = {
+    "arquitecto": (
+        ["Read", "Write"],
+        "opus",
+        [
+            "canon/premisa.md",
+            "canon/mundo.md",
+            "canon/estilo.md",
+            "canon/misterio.md",
+            "canon/personajes/*.md",
+        ],
+    ),
+    "trazador": (["Read", "Write"], "opus", ["plan/escaleta.md", "plan/capitulos/NN.md"]),
+    "escritor": (["Read", "Write"], "opus", ["capitulos/NN.md"]),
+    "continuista": (["Read", "Write"], "sonnet", ["qa/NN-continuidad.json"]),
+    "editor-estilo": (
+        ["Read", "Edit", "Write"],
+        "sonnet",
+        ["capitulos/NN.md", "qa/NN-estilo.json"],
+    ),
+    "lector-suspense": (["Read", "Write"], "sonnet", ["qa/NN-suspense.json"]),
+    "cronista": (["Read", "Write"], "haiku", ["estado/deltas/NN.json"]),
+}
+ESQUEMAS = {
+    "arquitecto": ["backend/schemas/canon.schema.json"],
+    "trazador": [
+        "backend/schemas/escaleta.schema.json",
+        "backend/schemas/plan-capitulo.schema.json",
+    ],
+    "escritor": ["backend/schemas/capitulo.schema.json"],
+    "continuista": ["backend/schemas/qa-informe.schema.json"],
+    "editor-estilo": ["backend/schemas/qa-informe.schema.json"],
+    "lector-suspense": ["backend/schemas/qa-informe.schema.json"],
+    "cronista": ["backend/schemas/delta.schema.json"],
+}
+PROHIBIDAS = {"Glob", "Grep", "Bash", "Task", "Agent", "Skill", "WebFetch", "WebSearch"}
+
+
+def _agente(rol: str) -> tuple[dict[str, str], str]:
+    """Frontmatter y cuerpo. No reutiliza dominio/frontmatter.py: ese valida la novela, no el
+    harness, y acoplarlos haría que un cambio en uno rompa el otro."""
+    _, cabecera, cuerpo = (AGENTES_DIR / f"{rol}.md").read_text(encoding="utf-8").split("---", 2)
+    meta: dict[str, str] = yaml.safe_load(cabecera)
+    return meta, cuerpo
+
+
+def test_agentes_de_claude() -> None:
+    """CA-01 (RF-01 a RF-03): los siete roles, con name, tools y model de la spec 0003 §5.1."""
+    assert {p.stem for p in AGENTES_DIR.glob("*.md")} == set(CONTRATO)
+    for rol, (tools, model, _) in CONTRATO.items():
+        meta, _ = _agente(rol)
+        assert meta["name"] == rol
+        declaradas = [t.strip() for t in meta["tools"].split(",")]
+        assert set(declaradas) & PROHIBIDAS == set(), f"{rol}: {set(declaradas) & PROHIBIDAS}"
+        assert declaradas == tools, rol
+        assert meta["model"] == model, rol
+
+
+def test_agentes_nombran_sus_salidas() -> None:
+    """CA-02 (RF-04, RF-24): cada cuerpo nombra sus salidas y su esquema, y todo esquema que se
+    cita existe: uno renombrado rompe CI y no el primer capítulo (F-03)."""
+    for rol, (_, _, salidas) in CONTRATO.items():
+        _, cuerpo = _agente(rol)
+        for ruta in salidas + ESQUEMAS[rol]:
+            assert ruta in cuerpo, f"{rol} no nombra {ruta}"
+        for citado in re.findall(r"backend/schemas/[\w.-]+\.json", cuerpo):
+            assert (RAIZ_REPO / citado).is_file(), f"{rol} cita {citado}, que no existe"
