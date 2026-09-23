@@ -7,6 +7,7 @@ import typer
 
 from novela.plataforma.salida import con_codigos
 from novela.slices.briefing.cmd import briefing
+from novela.slices.checkpoint.cmd import checkpoint
 from novela.slices.delta.cmd import aplicar_delta
 from novela.slices.estado.cmd import estado, pendiente
 from novela.slices.nueva.cmd import nueva
@@ -31,3 +32,4 @@ app.command()(con_codigos(pendiente))
 app.command()(con_codigos(briefing))
 app.command()(con_codigos(validar))
 app.command("aplicar-delta")(con_codigos(aplicar_delta))
+app.command()(con_codigos(checkpoint))

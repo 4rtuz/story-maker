@@ -318,7 +318,7 @@ novelas/<slug>/
 │   └── 01-suspense.json
 │
 ├── checkpoints/
-│   ├── 01.json
+│   ├── 01.json                   # cursor, versiones, run_id y capitulos_sha256 (el sello)
 │   └── latest.json
 │
 ├── runs/
@@ -792,7 +792,7 @@ Los prompts de los agentes son `.claude/agents/*.md` y se versionan con git. El 
 
 ### 10.5 Evaluación
 
-Los scores no los emite el hook: los escribe `novela` contra la API de Langfuse al cerrar cada capítulo, tomándolos de `qa/NN-suspense.json` y del resultado de los gates. Métricas por capítulo: `coherencia`, `continuidad`, `tension`, `longitud`, `fair_play`, `estilo`.
+Los scores no los emite el hook: los escribe `novela` contra la API de Langfuse al cerrar cada capítulo, tomándolos de `qa/NN-suspense.json` y del resultado de los gates. Métricas por capítulo: `coherencia`, `continuidad`, `tension`, `longitud`, `fair_play`, `estilo`. `tension`, `fair_play` y `coherencia` son las `puntuaciones` del `lector-suspense`; `continuidad` y `estilo` salen del veredicto de `qa/NN-continuidad.json` y `qa/NN-estilo.json` (1, 0,5 o 0); `longitud` es `1 − |palabras/objetivo − 1|`. Los emite `novela checkpoint` después de escribir el checkpoint, con un id por capítulo y métrica para que reemitir sustituya, y un fallo de Langfuse queda en `harness.log` sin impedir el cierre.
 
 El evaluador de sesión (LLM como juez) compara ejecuciones completas y devuelve puntos a mejorar y mejoras propuestas.
 
