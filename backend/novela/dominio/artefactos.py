@@ -7,8 +7,17 @@ escribe `novela checkpoint`. Los dos cruzan del disco al código, así que tiene
 from pydantic import Field
 
 from novela.dominio.base import SCHEMA_VERSION, Modelo, SchemaVersion
-from novela.dominio.estado import Cursor
-from novela.dominio.ids import CapituloNum, EscenaId, HiloId, PersonajeId, PistaId, RunId, Sha256
+from novela.dominio.estado import Cursor, Resumen
+from novela.dominio.ids import (
+    Agente,
+    CapituloNum,
+    EscenaId,
+    HiloId,
+    PersonajeId,
+    PistaId,
+    RunId,
+    Sha256,
+)
 
 
 class FrontmatterCapitulo(Modelo):
@@ -55,3 +64,25 @@ class Manifest(Modelo):
     version_recetas: Sha256
     version_canon: Sha256
     version_plan: Sha256
+
+
+class Memoria(Resumen):
+    """`memoria/resumenes/NN.md`, que escribe `aplicar-delta` desde el delta: derivado y
+    reconstruible recorriendo `estado/deltas/*.json`. Todo va en el frontmatter."""
+
+    schema_version: SchemaVersion = SCHEMA_VERSION
+    capitulo: CapituloNum
+
+
+class FrontmatterBriefing(Modelo):
+    """Cabecera de `runs/<run_id>/briefings/NN-<agente>.md`. `capitulo_sha256` solo está cuando
+    el briefing incrusta `capitulos/NN.md`: es la versión exacta que vio ese agente (RF-30)."""
+
+    schema_version: SchemaVersion = SCHEMA_VERSION
+    agente: Agente
+    capitulo: CapituloNum
+    run_id: RunId
+    presupuesto_tokens: int
+    tokens_estimados: int
+    degradacion: list[str] = []
+    capitulo_sha256: Sha256 | None = None

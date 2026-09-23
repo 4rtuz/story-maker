@@ -138,6 +138,16 @@ class Metricas(Modelo):
     desviacion_vs_plan: float = Field(allow_inf_nan=False)  # fracción con signo, no porcentaje
 
 
+class Resumen(Modelo):
+    """Las tres granularidades de un capítulo, de la más corta a la más fina. `escena` va por id
+    de escena y no como prosa: es lo que deja abiertas las capas exacta y léxica del índice
+    recuperable (architecture.md §12.4) sin reprocesar capítulos."""
+
+    linea: str = Field(min_length=1)
+    parrafo: str = Field(min_length=1)
+    escena: dict[EscenaId, str] = Field(min_length=1)
+
+
 class Estado(Modelo):
     schema_version: SchemaVersion = SCHEMA_VERSION
     cursor: Cursor
