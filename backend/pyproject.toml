@@ -57,7 +57,7 @@ addopts = "-q"
 # validators.md §3.7: solo sobre los gates y apply; en el resto del backend es caro y poco
 # informativo. Sin mutar cadenas: un mensaje distinto no es un gate decorativo.
 # En Windows, con PYTHONUTF8=1 (mutmut imprime emojis).
-paths_to_mutate = "novela/slices/validacion/gates.py"
-runner = "python -m pytest -x -q -p no:cacheprovider novela/slices/validacion"
-tests_dir = "novela/slices/validacion/"
+paths_to_mutate = "novela/slices/validacion/gates.py,novela/slices/delta/apply.py"
+runner = "python -m pytest -x -q -p no:cacheprovider novela/slices/validacion novela/slices/delta"
+tests_dir = "novela/slices/"
 disable_mutation_types = "string,fstring"
