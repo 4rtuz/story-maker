@@ -1,0 +1,4 @@
+# El hook lo ejecuta sh: con CRLF no arranca.
+.githooks/* text eol=lf
+# Los golden se comparan byte a byte (validators.md §4.2).
+backend/tests/fixtures/golden/** -text
