@@ -5,9 +5,11 @@ import importlib.util
 import json
 import os
 import re
+import statistics
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -218,3 +220,35 @@ def test_ordenes(tmp_path: Path) -> None:
     ):
         entrada = {"tool_name": tool, "tool_input": {"command": orden}, "cwd": str(tmp_path)}
         assert _hook(entrada, tmp_path).returncode == esperado, orden
+
+
+# --- Regla 5: solo los siete, en una sesión del harness --------------------------------------
+
+SESION = {"NOVELA_SESSION_ID": "0f8fad5b-d9cb-469f-a165-70867728950e"}
+
+
+def test_subagentes(tmp_path: Path) -> None:
+    """CA-15 (RF-26), la parte estática: fija el entorno del subproceso. Que Claude Code se lo pase
+    al hook lo prueba el quinto intento del canario. Sin la variable, Agent no se examina: una
+    sesión de desarrollo no depende de la forma de su entrada."""
+    for entorno, tool, tipo, esperado in (
+        (SESION, "Agent", "general-purpose", 2),
+        (SESION, "Task", None, 2),
+        (SESION, "Agent", "escritor", 0),
+        (SESION, "Agent", "canario", 0),
+        ({}, "Agent", "general-purpose", 0),
+        ({}, "Agent", None, 0),
+    ):
+        datos = {"prompt": "x"} | ({"subagent_type": tipo} if tipo else {})
+        entrada = {"tool_name": tool, "tool_input": datos, "cwd": str(tmp_path)}
+        assert _hook(entrada, tmp_path, entorno).returncode == esperado, (entorno, tool, tipo)
+
+
+def test_rendimiento(tmp_path: Path) -> None:
+    """RNF-01 (F-18): corre en cada escritura, orden e invocación. Mediana por debajo de 300 ms."""
+    tiempos = []
+    for _ in range(10):
+        inicio = time.perf_counter()
+        assert _hook(_escritura("novelas/x/capitulos/01.md", tmp_path), tmp_path).returncode == 0
+        tiempos.append(time.perf_counter() - inicio)
+    assert statistics.median(tiempos) < 0.3

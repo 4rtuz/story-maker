@@ -80,6 +80,13 @@ def decidir(entrada: dict[str, Any], entorno: Mapping[str, str]) -> str | None:
     """None si se permite; el motivo si se deniega. Lanza ante lo que no entiende."""
     tool = entrada["tool_name"]
     if tool in ("Agent", "Task"):
+        # Regla 5. La variable solo la exportan el bucle y las sesiones del harness; basta con
+        # que exista, su formato lo valida el CLI. Sin ella, las de desarrollo conservan Explore.
+        if not entorno.get("NOVELA_SESSION_ID"):
+            return None
+        tipo = entrada["tool_input"].get("subagent_type")
+        if tipo not in ROLES | {"canario"}:
+            return f"subagente no permitido en una sesión del harness: {tipo!r}"
         return None
     valor = entrada["tool_input"][_CAMPO[tool]]
     if not isinstance(valor, str) or not valor:
