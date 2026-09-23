@@ -9,6 +9,7 @@ from typing import Any
 
 from hypothesis import strategies as st
 
+from novela.dominio.artefactos import FrontmatterCapitulo
 from novela.dominio.canon import (
     Estilo,
     Giro,
@@ -24,6 +25,7 @@ from novela.dominio.estado import (
     FASES,
     PASOS,
     Cursor,
+    Delta,
     EntradaConocimiento,
     EntradaTemporal,
     Estado,
@@ -34,6 +36,7 @@ from novela.dominio.estado import (
     Metricas,
     Objeto,
     Relacion,
+    Resumen,
 )
 
 LETRAS = string.ascii_letters + "áéíóúñÁÉÍÓÚÑ"
@@ -226,3 +229,93 @@ estados = st.builds(
         desviacion_vs_plan=st.floats(-1, 10, allow_nan=False),
     ),
 )
+
+
+# --- Delta del cronista ------------------------------------------------------------------------
+
+
+@st.composite
+def deltas(draw: st.DrawFn, capitulo: int | None = None) -> Delta:
+    """Deltas coherentes consigo mismos. Las citas no se garantizan literales de ningún cuerpo:
+    quien lo necesite construye el cuerpo desde ellas (`cuerpo_con_citas`)."""
+    n = capitulo if capitulo is not None else draw(st.integers(1, 30))
+    escena = st.integers(1, 9).map(lambda k: f"esc-{n:02d}-{k}")
+    hilo_ids = draw(st.lists(id_("hil"), max_size=3, unique=True))
+    hilos_delta = []
+    for h in hilo_ids:
+        abre = draw(st.sampled_from([n, max(1, n - 1)]))
+        cierra = draw(st.none() | st.just(n)) if abre == n else n
+        hilos_delta.append(
+            Hilo(
+                id=h,
+                estado="abierto" if cierra is None else "cerrado",
+                abierto_en=abre,
+                cerrado_en=cierra,
+                descripcion=draw(frase),
+            )
+        )
+    return Delta(
+        capitulo=n,
+        linea_temporal=draw(
+            st.lists(
+                st.builds(
+                    EntradaTemporal,
+                    escena=escena,
+                    capitulo=st.just(n),
+                    inicio=texto,
+                    duracion_min=st.integers(0, 600),
+                    cita=cita,
+                ),
+                max_size=3,
+                unique_by=lambda e: e.escena,
+            )
+        ),
+        personajes=draw(st.dictionaries(personaje_id, estados_personaje, max_size=2)),
+        conocimiento=draw(
+            st.dictionaries(personaje_id, st.lists(entradas_conocimiento, max_size=2), max_size=2)
+        ),
+        conocimiento_lector=draw(st.lists(entradas_conocimiento, max_size=2)),
+        relaciones=draw(st.lists(relaciones, max_size=2, unique_by=lambda r: (r.de, r.a))),
+        objetos=draw(st.lists(objetos, max_size=2, unique_by=lambda o: o.id)),
+        libro_de_hechos=draw(
+            st.lists(
+                st.builds(Hecho, id=id_("hec"), texto=frase, capitulo=st.just(n), cita=frase),
+                max_size=3,
+                unique_by=lambda h: h.id,
+            )
+        ),
+        hilos=hilos_delta,
+        resumen=Resumen(
+            linea=draw(frase),
+            parrafo=draw(frase),
+            escena={f"esc-{n:02d}-1": draw(frase)},
+        ),
+    )
+
+
+def citas(delta: Delta) -> list[str]:
+    todas = [h.cita for h in delta.libro_de_hechos]
+    todas += [e.cita for e in delta.linea_temporal if e.cita]
+    todas += [e.cita for e in delta.conocimiento_lector if e.cita]
+    todas += [e.cita for es in delta.conocimiento.values() for e in es if e.cita]
+    return todas
+
+
+def cuerpo_con_citas(delta: Delta) -> str:
+    return "# Capítulo\n\n" + "\n\n".join(["Relleno inicial.", *citas(delta), "Relleno final."])
+
+
+def frontmatter_de(delta: Delta) -> FrontmatterCapitulo:
+    n = delta.capitulo
+    return FrontmatterCapitulo(
+        capitulo=n,
+        titulo="t",
+        pov="per-a",
+        palabras=0,
+        escenas=[f"esc-{n:02d}-1"],
+        hilos_abiertos=sorted(h.id for h in delta.hilos if h.abierto_en == n),
+        hilos_cerrados=sorted(h.id for h in delta.hilos if h.cerrado_en == n),
+        version_canon=1,
+        version_plan=1,
+        run_id="r-20260101-0900",
+    )
