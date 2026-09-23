@@ -246,6 +246,8 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   ├── canon.schema.json
 │   │   ├── escaleta.schema.json
 │   │   ├── plan-capitulo.schema.json
+│   │   ├── capitulo.schema.json      # frontmatter de capítulo (§7.2)
+│   │   ├── delta.schema.json         # delta del cronista (§7.6)
 │   │   └── qa-informe.schema.json
 │   │
 │   └── tests/                    # solo lo transversal; el test de un slice vive con él
@@ -648,6 +650,48 @@ Qué recibe cada agente en su briefing y qué escribe. El briefing lo compone `n
 `estado/deltas/NN.json` es la única entrada de `novela aplicar-delta`; ningún agente escribe `estado/estado.db`.
 
 Las dos asimetrías de la tabla son deliberadas: `trazador`, `continuista` y `lector-suspense` ven el misterio porque su trabajo es verificarlo contra él; `escritor` y `editor-estilo` no, por §6.3. Y `editor-estilo` es el único agente además del `escritor` que reescribe `capitulos/NN.md` — por eso su salida de QA acompaña al texto en vez de sustituirlo.
+
+### 7.6 Delta del cronista
+
+`estado/deltas/NN.json` es la única entrada de `novela aplicar-delta`. Lo valida `backend/schemas/delta.schema.json`.
+
+```json
+{
+  "schema_version": "1.0.0",
+  "capitulo": 7,
+  "linea_temporal": [
+    { "escena": "esc-07-1", "capitulo": 7, "inicio": "dia 7, 21:00", "duracion_min": 40,
+      "cita": "Aquella escena 1 del capítulo 7 empezó con el viento del norte." }
+  ],
+  "personajes": {
+    "per-elena-vidal": { "ubicacion": "esc-puerto", "estado_fisico": "cansada", "estado_emocional": "alerta",
+                         "condicion": "viva", "objetivo_activo": "saber quién apagó el faro", "ultima_aparicion": 7 }
+  },
+  "conocimiento": {
+    "per-elena-vidal": [ { "hecho": "hec-007", "desde_capitulo": 7, "cita": "..." } ]
+  },
+  "conocimiento_lector": [ { "hecho": "hec-007", "desde_capitulo": 7 } ],
+  "relaciones": [ { "de": "per-elena-vidal", "a": "per-tomas-reyes", "tipo": "sospecha", "intensidad": 0.3, "desde": 1 } ],
+  "objetos": [ { "id": "obj-001", "poseedor": "per-tomas-reyes", "ubicacion": null, "capitulo_intro": 1, "relevancia": "alta" } ],
+  "libro_de_hechos": [
+    { "id": "hec-007", "texto": "La puerta de la linterna estaba forzada.", "capitulo": 7, "cita": "..." }
+  ],
+  "hilos": [
+    { "id": "hil-003", "estado": "abierto", "abierto_en": 7, "cerrado_en": null, "descripcion": "..." }
+  ],
+  "resumen": {
+    "linea": "Capítulo 7: Elena vuelve a la linterna.",
+    "parrafo": "Elena sube al faro, discute con Tomás y oye a Inés.",
+    "escena": { "esc-07-1": "Elena y Tomás en la casa del faro.", "esc-07-2": "Inés habla de más en el puerto." }
+  }
+}
+```
+
+Las colecciones append-only —`linea_temporal`, `conocimiento`, `conocimiento_lector`, `libro_de_hechos`— traen solo altas. Las mutables —`personajes`, `relaciones`, `objetos`— traen el estado nuevo de lo que el capítulo toca. `hilos` trae solo los que se abren o se cierran en el capítulo, y tiene que coincidir con `hilos_abiertos` e `hilos_cerrados` del frontmatter (RF-34).
+
+No vienen `pistas` ni `metricas`, que `aplicar-delta` deriva del frontmatter y de los capítulos; ni `tension_real`, que la puntúa el `lector-suspense` en `qa/NN-suspense.json`; ni el cursor, que avanza `aplicar-delta` desde `capitulo`. `resumen` es obligatorio y trae las tres granularidades, con `escena` indexado por id de escena. Es lo que `aplicar-delta` renderiza a `memoria/resumenes/NN.md`.
+
+Toda `cita` presente tiene que ser literal del cuerpo del capítulo tras normalizar a NFC y colapsar espacios (RF-33). En `libro_de_hechos` es obligatoria; en las otras tres, opcional.
 
 ---
 

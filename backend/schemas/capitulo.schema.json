@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Cabecera de `capitulos/NN.md`. Es una declaración del escritor, no una prueba: `validar`\ncuenta las palabras del cuerpo en vez de fiarse de `palabras`.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "capitulo": {
+      "maximum": 999,
+      "minimum": 1,
+      "title": "Capitulo",
+      "type": "integer"
+    },
+    "titulo": {
+      "minLength": 1,
+      "title": "Titulo",
+      "type": "string"
+    },
+    "pov": {
+      "pattern": "^per-[a-z0-9-]+$",
+      "title": "Pov",
+      "type": "string"
+    },
+    "palabras": {
+      "minimum": 0,
+      "title": "Palabras",
+      "type": "integer"
+    },
+    "escenas": {
+      "items": {
+        "pattern": "^esc-[0-9]{2,3}-[0-9]+$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Escenas",
+      "type": "array"
+    },
+    "pistas_plantadas": {
+      "default": [],
+      "items": {
+        "pattern": "^pis-[0-9]{3}$",
+        "type": "string"
+      },
+      "title": "Pistas Plantadas",
+      "type": "array"
+    },
+    "pistas_pagadas": {
+      "default": [],
+      "items": {
+        "pattern": "^pis-[0-9]{3}$",
+        "type": "string"
+      },
+      "title": "Pistas Pagadas",
+      "type": "array"
+    },
+    "hilos_abiertos": {
+      "default": [],
+      "items": {
+        "pattern": "^hil-[0-9]{3}$",
+        "type": "string"
+      },
+      "title": "Hilos Abiertos",
+      "type": "array"
+    },
+    "hilos_cerrados": {
+      "default": [],
+      "items": {
+        "pattern": "^hil-[0-9]{3}$",
+        "type": "string"
+      },
+      "title": "Hilos Cerrados",
+      "type": "array"
+    },
+    "version_canon": {
+      "minimum": 1,
+      "title": "Version Canon",
+      "type": "integer"
+    },
+    "version_plan": {
+      "minimum": 1,
+      "title": "Version Plan",
+      "type": "integer"
+    },
+    "run_id": {
+      "pattern": "^r-[0-9]{8}-[0-9]{4}$",
+      "title": "Run Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "capitulo",
+    "titulo",
+    "pov",
+    "palabras",
+    "escenas",
+    "version_canon",
+    "version_plan",
+    "run_id"
+  ],
+  "title": "FrontmatterCapitulo",
+  "type": "object"
+}

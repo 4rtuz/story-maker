@@ -148,6 +148,28 @@ class Resumen(Modelo):
     escena: dict[EscenaId, str] = Field(min_length=1)
 
 
+class Delta(Modelo):
+    """`estado/deltas/NN.json`: la salida del cronista y la única entrada de `aplicar-delta`.
+
+    Las append-only traen solo altas; las mutables, el estado nuevo de lo que el capítulo toca.
+    `hilos` lleva solo los que se abren o se cierran en el capítulo, y tiene que casar con el
+    frontmatter. No vienen `pistas` ni `metricas`, que se derivan, ni `tension_real`, que es
+    del lector-suspense, ni el cursor, que avanza `aplicar-delta` desde `capitulo`.
+    """
+
+    schema_version: SchemaVersion = SCHEMA_VERSION
+    capitulo: CapituloNum
+    linea_temporal: list[EntradaTemporal] = []
+    personajes: dict[PersonajeId, EstadoPersonaje] = {}
+    conocimiento: dict[PersonajeId, list[EntradaConocimiento]] = {}
+    conocimiento_lector: list[EntradaConocimiento] = []
+    relaciones: list[Relacion] = []
+    objetos: list[Objeto] = []
+    libro_de_hechos: list[Hecho] = []
+    hilos: list[Hilo] = []
+    resumen: Resumen
+
+
 class Estado(Modelo):
     schema_version: SchemaVersion = SCHEMA_VERSION
     cursor: Cursor
