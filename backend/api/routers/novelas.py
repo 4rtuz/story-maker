@@ -4,10 +4,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 
-from novela.dominio.estado import Estado
-from novela.dominio.ids import SLUG_PATRON
+from novela.dominio.artefactos import Manifest
+from novela.dominio.estado import CursorDeNovela, Estado
+from novela.dominio.ids import RUN_ID_PATRON, SLUG_PATRON
 from novela.plataforma import estado_db
-from novela.plataforma.workspace import WorkspaceRepository
+from novela.plataforma.workspace import SlugInvalido, WorkspaceRepository, raiz_de_novelas
 
 
 def _workspace(slug: Annotated[str, Path(pattern=SLUG_PATRON)]) -> WorkspaceRepository:
@@ -27,7 +28,33 @@ SLUG = "/{slug:path}"
 router = APIRouter(prefix="/novelas", tags=["novelas"])
 
 
-@router.get(SLUG + "/estado")
-def estado(ws: Workspace) -> Estado:
+def _leer(ws: WorkspaceRepository) -> Estado:
     with estado_db.abrir(ws.estado_db, solo_lectura=True) as conn:
         return estado_db.leer(conn)
+
+
+@router.get("")
+def novelas() -> list[CursorDeNovela]:
+    raiz = raiz_de_novelas()
+    lista = []
+    for directorio in sorted(raiz.iterdir()) if raiz.is_dir() else []:
+        try:
+            ws = WorkspaceRepository.resolver(directorio.name)
+        except SlugInvalido:
+            continue  # no lo creó `novela nueva`
+        if ws.existe():
+            lista.append(CursorDeNovela(slug=ws.slug, cursor=_leer(ws).cursor))
+    return lista
+
+
+@router.get(SLUG + "/estado")
+def estado(ws: Workspace) -> Estado:
+    return _leer(ws)
+
+
+@router.get(SLUG + "/runs/{run_id}")
+def manifiesto(ws: Workspace, run_id: Annotated[str, Path(pattern=RUN_ID_PATRON)]) -> Manifest:
+    ruta = ws.raiz / "runs" / run_id / "manifest.json"
+    if not ruta.is_file():
+        raise HTTPException(404, f"no existe el run {run_id}")
+    return ws.leer_json(ruta, Manifest)

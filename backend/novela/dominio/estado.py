@@ -30,6 +30,7 @@ from novela.dominio.ids import (
     ObjetoId,
     PersonajeId,
     PistaId,
+    Slug,
 )
 
 # Los cuatro tramos y los nueve pasos del bucle de architecture.md §2.1.
@@ -57,6 +58,13 @@ class Cursor(Modelo):
     ultimo_paso: Paso | None  # None: todavía no se ha dado ningún paso de la novela
     # Se persiste porque la parada al tercer intento depende de él.
     intento: int = Field(ge=1, le=3)
+
+
+class CursorDeNovela(Modelo):
+    """Una fila de `GET /novelas`: dónde va cada novela del directorio de workspaces."""
+
+    slug: Slug
+    cursor: Cursor
 
 
 class EntradaTemporal(Modelo):
