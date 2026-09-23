@@ -218,6 +218,7 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │   ├── delta/            # cmd.py · apply.py · violaciones.py · test_delta.py
 │   │   │   ├── checkpoint/
 │   │   │   ├── auditoria/        # pistas huérfanas, hilos abiertos
+│   │   │   ├── entorno/          # comprobar-entorno: hook, python, settings.local.json
 │   │   │   ├── presupuesto/      # ventana de uso y degradación
 │   │   │   └── export/           # cmd.py · markdown.py · epub.py
 │   │   │

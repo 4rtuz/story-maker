@@ -20,9 +20,9 @@ El procedimiento está en `.claude/commands/novela-continuar.md`. Resumido:
 novela briefing <slug> <cap> escritor     → Bash
 Task: escritor                            → escribe capitulos/NN.md
 novela validar <slug> <cap>               → Bash, gate barato
-Task: continuista                         → qa/NN-continuidad.json
-Task: editor-estilo
-Task: lector-suspense
+novela briefing … × 3, después 3 Task     → continuista, editor-estilo, lector-suspense en un turno
+novela validar <slug> <cap>               → otra vez: el editor reescribió el capítulo
+gate: veredicto de qa/NN-continuidad y qa/NN-suspense
 Task: cronista                            → delta de estado
 novela aplicar-delta <slug> <cap>         → Bash
 novela checkpoint <slug> <cap>            → Bash

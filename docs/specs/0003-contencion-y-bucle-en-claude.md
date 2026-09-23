@@ -475,6 +475,7 @@ Se rellena durante la implementación.
 | RF-12 | CA-08 | `backend/novela/plataforma/test_run.py::test_procedencia`, `::test_manifiesto_registra_los_prompts` | hecho |
 | RF-21 | CA-12 | `backend/novela/slices/validacion/test_validacion.py::test_sesion_en_el_log` | hecho |
 | RF-28 | CA-17 | `backend/novela/slices/entorno/test_entorno.py` | hecho |
+| RF-29 | CA-18 | Revisión de `.claude/commands/novela-nueva.md` y `novela-continuar.md` en su commit, y `backend/novela/slices/briefing/test_briefing.py::test_canon_invalido_en_el_log` | hecho |
 
 ## 13. Verificación
 
