@@ -1,44 +1,15 @@
 from dataclasses import replace
-from typing import Any
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from novela.dominio.estado import Cursor, Estado
+from novela.dominio.artefactos import Memoria
 from novela.dominio.ids import Agente
-from novela.slices.briefing import assemble
+from novela.slices.briefing import assemble, recipes
 from novela.slices.briefing.recipes import Receta
 from tests import estrategias
-
-PREMISA = "---\nlogline: x\n---\nUna farera vuelve al pueblo.\n"
-MUNDO = "---\nescenarios: []\n---\nUn pueblo de costa.\n"
-
-
-def receta(presupuesto: int = 60_000, **capas: Any) -> Receta:
-    return Receta.model_validate(
-        {"presupuesto_tokens": presupuesto, "capas": [{k: v} for k, v in capas.items()]}
-    )
-
-
-def fuentes(**cambios: Any) -> assemble.Fuentes:
-    base = assemble.Fuentes(
-        agente=Agente.ESCRITOR,
-        capitulo=1,
-        run_id="r-20260101-0900",
-        ficheros={"canon/premisa.md": PREMISA, "canon/mundo.md": MUNDO},
-        ficha=None,
-        ficha_texto=None,
-        misterio=None,
-        misterio_texto=None,
-        personajes={},
-        estado=Estado(cursor=Cursor(capitulo=1, fase="escritura", ultimo_paso=None, intento=1)),
-        capitulo_anterior=None,
-        capitulo_actual=None,
-        sha_actual=None,
-        resumenes={},
-    )
-    return replace(base, **cambios)
+from tests.fuentes import FICHA, MUNDO, PERSONAJE, PREMISA, fuentes, receta
 
 
 def test_incrusta_contenido_no_rutas() -> None:
@@ -72,3 +43,80 @@ def test_toda_capa_permanente_llega_integra(textos: dict[str, str]) -> None:
     )
     for texto in textos.values():
         assert texto.strip() in briefing.cuerpo
+
+
+def _larga(n: int) -> assemble.Fuentes:
+    """Capítulo 8 con siete resúmenes, dos personajes que hablan y uno que no."""
+    ficha = FICHA.model_copy(update={"capitulo": 8})
+    escena = ficha.escenas[0].model_copy(
+        update={"id": "esc-08-1", "personajes": ["per-a", "per-b"], "dialogo": ["per-a"]}
+    )
+    ficha = ficha.model_copy(update={"escenas": [escena]})
+    resumenes = {
+        c: Memoria(
+            capitulo=c,
+            linea=f"Línea del capítulo {c}. " * 3,
+            parrafo=f"Párrafo del capítulo {c}. " * 20,
+            escena={f"esc-{c:02d}-1": "x"},
+        )
+        for c in range(1, 8)
+    }
+    personaje = PERSONAJE
+    ficheros = {"canon/premisa.md": PREMISA, "canon/mundo.md": MUNDO, "canon/estilo.md": "Seco."}
+    return replace(
+        fuentes(),
+        capitulo=8,
+        ficheros=ficheros,
+        ficha=ficha,
+        ficha_texto="Ficha del capítulo 8.",
+        personajes={"per-a": (personaje, "A habla. " * n), "per-b": (personaje, "B calla. " * n)},
+        capitulo_anterior="El capítulo 7 entero.",
+        resumenes=resumenes,
+    )
+
+
+ESCRITOR = recipes.cargar()[Agente.ESCRITOR]
+
+
+def _con_presupuesto(presupuesto: int) -> Receta:
+    return ESCRITOR.model_copy(update={"presupuesto_tokens": presupuesto})
+
+
+def test_orden_de_degradacion() -> None:
+    """CA-12: remota recortada, luego reciente a una línea, luego personajes con diálogo; canon y
+    estado filtrado llegan íntegros en todos los casos. Si ni así cabe, falla."""
+    f = _larga(200)
+    completo = assemble.ensamblar(ESCRITOR, f)
+    assert completo.meta.degradacion == []
+    fijas = [s for s in completo.cuerpo.split("\n## ") if s.startswith(("permanente", "estado"))]
+
+    pasos_vistos = []
+    for presupuesto in range(completo.meta.tokens_estimados, 0, -25):
+        try:
+            briefing = assemble.ensamblar(_con_presupuesto(presupuesto), f)
+        except assemble.PresupuestoExcedido:
+            break
+        assert briefing.meta.tokens_estimados <= presupuesto
+        for seccion in fijas:
+            assert seccion in briefing.cuerpo
+        pasos = [p.split(" ")[0] for p in briefing.meta.degradacion]
+        if pasos and pasos not in pasos_vistos:
+            pasos_vistos.append(pasos)
+    else:
+        pytest.fail("con presupuesto 1 tenía que fallar")
+    assert pasos_vistos[0] == ["1"]
+    assert pasos_vistos[-1] == ["1", "2", "3"]
+    assert ["1", "2"] in pasos_vistos
+
+
+@given(presupuesto=st.integers(1, 12_000), n=st.integers(1, 300))
+def test_cabe_o_falla_y_nunca_trunca(presupuesto: int, n: int) -> None:
+    f = _larga(n)
+    try:
+        briefing = assemble.ensamblar(_con_presupuesto(presupuesto), f)
+    except assemble.PresupuestoExcedido:
+        return
+    assert briefing.meta.tokens_estimados <= presupuesto
+    for ruta, texto in f.ficheros.items():
+        if ruta in ("canon/premisa.md", "canon/mundo.md"):
+            assert texto.strip() in briefing.cuerpo

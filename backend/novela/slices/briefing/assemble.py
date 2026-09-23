@@ -8,7 +8,7 @@ que su briefing le da.
 import math
 import re
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from fnmatch import fnmatchcase
 from typing import Any
 
@@ -39,6 +39,10 @@ class FuenteAusente(Exception):
 
 class FugaDelSecreto(Exception):
     """El briefing de un agente que excluye canon/misterio contiene texto de ese fichero."""
+
+
+class PresupuestoExcedido(Exception):
+    """No cabe ni degradado: paso 4 de §6.5, se para y se pide intervención. Nunca se trunca."""
 
 
 @dataclass(frozen=True)
@@ -170,7 +174,6 @@ def _resumenes(f: Fuentes, capitulos: range, granularidad: str) -> str:
 def _capas(receta: Receta, f: Fuentes, ajuste: _Ajuste) -> list[str]:
     n = f.capitulo
     secciones: list[str] = []
-    reciente = next((c.reciente for c in receta.capas if isinstance(c, recipes.Reciente)), None)
     for capa in receta.capas:
         match capa:
             case recipes.Permanente(permanente=patrones):
@@ -199,8 +202,7 @@ def _capas(receta: Receta, f: Fuentes, ajuste: _Ajuste) -> list[str]:
                 if capitulos:
                     secciones.append(_seccion(f"reciente · {gran}", _resumenes(f, capitulos, gran)))
             case recipes.Remota(remota=r):
-                hasta = n - (reciente.n if reciente else 0)
-                capitulos = range(max(r.desde, 1) + ajuste.remotas_recortadas, max(1, hasta))
+                capitulos = _remotas(receta, f, ajuste)
                 if capitulos:
                     texto = _resumenes(f, capitulos, r.granularidad)
                     secciones.append(_seccion(f"remota · {r.granularidad}", texto))
@@ -289,17 +291,65 @@ def _vigilar_el_secreto(receta: Receta, f: Fuentes, secciones: list[str]) -> Non
 # --- ensamblado ------------------------------------------------------------------------------
 
 
+def _remotas(receta: Receta, f: Fuentes, ajuste: _Ajuste) -> range:
+    remota = next((c.remota for c in receta.capas if isinstance(c, recipes.Remota)), None)
+    if remota is None:
+        return range(0)
+    reciente = next((c.reciente for c in receta.capas if isinstance(c, recipes.Reciente)), None)
+    hasta = f.capitulo - (reciente.n if reciente else 0)
+    return range(max(remota.desde, 1) + ajuste.remotas_recortadas, max(1, hasta))
+
+
+def _degradar(receta: Receta, f: Fuentes, ajuste: _Ajuste) -> _Ajuste | None:
+    """El siguiente paso de §6.5, de menos a más doloroso. canon/ y el estado filtrado no se
+    degradan nunca: su ausencia produce contradicción, no imprecisión."""
+    if _remotas(receta, f, ajuste):
+        return replace(ajuste, remotas_recortadas=ajuste.remotas_recortadas + 1)
+    reciente = next((c.reciente for c in receta.capas if isinstance(c, recipes.Reciente)), None)
+    if reciente and reciente.granularidad == "parrafo" and f.capitulo > 1:
+        if not ajuste.reciente_a_linea:
+            return replace(ajuste, reciente_a_linea=True)
+    hay_personajes = any(isinstance(c, recipes.Personajes) for c in receta.capas)
+    if hay_personajes and not ajuste.solo_con_dialogo and set(_presentes(f)) - _con_dialogo(f):
+        return replace(ajuste, solo_con_dialogo=True)
+    return None
+
+
+def _pasos(ajuste: _Ajuste) -> list[str]:
+    pasos = []
+    if ajuste.remotas_recortadas:
+        pasos.append(
+            f"1 resúmenes a una línea más antiguos recortados: {ajuste.remotas_recortadas}"
+        )
+    if ajuste.reciente_a_linea:
+        pasos.append("2 resúmenes a párrafo bajados a una línea")
+    if ajuste.solo_con_dialogo:
+        pasos.append("3 personajes reducidos a los que tienen diálogo")
+    return pasos
+
+
 def ensamblar(receta: Receta, f: Fuentes) -> Briefing:
-    secciones = _capas(receta, f, _Ajuste())
+    ajuste = _Ajuste()
+    secciones = _capas(receta, f, ajuste)
     _vigilar_el_secreto(receta, f, secciones)
     cuerpo = "\n".join(secciones)
+    while (tokens := estimar_tokens(cuerpo)) > receta.presupuesto_tokens:
+        siguiente = _degradar(receta, f, ajuste)
+        if siguiente is None:
+            raise PresupuestoExcedido(
+                f"el briefing de {f.agente} estima {tokens} tokens y su presupuesto es "
+                f"{receta.presupuesto_tokens}; no cabe ni degradado: hace falta intervención"
+            )
+        ajuste = siguiente
+        cuerpo = "\n".join(_capas(receta, f, ajuste))
     incrusta_capitulo = any(isinstance(c, recipes.Objetivo) for c in receta.capas)
     meta = FrontmatterBriefing(
         agente=f.agente,
         capitulo=f.capitulo,
         run_id=f.run_id,
         presupuesto_tokens=receta.presupuesto_tokens,
-        tokens_estimados=estimar_tokens(cuerpo),
+        tokens_estimados=tokens,
+        degradacion=_pasos(ajuste),
         capitulo_sha256=f.sha_actual if incrusta_capitulo else None,
     )
     return Briefing(meta=meta, cuerpo=cuerpo)

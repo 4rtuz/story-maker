@@ -6,40 +6,13 @@ from hypothesis import strategies as st
 
 from novela.dominio import frontmatter
 from novela.dominio.base import ColeccionAppendOnly
-from novela.dominio.canon import Misterio, Personaje
+from novela.dominio.canon import Misterio
 from novela.dominio.ids import Agente
-from novela.dominio.plan import FichaCapitulo
 from novela.slices.briefing import assemble, recipes
-from novela.slices.briefing.test_assemble import fuentes
 from tests import estrategias
+from tests.fuentes import FICHA, PERSONAJE, fuentes
 
 RECETAS = recipes.cargar()
-PERSONAJE = Personaje.model_validate(
-    {
-        "identidad": {"id": "per-a", "nombre": "A", "rol_narrativo": "testigo"},
-        "voz": {"idiolecto": "seco", "registro": "llano", "dialogo_canonico": ["No."]},
-        "psicologia": {"deseo": "d", "necesidad": "n", "miedo": "m", "herida": "h"},
-    }
-)
-FICHA = FichaCapitulo.model_validate(
-    {
-        "capitulo": 1,
-        "pov": "per-a",
-        "objetivo_dramatico": "o",
-        "escenas": [
-            {
-                "id": "esc-01-1",
-                "lugar": "esc-faro",
-                "tiempo_diegetico": "t",
-                "personajes": ["per-a"],
-                "beat": "b",
-                "conflicto": "c",
-            }
-        ],
-        "gancho_final": "amenaza",
-        "restriccion_de_apertura": "Empieza con un diálogo.",
-    }
-)
 # Qué capas recibe cada agente que excluye el misterio: ahí es donde se puede colar.
 CAPAS = {
     Agente.ESCRITOR: ["premisa", "estilo", "ficha", "personaje"],
