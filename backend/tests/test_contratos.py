@@ -12,6 +12,7 @@ from pathlib import Path
 import jsonschema
 from typer.testing import CliRunner
 
+from api.main import app as api
 from novela.cli import app
 from novela.dominio import esquemas
 from novela.plataforma.workspace import WorkspaceRepository
@@ -125,3 +126,14 @@ def test_sin_clientes_de_modelo() -> None:
         [sys.executable, "-c", codigo], capture_output=True, text=True, check=True, cwd=backend
     ).stdout.split()
     assert [m for m in cargados if _prohibido(m)] == []
+
+
+def test_openapi_al_dia() -> None:
+    """CA-29 (RNF-05): el OpenAPI commiteado es el que genera la app. De él salen los tipos del
+    frontend, generados y no escritos a mano, así que no pueden derivar por su cuenta."""
+    generado = api.openapi()
+    ruta = RAIZ_REPO / "backend" / "api" / "openapi.json"
+    if REGENERAR:
+        texto = json.dumps(generado, indent=2, ensure_ascii=False) + "\n"
+        ruta.write_bytes(texto.encode("utf-8"))
+    assert json.loads(ruta.read_text(encoding="utf-8")) == generado
