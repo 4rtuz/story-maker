@@ -1,0 +1,17 @@
+#!/bin/sh
+# Pre-commit del harness (RNF-07, validators.md §3.2): la regla la hace cumplir el hook, no la disciplina.
+# Activación, una vez por clon: git config core.hooksPath .githooks
+
+# 1. Ninguna clave en un fichero versionado. Se busca en todo el índice, no solo en lo que cambia.
+#    El nombre de la variable a secas no cuenta: la documentación lo cita. Cuenta nombre + valor,
+#    o un valor con el prefijo de clave del proveedor.
+patron='(LANGFUSE_(SECRET|PUBLIC)_KEY|ANTHROPIC_API_KEY).?[[:space:]]*[:=][[:space:]]*.?[A-Za-z0-9_-]{8,}|[sp]k-lf-[A-Za-z0-9-]{8,}|sk-ant-[A-Za-z0-9-]{8,}'
+if git grep --cached -nIE "$patron"; then
+  echo "pre-commit: posible clave en un fichero versionado; muévela a .claude/settings.local.json" >&2
+  exit 1
+fi
+
+# 2. ruff con las reglas S sobre el backend.
+if [ -f backend/pyproject.toml ]; then
+  uv run --project backend ruff check backend || exit 1
+fi

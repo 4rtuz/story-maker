@@ -1,0 +1,53 @@
+[project]
+name = "novela"
+version = "0.1.0"
+description = "CLI determinista y API de solo lectura del harness de novelas de suspense"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "filelock>=3.13",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "typer>=0.12",
+]
+
+[project.scripts]
+novela = "novela.cli:app"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.100",
+    "jsonschema>=4.22",
+    "mutmut>=2.5,<3",
+    "mypy>=1.10",
+    "pytest>=8.2",
+    "ruff>=0.5",
+    "types-pyyaml>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["novela"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+# S = flake8-bandit (validators.md §3.2): nadie escribe un open(..., "w") suelto sobre el workspace.
+select = ["E", "F", "I", "B", "UP", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/test_*.py" = ["S101"]
+"tests/**" = ["S101"]
+"conftest.py" = ["S101"]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["novela", "tests"]
+addopts = "-q"
