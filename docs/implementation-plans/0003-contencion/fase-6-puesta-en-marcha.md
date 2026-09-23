@@ -8,7 +8,7 @@ diga cómo prepararla.
 **Al terminar existe**: `novela` en el PATH, el repo con la confianza aceptada, `python` y `uv`
 resolviendo, y el bucle de la spec §5.6 en `AGENTS.md`, `CLAUDE.md` y `architecture.md`.
 
-**Cierra**: RF-22, RF-23. CA-13.
+**Cierra**: RF-22, RF-23, RF-30. CA-13.
 
 La mitad de esta fase son pasos de máquina, no commits. La otra mitad es documentación.
 
@@ -33,7 +33,11 @@ Si `python` no resuelve, la solución es desactivar el alias en «Configuración
 Alias de ejecución de aplicaciones» o poner Python 3.12 por delante en el PATH. No se cambia el
 comando del hook a una ruta absoluta: rompería en cualquier otra máquina.
 
-**Comprobación de conjunto, sin modelo**: `echo '{"tool_name":"Write","tool_input":{"file_path":"novelas/x/estado/estado.db"},"cwd":"."}' | python .claude/hooks/denegar-escritura-estado.py; echo $?` → `2`.
+**Comprobación de conjunto, sin modelo**:
+
+- `novela comprobar-entorno` → sale con 0 y no imprime nada. Cubre `python`, el script del hook y
+  `settings.local.json`, y que `novela` arranque ya prueba el paso 2.
+- `echo '{"tool_name":"Write","tool_input":{"file_path":"novelas/x/estado/estado.db"},"cwd":"."}' | python .claude/hooks/denegar-escritura-estado.py; echo $?` → `2`.
 
 ---
 
@@ -49,6 +53,7 @@ spec §5.6, literal:
 ```bash
 export MSYS_NO_PATHCONV=1                 # sin esto, "/novela-continuar" llega como ruta de Windows
 export CC_LANGFUSE_TRACE_TAGS=<slug>
+novela comprobar-entorno || exit 1
 while novela pendiente <slug>; do
   antes=$(cat novelas/<slug>/checkpoints/latest.json 2>/dev/null)
   export NOVELA_SESSION_ID=$(python -c "import uuid; print(uuid.uuid4())")
@@ -58,9 +63,21 @@ while novela pendiente <slug>; do
 done
 ```
 
-Con una línea antes: «En Git Bash.» Y una después: «Las sesiones interactivas del harness se
-abren con `claude --setting-sources project,local`.» El texto que explica el `|| break` se
-conserva y gana media frase: «y la última línea para si una sesión no avanza el checkpoint».
+Con una línea antes: «En Git Bash.» El texto que explica el `|| break` se conserva y gana media
+frase: «`comprobar-entorno` para antes de la primera sesión, y la última línea, si una sesión no
+avanza el checkpoint».
+
+Y después, la forma de abrir una sesión interactiva del harness (RF-30), también literal de la
+spec:
+
+```bash
+export NOVELA_SESSION_ID=$(python -c "import uuid; print(uuid.uuid4())")
+claude --session-id "$NOVELA_SESSION_ID" --setting-sources project,local --model opus
+```
+
+Con una frase: «Las sesiones de desarrollo del harness no exportan la variable». Es lo que
+distingue a la regla 5 del hook una sesión que orquesta de una que desarrolla. Sin la variable,
+`/novela-nueva` correría sin la restricción de subagentes.
 
 En `CLAUDE.md` el bloque aparece una sola vez (sección «Slash commands»). No lo dupliques en
 «Bucle por capítulo».
@@ -68,9 +85,10 @@ En `CLAUDE.md` el bloque aparece una sola vez (sección «Slash commands»). No 
 **`architecture.md`**: §2.3, el mismo bucle. §11.1, los tres pasos **con** sus comprobaciones y la
 de `python`.
 
-**Revisión** (CA-13): `AGENTS.md` contiene los tres pasos y el bucle de §5.6.
+**Revisión** (CA-13): `AGENTS.md` contiene los tres pasos, el bucle de §5.6 con
+`novela comprobar-entorno`, y la forma de abrir una sesión interactiva del harness.
 
-**Cierra**: RF-23. CA-13.
+**Cierra**: RF-23, RF-30. CA-13.
 
 **Commit**: `docs: puesta en marcha y bucle desatendido con claude -p`
 
@@ -88,8 +106,13 @@ claude() { return 0; }            # sesión que no avanza
 # … pega el bucle de 6.2 con <slug> = freno …
 ```
 
-Resultado esperado: una iteración y salida del bucle, no un bucle infinito. Después,
-`rm -rf novelas/freno`.
+Resultado esperado: una iteración y salida del bucle, no un bucle infinito.
+
+Y el freno previo, igual de gratis: con una copia de seguridad de `.claude/settings.local.json`,
+añádele `"permissions": {}` y repite. El bucle tiene que salir **antes** de la primera
+iteración, con el hallazgo de `comprobar-entorno` en pantalla. Restaura el fichero.
+
+Después, `rm -rf novelas/freno`.
 
 No se commitea como test: depende de Git Bash y del PATH de la máquina, y lo que prueba son tres
 líneas de shell que ya están escritas en la documentación.

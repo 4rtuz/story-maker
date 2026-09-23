@@ -5,7 +5,7 @@ de la tabla de la spec §5.1.
 
 **Al terminar existe**: siete ficheros `.md` y `test_contratos.py::test_agentes_de_claude`.
 
-**Cierra**: RF-01 a RF-04. CA-01, CA-02.
+**Cierra**: RF-01 a RF-04, RF-24. CA-01, CA-02.
 
 No requiere nada de otra fase. Antes de empezar, lee las convenciones del [README](README.md):
 aquí conviven un test TDD (el contrato) y prosa sin TDD (los cuerpos).
@@ -63,6 +63,13 @@ El segundo recorre las salidas de cada rol y comprueba que la cadena literal apa
 (lo que va después del frontmatter). Una comprobación de subcadena y nada más: RF-04 es
 «debería», y lo que protege es que un rol no se quede sin decir dónde escribe.
 
+El mismo test cubre RF-24 con dos aserciones más:
+
+- el cuerpo de cada rol contiene las rutas de su esquema de la tabla de la spec §5.1 (un literal
+  `ESQUEMAS` en el test, al lado de `CONTRATO`);
+- toda ruta que case `backend/schemas/[\w.-]+\.json` en cualquier cuerpo existe en disco. Así, un
+  esquema renombrado rompe CI y no el primer capítulo (F-03).
+
 Extrae el parseo del frontmatter a un helper de tres líneas dentro del propio test. No lo
 reutilices de `novela/dominio/frontmatter.py`: ese valida modelos de la novela, no ficheros del
 harness, y acoplarlos haría que un cambio en uno rompa el otro.
@@ -101,7 +108,7 @@ La misma plantilla para los siete, en este orden. Corta: se carga en cada invoca
 2. **Qué recibes.** El prompt de la invocación trae el slug, `NN`, la ruta del briefing, las
    rutas de salida y, en un reintento, rutas de `qa/`. Lees el briefing entero, y además solo:
    - las rutas de `qa/` que traiga el prompt;
-   - el esquema de tu salida (D-1, abajo);
+   - el esquema de tu salida (RF-24, abajo);
    - los ficheros de salida que ya existan, si el rol los corrige (`editor-estilo`, y cualquiera
      en un reintento).
 3. **Qué escribes.** Las rutas de la columna «Salidas» de §5.1, relativas a `novelas/<slug>/`,
@@ -116,14 +123,14 @@ La misma plantilla para los siete, en este orden. Corta: se carga en cada invoca
 Una línea más para los cinco que escriben JSON o frontmatter validado: «Sin prosa alrededor ni
 vallas de código» (`AGENTS.md`).
 
-### Hueco: el briefing no trae el esquema de salida (D-1)
+### El briefing no trae el esquema de salida (RF-24)
 
 `assemble.py` incrusta canon, plan, estado y capítulos, pero no `backend/schemas/`. Y `AGENTS.md`
 exige que la salida estructurada sea «JSON válido contra su esquema». Sin el esquema, el agente
 adivina la forma, y la adivina mal en el primer capítulo.
 
-Decisión: el cuerpo de cada agente nombra su esquema como entrada fija. La sesión corre en la
-raíz del repo, así que la ruta es relativa a ella:
+La spec v0.3 lo resuelve así (RF-24): el cuerpo de cada agente nombra su esquema como entrada fija.
+La sesión corre en la raíz del repo, así que la ruta es relativa a ella:
 
 | Agente | Esquema |
 |---|---|
@@ -164,7 +171,7 @@ Lo que el cuerpo tiene que decir además de la plantilla. Viene de la spec §5.4
 uno supera las 30, está explicando estilo, y el estilo no es de esta spec (§1, «fuera del
 alcance»).
 
-**Cierra**: RF-01 a RF-04. CA-01, CA-02.
+**Cierra**: RF-01 a RF-04, RF-24. CA-01, CA-02.
 
 **Commit**: `feat(agentes): los siete roles de .claude/agents con su contrato en CI`
 
@@ -178,7 +185,8 @@ fase 2.
 - `architecture.md` §3.1: el árbol gana `.claude/agents/` con los siete ficheros.
 - `architecture.md` §6.3 y §7.4: léelos y quita lo que hable del contrato como algo pendiente.
   Si ya están en presente, no se tocan.
-- `architecture.md` §7.5: la columna «Entradas» gana el esquema de salida de cada rol (D-1).
+- `architecture.md` §7.5: la columna «Entradas» gana el esquema de salida de cada rol (RF-24).
+- `validators.md` §4.17: F-01, F-02 y F-03 pasan a `activo`.
 - `validators.md` §2: el método 13 (`tools`) pasa a correr.
 
 **Commit** (si va aparte): `docs(arquitectura): contrato de agente implementado`

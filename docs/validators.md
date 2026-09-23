@@ -404,7 +404,7 @@ Hay un supuesto que comprobar antes de construirlo: que el transcript distinga l
 
 ### 4.17 Contención y bucle de `.claude/` — T + A + D
 
-La spec 0003 añade siete agentes, un hook `PreToolUse`, permisos, tres procedimientos, el bucle desatendido y tres cambios en `run.py`. Cada pieza abre fallos propios. Esta sección los enumera, cada uno con su verificador.
+La spec 0003 añade siete agentes, un hook `PreToolUse`, permisos, tres procedimientos, el bucle desatendido y cinco cambios en el backend. Cada pieza abre fallos propios. Esta sección los enumera, cada uno con su verificador.
 
 **Estado a 2026-09-23: nada de esta sección corre todavía.** La columna «Estado» dice qué lo introduce:
 
@@ -422,10 +422,10 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 |---|---|---|---|---|---|
 | F-01 | El frontmatter deriva: `tools`, `model` o `name` distintos de la tabla, o YAML inválido | Un agente con `Bash` o `Glob`, o uno que Claude Code no carga | Test de contrato sobre `.claude/agents/*.md` | T | 0003, CA-01 |
 | F-02 | El cuerpo no nombra una de sus salidas | El agente escribe donde cree, el hook lo para y se pierde un reintento | Cada salida aparece como subcadena del cuerpo | T | 0003, CA-02 |
-| F-03 | Se renombra o desaparece el esquema de `backend/schemas/` que nombra el cuerpo | El agente adivina la forma y el primer capítulo falla `validar` | Toda ruta `backend/schemas/*.json` citada en un cuerpo existe. Es una aserción más en el test de CA-02 | T | propuesto |
+| F-03 | Se renombra o desaparece el esquema de `backend/schemas/` que nombra el cuerpo | El agente adivina la forma y el primer capítulo falla `validar` | Toda ruta `backend/schemas/*.json` citada en un cuerpo existe. Es una aserción más en el test de CA-02 | T | 0003, CA-02 (RF-24) |
 | F-04 | Se cambia un prompt sin commitear | Dos ejecuciones con el mismo sha y prompts distintos | `sucio` y `hashes_claude` en el manifiesto (§4.7) | A + T | 0003, CA-08 |
-| F-05 | `CLAUDE.md` o `AGENTS.md` cambian entre dos ejecuciones | Se cargan en cada subagente y cambian su conducta, pero no entran en `hashes_claude` ni en las rutas que vigila `sucio` | Añadir los dos ficheros a `hashes_claude` y a las rutas de `sucio` | A + T | propuesto (enmienda a RF-12) |
-| F-06 | Un informe de QA malformado, o sin `veredicto` | El orquestador lee basura en el gate y puede aprobar | El procedimiento cuenta un `veredicto` ausente o ilegible como rechazo. Después, `novela gate` lo valida contra el modelo | D; A | 0003 (procedimiento); 0002 |
+| F-05 | `CLAUDE.md` o `AGENTS.md` cambian entre dos ejecuciones | Se cargan en cada subagente y cambian su conducta, pero no entran en `hashes_claude` ni en las rutas que vigila `sucio` | Añadir los dos ficheros a `hashes_claude` y a las rutas de `sucio` | A + T | 0003, CA-08 (RF-12) |
+| F-06 | Un informe de QA malformado, o sin `veredicto` | El orquestador lee basura en el gate y puede aprobar | El procedimiento cuenta un `veredicto` ausente o ilegible como rechazo. Después, `novela gate` lo valida contra el modelo | D; A | 0003, CA-18 (RF-29); 0002 |
 | F-07 | Un revisor lee `capitulos/NN.md` del disco en vez del texto incrustado, mientras el `editor-estilo` lo reescribe en el mismo turno | Veredicto sobre una versión intermedia que la custodia no ve, porque su briefing lleva el hash correcto | El cuerpo del agente manda juzgar lo incrustado. No hay verificador mecánico | I | U (§5.15) |
 | F-08 | Un retorno de más de tres líneas | Consume el contexto del orquestador | Auditoría de trayectoria (§4.16) | A | 0002 |
 
@@ -434,25 +434,25 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 | # | Fallo | Consecuencia | Verificador | Clase | Estado |
 |---|---|---|---|---|---|
 | F-10 | `python` no resuelve, o la ruta del script en `settings.json` está mal | El hook sale con un código distinto de 2 y **falla abierto**: todas las escrituras pasan, sin aviso | Comprobación de puesta en marcha. CA-06 comprueba que la orden nombra el script, y una aserción más, que el fichero existe. El primer intento del canario lo detecta | D + T | 0003 (fase 6, CA-06, CA-09) |
-| F-11 | Claude Code cambia la forma de la entrada, por ejemplo el nombre de `file_path` | El hook falla cerrado y deniega todas las escrituras: el bucle no avanza | El freno del bucle (RF-22) y el control positivo del canario (F-60) | D + T | 0003; propuesto |
-| F-12 | Desaparece `agent_type` de la entrada | La regla 2 se apaga sin aviso | Cuarto intento del canario | T | 0003, CA-09 |
+| F-11 | Claude Code cambia la forma de la entrada, por ejemplo el nombre de `file_path` | El hook falla cerrado y deniega todas las escrituras: el bucle no avanza | El freno del bucle (RF-22) y el control positivo del canario (F-60) | D + T | 0003, CA-09 |
+| F-12 | Desaparece `agent_type` de la entrada | La regla 2 se apaga sin aviso, y la regla 3 trata a todo subagente como sesión principal | Control positivo del canario: `notas/control.txt` no se escribe. El intento 4 no lo detecta, porque la regla 3 también lo deniega | T | 0003, CA-09 |
 | F-13 | Variantes de ruta: mayúsculas, `\`, `..`, absoluta o relativa | Una escritura bajo `estado/` que el comparador no reconoce | Property-based sobre el script, ejecutado como subproceso | T | 0003, CA-03 |
-| F-14 | Variantes de NTFS: punto o espacio final en un segmento (`estado./`), flujo alternativo (`estado.db:x`), prefijo `\\?\` | Win32 normaliza la ruta al escribir, y la regla 1, que es una lista de denegación, no la reconoce. La regla 2 es una lista blanca con `fullmatch` y ya las deniega | Normalizar los tres casos en el hook y añadirlos a la estrategia de CA-03 | T | propuesto |
+| F-14 | Variantes de NTFS: punto o espacio final en un segmento (`estado./`), flujo alternativo (`estado.db:x`), prefijo `\\?\` | Win32 normaliza la ruta al escribir, y la regla 1, que es una lista de denegación, no la reconoce. La regla 2 es una lista blanca con `fullmatch` y ya las deniega | Normalizar los tres casos en el hook y añadirlos a la estrategia de CA-03 | T | 0003, CA-03 (RF-05) |
 | F-15 | Nombres cortos 8.3 (`ESTADO~1`), uniones y enlaces simbólicos | Como F-14, pero sin forma de normalizarlos sin tocar el disco | Por debajo del hook: los triggers de `estado.db` y la reproducción del estado (§4.14) | A | U (§5.14) |
 | F-16 | La tabla de salidas del hook y el contrato de los agentes divergen | El hook para a un rol en su salida legítima, o le deja escribir en otra | Test que compara `SALIDAS` del hook con el contrato de CA-01 | T | 0003 (plan, D-2) |
 | F-17 | El hook bloquea al `cronista` | El delta no se escribe nunca | Mitad positiva de CA-03 y de CA-05 | T | 0003 |
 | F-18 | Latencia del hook | Cada escritura y cada `Bash` pagan el arranque del intérprete | Mediana por debajo de 300 ms | T | 0003, RNF-01 |
-| F-19 | La sesión principal escribe en el workspace: el capítulo «para ahorrar una llamada», el delta o un `qa/` | Nada lo para: sin `agent_type` solo aplica la regla 1, y `Edit(./novelas/**)` está permitido | Una regla 4 del hook: sin `agent_type`, bajo `novelas/` solo se permite `runs/*/intervencion.md`. Hasta entonces, la auditoría de trayectoria (§4.16) lo detecta después | T; A | propuesto; 0002 |
-| F-20 | El orquestador invoca un subagente que no es uno de los siete. `general-purpose` tiene todas las herramientas | Un agente con `Bash` y `Glob` dentro del bucle, al que solo aplica la regla 1. `Agent` no se puede restringir por nombre (E-9) | Una rama `Agent` en el hook: con `NOVELA_SESSION_ID` definido, que solo exporta el bucle, deniega un `subagent_type` fuera de los siete. Las sesiones de desarrollo no la tienen definida y conservan `Explore`. Falta verificar que el hook hereda el entorno de `claude` | T | propuesto; hoy 0002 (§4.16) |
+| F-19 | La sesión principal escribe en el workspace: el capítulo «para ahorrar una llamada», el delta o un `qa/` | Sin una regla propia, a la sesión principal solo le aplicaría la de `estado/`, y `Edit(./novelas/**)` está permitido | Regla 3 del hook: sin `agent_type`, bajo `novelas/` solo se permite `runs/*/intervencion.md` | T | 0003, CA-14 (RF-25) |
+| F-20 | El orquestador invoca un subagente que no es uno de los siete. `general-purpose` tiene todas las herramientas | Un agente con `Bash` y `Glob` dentro del bucle, al que solo aplica la regla 1. `Agent` no se puede restringir por nombre (E-9) | Regla 5 del hook: con `NOVELA_SESSION_ID` definido, que solo exportan el bucle y las sesiones del harness, deniega un `subagent_type` fuera de los siete y `canario`. Las sesiones de desarrollo no la tienen definida y conservan `Explore`. Que el hook herede el entorno de `claude` lo comprueba el quinto intento del canario | T | 0003, CA-15 y CA-09 (RF-26) |
 
 **Permisos**
 
 | # | Fallo | Consecuencia | Verificador | Clase | Estado |
 |---|---|---|---|---|---|
 | F-21 | `settings.json` inválido | En `-p` se ignora sin avisar, y con él desaparecen el `deny` del misterio y el hook | Parseo y claves de primer nivel en el test | T | 0003, CA-06 |
-| F-22 | `settings.local.json` amplía permisos: un `allow` más, un `defaultMode`, otro hook | No está versionado, CI no lo ve, y el bucle lo carga con `--setting-sources project,local` | Comprobación previa de que solo contiene `enabledPlugins`, en `ejecutar.py` del canario y antes de lanzar el bucle | T | propuesto |
+| F-22 | `settings.local.json` amplía permisos: un `allow` más, un `defaultMode`, otro hook | No está versionado, CI no lo ve, y el bucle lo carga con `--setting-sources project,local` | Comprobación previa de que solo contiene `enabledPlugins`, en `ejecutar.py` del canario y antes de lanzar el bucle | T | 0003, CA-17 (RF-28, RF-30) |
 | F-23 | La confianza del repo no está aceptada | El `allow` se ignora y el bucle gira sin avanzar | Freno del bucle (RF-22) | D | 0003 |
-| F-24 | La herramienta `PowerShell` de Windows queda fuera del `matcher` | La rama de texto del hook no la ve. En `-p` con `dontAsk` se deniega porque no está en `allow`; en interactivo, Claude Code pregunta | Añadir `PowerShell` al `matcher` y comprobarlo en CA-06 | T | propuesto |
+| F-24 | La herramienta `PowerShell` de Windows queda fuera del `matcher` | La rama de texto del hook no la ve. En `-p` con `dontAsk` se deniega porque no está en `allow`; en interactivo, Claude Code pregunta | Añadir `PowerShell` al `matcher` y comprobarlo en CA-06 | T | 0003, CA-06 y CA-11 (RF-20) |
 | F-25 | Una orden compuesta tras el prefijo permitido (`novela estado x && …`) | Si `Bash(novela:*)` casara solo el prefijo, el resto correría sin permiso | Canario del orquestador: una orden compuesta que debe denegarse | T | 0002 (§4.16); comportamiento sin verificar |
 | F-26 | `claude` se lanza desde un subdirectorio, como `backend/` | Si no encuentra `.claude/`, no hay permisos, ni hook, ni comandos | Freno del bucle. El bucle documentado corre en la raíz | D | 0003 |
 
@@ -462,9 +462,9 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 |---|---|---|---|---|---|
 | F-30 | Orden roto: revisiones antes de tener los tres briefings, el `cronista` antes del gate, o sin `validar` tras el editor | Los veredictos juzgan textos distintos | Custodia en `aplicar-delta` (0001 RF-32): la cadena de hashes no cierra y el delta no se aplica | A + T | activo |
 | F-31 | La sesión lee mal la cuenta de intentos en `harness.log` | Reintentos de más, que gastan cuota, o una intervención prematura | Los intentos por gate se cuentan aparte en el baseline de la novela de humo. Después, `novela gate` | D; A | 0003 (riesgo aceptado de la spec); 0002 |
-| F-32 | Un código 1 que viene de un fallo del CLI (un traceback, un import roto tras cambiar `pyproject.toml`) y no de un gate | El procedimiento lo toma por un gate fallido y reintenta al agente: gasta cuota en algo que ningún agente arregla | El procedimiento solo cuenta un 1 como gate si `harness.log` tiene la línea `<orden> NN -> 1` que el comando acaba de escribir; si no, para. A medio plazo, un código de salida propio para el error interno | D; T | propuesto |
+| F-32 | Un código 1 que viene de un fallo del CLI (un traceback, un import roto tras cambiar `pyproject.toml`) y no de un gate | El procedimiento lo toma por un gate fallido y reintenta al agente: gasta cuota en algo que ningún agente arregla | El procedimiento solo cuenta un 1 como gate si `harness.log` tiene la línea `<orden> NN -> 1` que el comando acaba de escribir; si no, para | D | 0003, CA-18 (RF-29) |
 | F-33 | Un prompt de Task lleva prosa o el capítulo | Contexto contaminado y fuga de la señal (§4.6) | Inspección de las trazas en la novela de humo. Después, la auditoría de trayectoria | I; A | 0003 (CA-10); 0002 |
-| F-34 | No se detecta un `intervencion.md` vivo | El bucle sigue sobre una novela parada | Ensayo: un `intervencion.md` sin `resuelto:` en el workspace de humo y una sesión de `/novela-continuar`, que debe parar sin invocar a ningún agente. Después, `novela pendiente` | D; T | propuesto (una sesión en la novela de humo); 0002 |
+| F-34 | No se detecta un `intervencion.md` vivo | El bucle sigue sobre una novela parada | Ensayo: un `intervencion.md` sin `resuelto:` en el workspace de humo y una sesión de `/novela-continuar`, que debe parar sin invocar a ningún agente. Después, `novela pendiente` | D; T | 0003, CA-19 (RF-31); 0002 |
 | F-35 | Punto de reanudación equivocado | Se repite un paso ya confirmado o se salta uno | Ensayo de reanudación (§4.12) sobre las cuatro filas de la tabla de reanudación. La custodia para lo que se salte `validar` | D + A | 0002 (§4.12) |
 | F-36 | El slash command no se resuelve, por la conversión de rutas de MSYS | La sesión recibe una ruta y no hace nada | `MSYS_NO_PATHCONV=1` en el bucle, y el freno | D | 0003 |
 
@@ -473,10 +473,10 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 | # | Fallo | Consecuencia | Verificador | Clase | Estado |
 |---|---|---|---|---|---|
 | F-40 | El run de arranque se reutiliza como run del capítulo 1, o al revés | El capítulo 1 queda atribuido a un canon vacío | Tests del run de arranque | T | 0003, CA-07 |
-| F-41 | Un `NOVELA_RUN_ID` fijado mezcla arranque y capítulo | Lo mismo que F-40, por otra vía | `run.abrir` rechaza un run fijado cuyo manifiesto sea de otra fase o de otro capítulo | T | propuesto (el bucle no fija la variable) |
+| F-41 | Un `NOVELA_RUN_ID` fijado mezcla arranque y capítulo | Lo mismo que F-40, por otra vía | `run.abrir` rechaza un run fijado cuyo manifiesto sea de otra fase o de otro capítulo | T | 0003, CA-16 (RF-27) |
 | F-42 | El arranque y el capítulo 1 caen en el mismo minuto | `RunInvalido` con salida 2, y el procedimiento para | Test de la colisión. La salida 2 para sin reintentar | T | 0003 |
 | F-43 | `git` ausente o lento | `sucio` sin dato | `true` por defecto | T | 0003 (plan, D-6) |
-| F-44 | El sufijo `sesion=` altera las líneas que cuenta el procedimiento | La cuenta de intentos se rompe sin dar error | CA-12 comprueba además que la subcadena `validar NN -> ` sigue intacta | T | propuesto (una aserción en CA-12) |
+| F-44 | El sufijo `sesion=` altera las líneas que cuenta el procedimiento | La cuenta de intentos se rompe sin dar error | CA-12 comprueba además que la subcadena `validar NN -> ` sigue intacta | T | 0003, CA-12 (RF-21) |
 | F-45 | `NOVELA_SESSION_ID` inválido, o heredado de la shell del bucle en una orden manual | Correlación traza ↔ paso perdida o falsa | Validación del formato (CA-12). La variable solo se exporta en la shell del bucle | T | 0003 |
 | F-46 | El OpenAPI queda desfasado tras cambiar `Manifest` | Se rompe el contrato con el frontend | `test_openapi_al_dia` | T | activo |
 
@@ -484,7 +484,7 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 
 | # | Fallo | Consecuencia | Verificador | Clase | Estado |
 |---|---|---|---|---|---|
-| F-50 | `novela` fuera del PATH, o la instalación editable sin sincronizar | Todas las órdenes fallan (ver F-32) | Comprobación de puesta en marcha, y `command -v novela` antes del bucle | D | 0003 (fase 6); propuesto (antes del bucle) |
+| F-50 | `novela` fuera del PATH, o la instalación editable sin sincronizar | Todas las órdenes fallan (ver F-32) | Comprobación de puesta en marcha, y `novela comprobar-entorno` antes del bucle | D + T | 0003, CA-13 y CA-17 (RF-30) |
 | F-51 | Una sesión del harness sin `--setting-sources project,local` | Los hooks del ámbito de usuario reescriben órdenes, y el `allow` deja de casar (E-10). Además se inyecta contexto que el manifiesto no registra | El flag va en el bucle documentado y en las sesiones interactivas. Una sesión manual no tiene verificador | D | 0003; U (§5.17) |
 | F-52 | El plugin de Langfuse no carga, o falla | Sin trazas y sin aviso: el bucle sigue | Novela de humo (CA-10) y `~/.claude/state/langfuse_hook.log` | D | 0003 |
 | F-53 | Una sesión avanza el checkpoint pero ha hecho algo indebido | El freno no lo ve, porque solo mira si hubo avance | Auditoría de trayectoria | A | 0002 |
@@ -493,10 +493,10 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 
 | # | Fallo | Consecuencia | Verificador | Clase | Estado |
 |---|---|---|---|---|---|
-| F-60 | El canario pasa en vacío: el agente no llegó a ejecutarse, o todo se deniega | Verde falso: cuatro fallos que no prueban ninguna barrera | Dos controles positivos. El `canario` devuelve un nonce propio, que prueba que se ejecutó él, y escribe una ruta permitida del workspace, que tiene que existir | T | propuesto |
+| F-60 | El canario pasa en vacío: el agente no llegó a ejecutarse, o todo se deniega | Verde falso: cinco fallos que no prueban ninguna barrera | Dos controles positivos. El `canario` devuelve un nonce propio, que prueba que se ejecutó él, y escribe una ruta permitida del workspace, que tiene que existir | T | 0003, CA-09 (RF-18) |
 | F-61 | `--agents` no sustituye al `escritor` del proyecto | El cuarto intento lo hace el agente real | Nonce del impostor | T | 0003 (plan, tarea 5.2) |
-| F-62 | El misterio se lee pero no se imprime | El marcador no aparece en la salida y el intento parece fallido | Buscar el marcador también en los transcripts de la sesión, cuya ruta fija `--session-id` (E-5) | T | propuesto |
-| F-63 | El canario corre con el árbol sucio o con `settings.local.json` ampliado | Prueba una configuración que no es la del bucle | Las comprobaciones previas de `ejecutar.py` (F-22) | T | propuesto |
+| F-62 | El misterio se lee pero no se imprime | El marcador no aparece en la salida y el intento parece fallido | Buscar el marcador también en los transcripts de la sesión, cuya ruta fija `--session-id` (E-5) | T | 0003, CA-09 (RF-18) |
+| F-63 | El canario corre con el árbol sucio o con `settings.local.json` ampliado | Prueba una configuración que no es la del bucle | `novela comprobar-entorno --limpio` al empezar `ejecutar.py` | T | 0003, CA-09 y CA-17 (RF-18, RF-28) |
 
 **Novela de humo**
 
@@ -504,13 +504,13 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 |---|---|---|---|---|---|
 | F-70 | Un baseline de una sola ejecución | Se usa como referencia una sola muestra con σ alta | El baseline declara su número de ejecuciones y no sirve para aceptar cambios de prompt hasta tener varias (§4.8) | — | U (§5.16) |
 
-Las filas **propuesto** se agrupan en tres enmiendas posibles a la 0003, todas pequeñas:
+Ninguna fila queda en **propuesto**. Las que lo estaban entraron en la spec 0003 v0.3 (§16, «Enmiendas de la v0.3»), agrupadas en tres bloques:
 
-1. **Endurecer el hook**: F-14, F-19, F-20 y F-24.
-2. **Comprobaciones previas y controles positivos**: F-22, F-50, F-60, F-62 y F-63.
-3. **Reglas de lectura del procedimiento y aserciones de test**: F-03, F-05, F-32, F-34, F-41 y F-44.
+- **endurecer el hook**: F-14, F-19, F-20 y F-24;
+- **comprobaciones previas y controles positivos**: F-11, F-22, F-50, F-60, F-62 y F-63;
+- **reglas de lectura del procedimiento y aserciones de test**: F-03, F-05, F-32, F-34, F-41 y F-44.
 
-Mientras no entren, cada una sigue siendo un fallo con nombre y sin verificador.
+Un fallo nuevo que aparezca al implementar se añade aquí como `propuesto`, y va a la spec antes que al código.
 
 ---
 
@@ -560,7 +560,7 @@ Cada uno con su condición de revisión: un riesgo aceptado sin criterio para re
 |---|---|---|---|
 | Pre-commit | Type checking, SAST, tests unitarios | A, T | segundos |
 | Cada escritura o `Bash` de Claude Code | hook `PreToolUse`: `estado/`, salidas por rol, misterio y `estado.db` en órdenes (spec 0003) | A | < 300 ms |
-| Antes del bucle desatendido y del canario | `novela` en el PATH, `settings.local.json` solo con `enabledPlugins` (§4.17, propuesto) | A | gratis |
+| Antes del bucle desatendido y del canario | `novela comprobar-entorno`: `novela` en el PATH, `python` real, hook presente, `settings.local.json` solo con `enabledPlugins`; con `--limpio` en el canario (spec 0003) | A | gratis |
 | Tras cada sesión del bucle | freno: sin avance de `checkpoints/latest.json`, el bucle para (spec 0003) | A | gratis |
 | CI del harness | + mutación sobre gates, contrato API, contrato de `.claude/`, model checking | T, A | minutos |
 | Tras el `trazador`, una vez | `novela validar-plan`: fair play del plan, ids, orden de pistas, forma de la curva de tensión, secreto por capítulo en las fichas | A | gratis |

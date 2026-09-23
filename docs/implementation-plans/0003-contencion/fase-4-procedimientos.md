@@ -6,7 +6,8 @@ una novela.
 **Al terminar existe**: `.claude/commands/novela-nueva.md`, `novela-continuar.md` y
 `novela-auditar.md`.
 
-**Cierra**: RF-13 a RF-16. Se aceptan con CA-10, en la fase 7.
+**Cierra**: RF-13 a RF-16, RF-29. CA-18 (revisión y un test). El resto se acepta con CA-10, en la
+fase 7.
 
 Requiere la fase 1 (los nombres de los agentes) y la 3 (sin el run de arranque, `/novela-nueva`
 deja el capítulo 1 atribuido a un canon vacío).
@@ -50,7 +51,18 @@ argument-hint: <slug> [--capitulos N]
   | 1 | Gate fallido: reintento, según el paso |
   | 2 | Uso incorrecto: el procedimiento está mal. Para sin `intervencion.md` |
   | 3 | Lock ocupado: otro proceso trabaja en la novela. Para sin `intervencion.md` |
-  | 4 | Workspace inválido: `intervencion.md` y para. No es un gate, no se reintenta |
+  | 4 | Workspace inválido: `intervencion.md` y para. No es un gate, no se reintenta. **Única excepción**: el briefing del `trazador` en `/novela-nueva` (4.2) |
+
+- **Las tres reglas de lectura de la spec §5.4 (RF-29), literales en los dos procedimientos con
+  gates**:
+  1. **Un 1 solo es un gate si el log lo dice.** Tras un 1 de `validar` o `aplicar-delta`, lee la
+     última línea de `harness.log`. Si contiene `<orden> NN -> 1`, es un gate. Si no la contiene
+     (un traceback, un import roto, `-> error`), para sin reintentar y sin `intervencion.md`,
+     porque ningún agente puede arreglar el CLI.
+  2. **Un veredicto ilegible es un rechazo.** Si un `qa/` falta, no es JSON o no tiene `veredicto`,
+     el gate lo trata como rechazo.
+  3. **Una intervención se resuelve con una línea.** Un `intervencion.md` sin la línea
+     `resuelto: <sha o motivo>` está vivo.
 
 ---
 
@@ -98,10 +110,21 @@ Pasos, de la spec §5.4:
    briefing valida el canon contra sus modelos al cargarlo.
    - Sale con 0 → Task `trazador`, con salidas `plan/escaleta.md` y `plan/capitulos/NN.md` para
      todos los capítulos.
-   - Sale con distinto de 0 → reintento del `arquitecto`, con `causa:` = el stderr del briefing.
-     **Cuenta de intentos**: las líneas `briefing 01 trazador -> ` con código distinto de 0 del
-     `harness.log` del run de arranque (la ruta sale del paso 2). Con dos reintentos agotados,
-     `intervencion.md` en ese run y para.
+   - Sale con 4 **y** la última línea de `harness.log` del run de arranque contiene
+     `briefing 01 trazador -> error · WorkspaceInvalido` → es el gate. Reintento del
+     `arquitecto`, con `causa:` = lo que sigue a `·` en esa línea. Es la excepción a la tabla de
+     códigos de la spec §5.4: `con_codigos` convierte `WorkspaceInvalido` en 4, no en 1.
+   - **Cuenta de intentos**: las líneas `briefing 01 trazador -> error · WorkspaceInvalido` de ese
+     log (la ruta del run sale del paso 2). Con dos reintentos agotados, `intervencion.md` en ese
+     run y para.
+   - Cualquier otro código, o un 4 sin esa línea → tabla de códigos.
+
+   **Test que fija la línea** (CA-18), en `novela/slices/briefing/test_briefing.py::test_canon_invalido_en_el_log`:
+   con un `canon/premisa.md` que no valida, `novela briefing <slug> 1 trazador` sale con 4 y la
+   última línea de `harness.log` contiene esa subcadena. Es el único test de esta fase: el
+   procedimiento depende de un formato de log, y si alguien lo cambia, que falle CI y no la
+   primera novela. **Commit** aparte, antes que el procedimiento:
+   `test(briefing): la línea de log del canon inválido es contrato de /novela-nueva`.
 4. Devuelve: los ids creados (el retorno del `arquitecto`, tal cual, tres líneas) y la orden
    siguiente, `/novela-continuar <slug>`.
 
@@ -112,8 +135,9 @@ es de arranque y `/novela-continuar` no lo reintenta. Si la novela de humo lo en
 solución es un paso 3b aquí que reintente al `trazador`, y va a la spec como enmienda, no se
 improvisa en el procedimiento.
 
-**Revisión** (RF-13): los cuatro pasos en ese orden; el briefing del `trazador` antes de su Task;
-el reintento es del `arquitecto`, no del `trazador`; la cuenta sale del log.
+**Revisión** (RF-13, RF-29): los cuatro pasos en ese orden; el briefing del `trazador` antes de su
+Task; el reintento es del `arquitecto`, no del `trazador`; la cuenta sale del log; la excepción
+del 4 está escrita con su línea de log; la tabla de códigos y las tres reglas de lectura están.
 
 **Commit**: `feat(comandos): /novela-nueva`
 
@@ -133,8 +157,8 @@ De la spec §5.4, con la decisión que falta en cada rama:
    - `novela pendiente <slug>`: distinto de 0 → termina, «no quedan capítulos».
    - `novela estado <slug> --breve`.
    - Si existe algún `novelas/<slug>/runs/*/intervencion.md` **sin** una línea `resuelto:` → para
-     y nombra el fichero. (El humano resuelve añadiendo esa línea. Es la convención más barata
-     que distingue una intervención vieja de una viva.)
+     y nombra el fichero (regla de lectura 3). Este paso va **antes** que cualquier `novela
+     briefing`: el ensayo de CA-19 comprueba que la sesión para sin crear ningún run.
    - `NN` = capítulo de `checkpoints/latest.json` + 1, o `01` si no existe. El ancho de `NN` es el
      del workspace: lo da el propio `latest.json` o la salida de `novela briefing`.
    - Punto de reanudación: ver abajo.
@@ -150,11 +174,13 @@ De la spec §5.4, con la decisión que falta en cada rama:
    reintento del **`editor-estilo`** con su **mismo briefing** y `reintento: qa/NN-validacion.json`,
    y se repite 5. Regenerar su briefing rompería la custodia (P-07).
 6. **Gate de revisión**: lee el campo `veredicto` de `qa/NN-continuidad.json` y
-   `qa/NN-suspense.json`, y **solo ese campo**. Si alguno rechaza → reintento del `escritor` con
-   `reintento:` esas dos rutas, y vuelta a 3.
+   `qa/NN-suspense.json`, y **solo ese campo**. Si alguno rechaza, o no se puede leer (regla de
+   lectura 2) → reintento del `escritor` con `reintento:` esas dos rutas, y vuelta a 3.
 7. `novela briefing <slug> <cap> cronista` → Task `cronista`, salida `estado/deltas/NN.json` →
-   `novela aplicar-delta <slug> <cap>`. Sale con 1 → reintento del `cronista` con `causa:` = la
-   causa de la última línea `aplicar-delta NN -> 1` de `harness.log`, y vuelta a `aplicar-delta`.
+   `novela aplicar-delta <slug> <cap>`. Sale con 1 y la última línea contiene
+   `aplicar-delta NN -> 1` → reintento del `cronista` con `causa:` = lo que sigue a `·`, y vuelta a
+   `aplicar-delta`. **Salvo si esa causa empieza por `custodia:`**: lo roto es el orden o el
+   capítulo, no el delta, y el `cronista` no puede arreglarlo. `intervencion.md` y para.
 8. `novela checkpoint <slug> <cap>`.
 
 ### Cuenta de intentos
@@ -208,7 +234,8 @@ corte a mitad de revisión consume así un intento del gate de revisión. La cue
 (que es lo que protege RNF-04); como mucho, se consume de más. `novela gate` de la 0002 lo
 resuelve con código.
 
-**Revisión** (RF-14): briefings de revisión antes de ninguna revisión; `validar` después del
+**Revisión** (RF-14, RF-29): las tres reglas de lectura y la tabla de códigos; `custodia:` va a
+intervención; briefings de revisión antes de ninguna revisión; `validar` después del
 editor y reintento al editor sin regenerar; `cronista` después del gate; la cuenta desde
 `harness.log`; `intervencion.md` al tercer fallo; ningún paso lee `capitulos/NN.md` (`CLAUDE.md`:
 el orquestador no lee prosa); todos los prompts de Task según 4.1.

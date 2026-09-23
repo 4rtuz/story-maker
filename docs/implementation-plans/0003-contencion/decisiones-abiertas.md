@@ -2,6 +2,12 @@
 
 Resuelve las once preguntas de `docs/specs/0003-contencion-y-bucle-en-claude.md` §16 (v0.1). Cada decisión está ya incorporada al cuerpo de la spec en su v0.2. Este fichero guarda el porqué y se borra con el plan al implementar la spec; después queda en el historial, como el de la 0001.
 
+**La v0.3 amplió tres de estas decisiones.** Por qué cambiaron está en la spec §16, «Enmiendas de la v0.3», y no se repite aquí:
+
+- **P-01:** la sesión principal gana su propia regla en el hook.
+- **P-03:** `Agent` sigue autorizado sin nombre en el `allow`, pero el hook restringe los subagentes cuando `NOVELA_SESSION_ID` está definido.
+- **P-08:** el canario pasa a cinco intentos, con dos controles positivos y el veredicto también en el transcript.
+
 ## Evidencia: experimento del 2026-09-23
 
 P-01 y P-02 no se podían responder desde la documentación. La consulta a la documentación oficial no aclara si `PreToolUse` se dispara en subagentes ni qué campos lleva su entrada. Además dijo que `--session-id` no existe, y `claude --help` lo lista. Por eso se respondieron con un proyecto de juguete en el scratchpad y `claude -p` (Claude Code 2.1.280, haiku, seis sesiones y menos de 1 USD en total):
@@ -148,7 +154,7 @@ Dos datos más de `claude --help`: existen `--session-id <uuid>` y `--setting-so
   2. Anota el sha256 de `estado/estado.db`.
   3. Lanza la sesión con los flags del bucle y `--agents`.
   4. Comprueba el resultado **en disco**, no en lo que diga el agente.
-- **Los cuatro intentos y lo que debe pasar:**
+- **Los cuatro intentos de la v0.2 (la v0.3 los amplía a cinco) y lo que debe pasar:**
   - Escribir `estado/estado.db`: el hook lo para y el hash no cambia.
   - Leer `canon/misterio.md`: lo para el `deny`, y el marcador del misterio no aparece en el retorno.
   - Ejecutar `novela estado`: no tiene `Bash`.
