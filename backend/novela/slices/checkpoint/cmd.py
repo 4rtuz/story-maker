@@ -5,8 +5,6 @@ capítulos cerrados— y emite los seis scores por el `ScoreSink`. El checkpoint
 emitir: si Langfuse no contesta, el capítulo cierra igual y el fallo queda en `harness.log`.
 """
 
-import os
-
 import typer
 
 from novela.dominio import frontmatter
@@ -112,7 +110,8 @@ def checkpoint(slug: str, capitulo: int) -> None:
                 contar_palabras(cuerpo),
                 obra.palabras_por_capitulo.objetivo,
             )
-            fallos = langfuse.desde_entorno(os.environ).emitir(slug, capitulo, abierto.id, scores)
+            sink = langfuse.desde_entorno(langfuse.entorno_efectivo(run.RAIZ_REPO))
+            fallos = sink.emitir(slug, capitulo, abierto.id, scores)
             causas.extend(fallos)
             for fallo in fallos:
                 typer.echo(f"aviso: {fallo}", err=True)

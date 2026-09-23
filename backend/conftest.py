@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 import sys
@@ -8,6 +9,7 @@ from pathlib import Path
 import pytest
 from hypothesis import settings
 
+from novela.plataforma import run
 from novela.plataforma.workspace import WorkspaceRepository
 from tests.fixtures import fabrica
 
@@ -16,6 +18,18 @@ from tests.fixtures import fabrica
 settings.register_profile("default", deadline=None, max_examples=50)
 settings.register_profile("ci", deadline=None, max_examples=200)
 settings.load_profile("default")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _sin_claves_reales(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
+    """Ningún test emite scores de verdad (validators.md §3.5): ni el `.env` del repo ni el entorno
+    del operador llegan al emisor. Los tests que lo necesitan fijan los suyos."""
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(run, "RAIZ_REPO", tmp_path_factory.mktemp("repo-sin-env"))
+        for clave in list(os.environ):
+            if clave == "TRACE_TO_LANGFUSE" or clave.startswith("LANGFUSE_"):
+                mp.delenv(clave)
+        yield
 
 
 _TOMA_LOCK = (

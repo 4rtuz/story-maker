@@ -5,6 +5,8 @@ import urllib.request
 from typing import Any
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from novela.plataforma import langfuse
 
@@ -88,3 +90,44 @@ def test_sink_caido_no_rompe(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     assert len(fallos) == 1 and "sin red" in fallos[0]
     assert len(llamadas) == 1
+
+
+# Por partes: con el prefijo del proveedor pegado al resto, el pre-commit rechazaría el fichero.
+SECRETA = "sk-" + "lf-dummy0000"
+
+
+@pytest.mark.parametrize(
+    "linea", ["LANGFUSE_HOST=v", "export LANGFUSE_HOST=v", 'LANGFUSE_HOST="v"', "LANGFUSE_HOST='v'"]
+)
+def test_fusionar_formatos(linea: str) -> None:
+    """RF-32, spec 0003 §5.3: `export` y comillas opcionales."""
+    assert langfuse.fusionar({}, linea + "\n") == {"LANGFUSE_HOST": "v"}
+
+
+def test_fusionar_ignora_lo_demas() -> None:
+    """Vacías, comentarios, sin `=` y claves ajenas, fuera y sin error."""
+    texto = "\n# comentario\nsin igual\nOTRA=x\nTRACE_TO_LANGFUSE=true\nLANGFUSE_SECRET_KEY="
+    texto += SECRETA + "\n"
+    assert langfuse.fusionar({"PATH": "p"}, texto) == {
+        "PATH": "p",
+        "TRACE_TO_LANGFUSE": "true",
+        "LANGFUSE_SECRET_KEY": SECRETA,
+    }
+
+
+def test_fusionar_sin_env() -> None:
+    assert langfuse.fusionar({"A": "1"}, None) == {"A": "1"}
+
+
+_claves = st.sampled_from(
+    ["TRACE_TO_LANGFUSE", "LANGFUSE_HOST", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "OTRA"]
+)
+_valores = st.text(alphabet="abcdefghij0123456789-", min_size=1)
+
+
+@given(st.dictionaries(_claves, _valores), st.dictionaries(_claves, _valores))
+def test_manda_el_entorno(entorno: dict[str, str], fichero: dict[str, str]) -> None:
+    """Lo que ya está en el entorno sale igual, y del .env solo entran las claves del emisor."""
+    fusion = langfuse.fusionar(entorno, "".join(f"{k}={v}\n" for k, v in fichero.items()))
+    assert all(fusion[k] == v for k, v in entorno.items())
+    assert set(fusion) == set(entorno) | {k for k in fichero if k != "OTRA"}

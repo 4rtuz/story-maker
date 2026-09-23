@@ -79,7 +79,7 @@ claude --session-id "$NOVELA_SESSION_ID" --setting-sources project,local --model
 
 ### Claves y trazado
 
-El plugin se habilita solo en `.claude/settings.local.json` (`enabledPlugins`, nada más), que está en `.gitignore`; el opt-in es tenerlo habilitado, y sus claves las guarda él en el llavero del sistema. Los scores de `novela checkpoint` leen `TRACE_TO_LANGFUSE` y las claves del entorno de usuario. No las escribas en `.claude/settings.json`, ni en el código, ni en un briefing.
+El plugin se habilita solo en `.claude/settings.local.json` (`enabledPlugins`, nada más), que está en `.gitignore`; el opt-in es tenerlo habilitado, y sus claves las guarda él en el llavero del sistema. Los scores de `novela checkpoint` leen `TRACE_TO_LANGFUSE` y las claves del entorno o de `.env` en la raíz, que git ignora. No las escribas en `.claude/settings.json`, ni en el código, ni en un briefing.
 
 El trazado no captura el contexto ensamblado, así que los ficheros de `runs/<run_id>/briefings/` son el único registro de qué vio cada agente. No los borres al limpiar.
 

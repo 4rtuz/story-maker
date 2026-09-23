@@ -3,15 +3,19 @@
 Dos implementaciones: el no-op, que es lo que hay salvo con `TRACE_TO_LANGFUSE` exactamente igual
 a "true", y el de Langfuse, por HTTP de la stdlib contra `POST /api/public/scores`. Es la única
 salida de red del CLI. El trazado nunca puede ser la razón por la que un capítulo no cierra: los
-fallos se devuelven, no se lanzan. Las claves llegan por entorno desde settings.local.json.
+fallos se devuelven, no se lanzan. Las claves salen del entorno del proceso o de `.env` en la raíz
+del repo, que git ignora (spec 0003 §5.3); el entorno manda.
 """
 
 import base64
 import json
+import os
+import re
 import urllib.error
 import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 TIMEOUT_S = 5.0
@@ -68,6 +72,34 @@ class SinkLangfuse:
                 # Al primer fallo se para: seis timeouts seguidos retendrían el checkpoint.
                 return [f"Langfuse no recibió {nombre}: {exc}"]
         return []
+
+
+_LINEA = re.compile(r"(?:export\s+)?([A-Za-z_]\w*)\s*=\s*(.*)")
+
+
+def fusionar(entorno: Mapping[str, str], texto_env: str | None) -> dict[str, str]:
+    """`entorno` más las claves del emisor de un `.env`: `TRACE_TO_LANGFUSE` y `LANGFUSE_*`, y nada
+    más. Lo ya definido no se pisa. Una línea que no entiende se salta sin error y sin citarla."""
+    fusion = dict(entorno)
+    for linea in (texto_env or "").splitlines():
+        casa = _LINEA.fullmatch(linea.strip())
+        if casa is None:
+            continue
+        clave, valor = casa.groups()
+        if clave != "TRACE_TO_LANGFUSE" and not clave.startswith("LANGFUSE_"):
+            continue
+        if len(valor) >= 2 and valor[0] == valor[-1] and valor[0] in "'\"":
+            valor = valor[1:-1]
+        fusion.setdefault(clave, valor)
+    return fusion
+
+
+def entorno_efectivo(raiz: Path) -> dict[str, str]:
+    """Lo que ve el emisor: el entorno del proceso más `raiz/.env`. Nunca toca `os.environ`, así
+    que las claves no llegan a ningún hijo del CLI (RNF-07)."""
+    env = raiz / ".env"
+    texto = env.read_text(encoding="utf-8", errors="replace") if env.is_file() else None
+    return fusionar(os.environ, texto)
 
 
 def desde_entorno(entorno: Mapping[str, str]) -> ScoreSink:

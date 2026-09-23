@@ -776,7 +776,7 @@ claude plugin install langfuse-observability@langfuse-observability
 
 El plugin está instalado en el ámbito de usuario y se habilita solo para el proyecto, en `.claude/settings.local.json` (`"enabledPlugins": {"langfuse-observability@langfuse-observability": true}`), que está en `.gitignore`: el opt-in es estar habilitado. Sus hooks son `Stop` y `SessionEnd`, y su log está en `~/.claude/state/langfuse_hook.log`. Necesita `uv` en el PATH, porque si no cae a `python3`, que en Windows puede ser el alias de la Microsoft Store. El bucle exporta `CC_LANGFUSE_TRACE_TAGS=<slug>`, que el plugin lee, para filtrar las trazas por novela. Que el plugin cargue con `--setting-sources project,local`, que deja fuera el ámbito de usuario donde está instalado, no se ha comprobado todavía: es la primera comprobación de la novela de humo (spec 0003, CA-10).
 
-`TRACE_TO_LANGFUSE` ya no habilita el trazado. Lo sigue leyendo el `ScoreSink` de `novela checkpoint` (§10.5), junto con las claves, del entorno del proceso: tienen que estar en el entorno de usuario, porque `novela comprobar-entorno` no admite `env` en `settings.local.json` (`validators.md` §4.17, F-54). Ningún fichero versionado lleva claves.
+`TRACE_TO_LANGFUSE` ya no habilita el trazado. Lo sigue leyendo el `ScoreSink` de `novela checkpoint` (§10.5), junto con las claves, del entorno del proceso o de `.env` en la raíz del repo, que git ignora. El entorno manda, y el `.env` no se carga en `os.environ`: sus claves no llegan a ningún hijo del CLI ni a la sesión de Claude Code. Ningún fichero versionado lleva claves.
 
 ### 10.2 Qué se traza realmente
 
@@ -809,7 +809,7 @@ Los prompts de los agentes son `.claude/agents/*.md` y se versionan con git. El 
 
 ### 10.5 Evaluación
 
-Los scores no los emite el hook: los escribe `novela` contra la API de Langfuse al cerrar cada capítulo, tomándolos de `qa/NN-suspense.json` y del resultado de los gates. Métricas por capítulo: `coherencia`, `continuidad`, `tension`, `longitud`, `fair_play`, `estilo`. `tension`, `fair_play` y `coherencia` son las `puntuaciones` del `lector-suspense`; `continuidad` y `estilo` salen del veredicto de `qa/NN-continuidad.json` y `qa/NN-estilo.json` (1, 0,5 o 0); `longitud` es `1 − |palabras/objetivo − 1|`. Los emite `novela checkpoint` después de escribir el checkpoint, con un id por capítulo y métrica para que reemitir sustituya, y un fallo de Langfuse queda en `harness.log` sin impedir el cierre.
+Los scores no los emite el hook: los escribe `novela` contra la API de Langfuse al cerrar cada capítulo, tomándolos de `qa/NN-suspense.json` y del resultado de los gates. Métricas por capítulo: `coherencia`, `continuidad`, `tension`, `longitud`, `fair_play`, `estilo`. `tension`, `fair_play` y `coherencia` son las `puntuaciones` del `lector-suspense`; `continuidad` y `estilo` salen del veredicto de `qa/NN-continuidad.json` y `qa/NN-estilo.json` (1, 0,5 o 0); `longitud` es `1 − |palabras/objetivo − 1|`. Los emite `novela checkpoint` después de escribir el checkpoint, con un id por capítulo y métrica para que reemitir sustituya, y un fallo de Langfuse queda en `harness.log` sin impedir el cierre. Las claves, del entorno o de `.env` (§10.1).
 
 El evaluador de sesión (LLM como juez) compara ejecuciones completas y devuelve puntos a mejorar y mejoras propuestas.
 

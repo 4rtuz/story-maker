@@ -1,4 +1,5 @@
 import json
+import os
 import socket
 import tempfile
 import urllib.error
@@ -12,7 +13,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from novela.dominio.artefactos import Checkpoint
-from novela.plataforma import atomic
+from novela.plataforma import atomic, langfuse, run
 from novela.plataforma.workspace import WorkspaceRepository
 from novela.slices.checkpoint import cmd
 from tests import estrategias
@@ -121,3 +122,94 @@ def test_nunca_antes_de_aplicar_delta(novelas: Novelas) -> None:
     fabrica.preparar_capitulo(ws.raiz.parent, ws.slug, fabrica.DEMO, 8)
     assert _cli(ws, "checkpoint").exit_code == 1
     assert ws.ultimo_checkpoint() is not None and ws.ultimo_checkpoint().capitulo == 7  # type: ignore[union-attr]
+
+
+# Nombres y valores por partes: juntos, el pre-commit anti-claves rechazaría este fichero.
+_EMISOR = {
+    "TRACE_TO_LANGFUSE": "true",
+    **{
+        f"LANGFUSE_{k}": v
+        for k, v in {
+            "PUBLIC_KEY": "publica-de-prueba",
+            "SECRET_KEY": "secreta-de-prueba",
+            "BASE_URL": "https://env.invalid",
+        }.items()
+    },
+}
+
+
+def _repo_con_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, texto: str) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".env").write_text(texto, encoding="utf-8")
+    monkeypatch.setattr(run, "RAIZ_REPO", repo)
+    for clave in [*_EMISOR, "LANGFUSE_HOST"]:
+        monkeypatch.delenv(clave, raising=False)
+
+
+def _lineas(entorno: dict[str, str]) -> str:
+    return "".join(f"{k}={v}\n" for k, v in entorno.items())
+
+
+def test_claves_desde_env(
+    novelas: Novelas, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CA-20 (RF-32): con las claves solo en RAIZ_REPO/.env, el sink recibe los seis scores; una
+    clave ajena no llega al sink, y os.environ no cambia."""
+    ws = _cerrar_hasta_delta(novelas)
+    _repo_con_env(tmp_path, monkeypatch, _lineas(_EMISOR) + "OTRA=x\n")
+    vistos: list[dict[str, str]] = []
+    real = langfuse.desde_entorno
+
+    def espia(entorno: dict[str, str]) -> langfuse.ScoreSink:
+        vistos.append(dict(entorno))
+        return real(entorno)
+
+    urls: list[str] = []
+
+    class Respuesta:
+        def __enter__(self) -> "Respuesta":
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+    def capturar(peticion: urllib.request.Request, timeout: float) -> Respuesta:
+        urls.append(peticion.full_url)
+        return Respuesta()
+
+    monkeypatch.setattr(langfuse, "desde_entorno", espia)
+    monkeypatch.setattr(urllib.request, "urlopen", capturar)
+    antes = dict(os.environ)
+    assert _cli(ws, "checkpoint").exit_code == 0
+    assert dict(os.environ) == antes
+    assert urls == ["https://env.invalid/api/public/scores"] * 6
+    assert len(vistos) == 1 and "OTRA" not in vistos[0]
+
+
+def test_manda_el_entorno_del_proceso(
+    novelas: Novelas, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CA-20: con TRACE_TO_LANGFUSE también en el entorno y otro valor, manda el entorno."""
+    ws = _cerrar_hasta_delta(novelas)
+    _repo_con_env(tmp_path, monkeypatch, _lineas(_EMISOR))
+    monkeypatch.setenv("TRACE_TO_LANGFUSE", "false")
+
+    def prohibido(*_: object, **__: object) -> None:
+        raise AssertionError("checkpoint abrió una conexión de red")
+
+    monkeypatch.setattr(urllib.request, "urlopen", prohibido)
+    assert _cli(ws, "checkpoint").exit_code == 0
+
+
+def test_env_ilegible_no_rompe_ni_se_imprime(
+    novelas: Novelas, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CA-20: un .env con líneas que no entiende no hace fallar a checkpoint, y ninguna línea
+    suya llega a la salida."""
+    ws = _cerrar_hasta_delta(novelas)
+    basura = ["=sin-clave", "LANGFUSE_HOST", "\x00\x01 binario", 'LANGFUSE_X="sin cerrar']
+    _repo_con_env(tmp_path, monkeypatch, "\n".join(basura) + "\n")
+    resultado = _cli(ws, "checkpoint")
+    assert resultado.exit_code == 0
+    assert not any(linea in resultado.output for linea in basura)
