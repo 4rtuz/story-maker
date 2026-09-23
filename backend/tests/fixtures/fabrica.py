@@ -1,0 +1,512 @@
+"""Fábrica de workspaces sintéticos: el agente falso de validators.md §3.5.
+
+Genera de forma determinista lo que escribirían el arquitecto, el trazador, el escritor, los
+revisores y el cronista. La prosa es mala a propósito: se prueba el mecanismo, no el texto.
+Ningún fixture se genera llamando a un modelo.
+"""
+
+import hashlib
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from typer.testing import CliRunner
+
+from novela.cli import app
+from novela.dominio import frontmatter
+from novela.dominio.artefactos import Checkpoint
+from novela.dominio.estado import Cursor, Estado, EstadoPista, Hecho, Hilo, Metricas
+from novela.plataforma import estado_db
+
+ELENA, TOMAS, INES = "per-elena-vidal", "per-tomas-reyes", "per-ines-mar"
+FARO, PUERTO, ARCHIVO = "esc-casa-del-faro", "esc-puerto", "esc-archivo"
+PALABRAS_POR_CAPITULO = 300
+GANCHOS = ("pregunta_abierta", "amenaza", "revelacion", "decision_pendiente", "calma_inquietante")
+APERTURAS = (
+    "una línea de diálogo",
+    "un objeto en primer plano",
+    "una frase de menos de 6 palabras",
+)
+
+
+@dataclass(frozen=True)
+class Novela:
+    num_capitulos: int
+    pistas: tuple[tuple[int, int | None], ...]  # (capítulo en que se planta, en que se paga)
+    hilos: tuple[tuple[int, int], ...]  # (capítulo en que se abre, en que se cierra)
+
+    def pistas_de(self, n: int) -> tuple[list[str], list[str]]:
+        plantar = [f"pis-{i:03d}" for i, (p, _) in enumerate(self.pistas, 1) if p == n]
+        pagar = [f"pis-{i:03d}" for i, (_, q) in enumerate(self.pistas, 1) if q == n]
+        return plantar, pagar
+
+    def hilos_de(self, n: int) -> tuple[list[str], list[str]]:
+        abre = [f"hil-{j:03d}" for j, (a, _) in enumerate(self.hilos, 1) if a == n]
+        cierra = [f"hil-{j:03d}" for j, (_, c) in enumerate(self.hilos, 1) if c == n]
+        return abre, cierra
+
+
+DEMO = Novela(24, pistas=((2, 20), (3, 6), (5, 22), (8, 23)), hilos=((1, 10), (4, 24), (7, 15)))
+# Una pista plantada en el 1 que nadie paga: el hallazgo de CA-23.
+HUERFANA = Novela(3, pistas=((1, 3), (1, None)), hilos=((1, 3),))
+
+
+def _md(meta: dict[str, Any], cuerpo: str) -> str:
+    return frontmatter.unir(meta, cuerpo)
+
+
+def nn(n: int) -> str:
+    return f"{n:02d}"
+
+
+def run_id(n: int) -> str:
+    return f"r-202601{n:02d}-0900"
+
+
+# --- Canon: lo que escribiría el arquitecto --------------------------------------------------
+
+
+def _ficha(id_: str, nombre: str, rol: str, habla: str, secreto: str | None) -> str:
+    meta: dict[str, Any] = {
+        "identidad": {"id": id_, "nombre": nombre, "alias": [], "edad": 40, "rol_narrativo": rol},
+        "fisico": {"pelo": "gris"},
+        "voz": {"idiolecto": "seco", "registro": "llano", "dialogo_canonico": [habla]},
+        "psicologia": {
+            "deseo": f"{nombre} quiere irse",
+            "necesidad": "quedarse",
+            "miedo": "el agua",
+            "herida": "el hermano",
+        },
+        "coartada_y_cronologia_privada": [
+            {"momento": "dia 1, 23:10", "ubicacion": FARO, "detalle": f"{nombre} sube al faro"}
+        ],
+    }
+    if secreto:
+        meta["secreto"] = {"que_oculta": secreto, "a_quien": [ELENA]}
+    return _md(meta, f"{nombre} es personaje de la novela sintética.\n")
+
+
+def canon(novela: Novela) -> dict[str, str]:
+    pistas = [
+        {
+            "id": f"pis-{i:03d}",
+            "contenido": f"El reloj de la linterna marca las {i} y cuarto en la pista {i}.",
+            "capitulo_plantado": p,
+            "capitulo_pagado": q,
+            "quien_la_percibe": ["lector"],
+            "es_fair_play": True,
+        }
+        for i, (p, q) in enumerate(novela.pistas, 1)
+    ]
+    revelaciones = [
+        {
+            "id": f"rev-{i:03d}",
+            "contenido": f"La revelación {i} demuestra que el apagón fue deliberado.",
+            "pistas_que_la_pagan": [f"pis-{i:03d}"],
+            "capitulo_previsto": q,
+            "quien_la_recibe": "lector",
+            "impacto": "alta",
+        }
+        for i, (_, q) in enumerate(novela.pistas, 1)
+        if q is not None
+    ]
+    misterio = {
+        "verdad_oculta": [
+            "Tomás Reyes apagó el faro a mano para que el pesquero de su hermano encallara.",
+            "Lo hizo para cobrar el seguro que había firmado tres semanas antes del naufragio.",
+        ],
+        "culpable_o_amenaza": TOMAS,
+        "motivo_medio_oportunidad": {
+            "motivo": "La deuda con la cofradía que Tomás escondía a todo el pueblo.",
+            "medio": "La llave de la linterna que nunca devolvió al ayuntamiento.",
+            "oportunidad": "La hora en que Inés cerraba la taberna y nadie miraba el cabo.",
+        },
+        "pistas": pistas,
+        "pistas_falsas": [
+            {
+                "id": "pfa-001",
+                "contenido": "Inés tenía una copia de la llave del faro desde el verano.",
+                "a_quien_apunta": INES,
+                "cuando_se_desmonta": max(1, novela.num_capitulos - 1),
+            }
+        ],
+        "revelaciones": revelaciones,
+        "giros": [],
+        "reloj": {
+            "descripcion": "El juicio por el seguro se celebra en diez días.",
+            "limite": "dia 10",
+        },
+    }
+    mundo = {
+        "escenarios": [
+            {
+                "id": id_,
+                "nombre": nombre,
+                "descripcion": f"{nombre} en la novela sintética",
+                "detalle_sensorial": "olor a sal",
+                "quien_tiene_acceso": [ELENA, TOMAS],
+            }
+            for id_, nombre in (
+                (FARO, "La casa del faro"),
+                (PUERTO, "El puerto"),
+                (ARCHIVO, "El archivo"),
+            )
+        ],
+        "epoca_y_tecnologia": {
+            "epoca": "1998",
+            "existe": ["teléfono fijo"],
+            "no_existe": ["móvil"],
+        },
+        "reglas_del_mundo": ["El faro solo se enciende desde la linterna."],
+        "instituciones": [
+            {"nombre": "Guardia Civil", "procedimientos": "Tarda dos horas en llegar."}
+        ],
+    }
+    estilo = {
+        "guia_de_voz_narrativa": "Frases cortas, sin adjetivos de relleno.",
+        "ritmo": {
+            "longitud_media_frase": 12.0,
+            "proporcion_dialogo": 0.3,
+            "proporcion_accion": 0.4,
+            "proporcion_interioridad": 0.3,
+        },
+        "prohibiciones": ["de repente", "sin previo aviso"],
+        "parrafos_canonicos": ["Elena no encendió la luz. Conocía la escalera de memoria."],
+        "convenciones_formato": {"separador_escena": "***"},
+    }
+    premisa = {
+        "logline": "Una farera vuelve al pueblo donde el faro se apagó la noche del naufragio.",
+        "pregunta_dramatica": "¿Podrá Elena seguir en el pueblo cuando sepa quién fue?",
+        "tema": "la culpa heredada",
+        "promesa_al_lector": "un culpable que estuvo siempre a la vista",
+    }
+    return {
+        "canon/premisa.md": _md(premisa, "La premisa de la novela sintética.\n"),
+        "canon/mundo.md": _md(mundo, "Un pueblo de costa con un faro apagado.\n"),
+        "canon/estilo.md": _md(estilo, "Seco y exacto.\n"),
+        "canon/misterio.md": _md(misterio, "El misterio completo, solo para quien lo puede ver.\n"),
+        f"canon/personajes/{ELENA}.md": _ficha(
+            ELENA, "Elena Vidal", "protagonista", "No le pregunté nada.", None
+        ),
+        f"canon/personajes/{TOMAS}.md": _ficha(
+            TOMAS, "Tomás Reyes", "antagonista", "Eso fue hace mucho.", "Debe dinero a la cofradía."
+        ),
+        f"canon/personajes/{INES}.md": _ficha(
+            INES, "Inés Mar", "testigo", "Yo cerré a las once.", "Vio luz en el cabo aquella noche."
+        ),
+    }
+
+
+# --- Plan: lo que escribiría el trazador -----------------------------------------------------
+
+
+def plan(novela: Novela) -> dict[str, str]:
+    n_total = novela.num_capitulos
+    tercio = max(1, n_total // 3)
+    actos = [
+        {
+            "numero": 1,
+            "funcion_dramatica": "planteamiento",
+            "capitulos": list(range(1, tercio + 1)),
+        },
+        {
+            "numero": 2,
+            "funcion_dramatica": "confrontación",
+            "capitulos": list(range(tercio + 1, n_total)) or [n_total],
+        },
+        {"numero": 3, "funcion_dramatica": "desenlace", "capitulos": [n_total]},
+    ]
+    escaleta = {
+        "actos": actos,
+        "puntos_de_giro": {
+            "detonante": 1,
+            "punto_medio": max(1, n_total // 2),
+            "crisis": max(1, n_total - 2),
+            "climax": max(1, n_total - 1),
+            "resolucion": n_total,
+        },
+        "curva_tension_objetivo": [2 + (7 * i) // max(1, n_total - 1) for i in range(n_total)],
+    }
+    ficheros = {"plan/escaleta.md": _md(escaleta, "La escaleta de la novela sintética.\n")}
+    for n in range(1, n_total + 1):
+        plantar, pagar = novela.pistas_de(n)
+        abre, cierra = novela.hilos_de(n)
+        ficha = {
+            "capitulo": n,
+            "pov": ELENA,
+            "objetivo_dramatico": f"Al final del capítulo {n} Elena sabe algo que no sabía.",
+            "escenas": [
+                {
+                    "id": f"esc-{nn(n)}-1",
+                    "lugar": FARO,
+                    "tiempo_diegetico": f"dia {n}, 21:00",
+                    "personajes": [ELENA, TOMAS],
+                    "dialogo": [ELENA, TOMAS],
+                    "beat": "Tomás aparece sin avisar",
+                    "conflicto": "Elena no puede echarle",
+                },
+                {
+                    "id": f"esc-{nn(n)}-2",
+                    "lugar": PUERTO,
+                    "tiempo_diegetico": f"dia {n}, 23:00",
+                    "personajes": [ELENA, INES],
+                    "dialogo": [INES],
+                    "beat": "Inés habla de más",
+                    "conflicto": "Elena duda de ella",
+                },
+            ],
+            "pistas_a_plantar": plantar,
+            "pistas_a_pagar": pagar,
+            "hilos_que_abre": abre,
+            "hilos_que_cierra": cierra,
+            "gancho_final": GANCHOS[n % len(GANCHOS)],
+            "restriccion_de_apertura": f"Empieza con {APERTURAS[n % len(APERTURAS)]}.",
+        }
+        ficheros[f"plan/capitulos/{nn(n)}.md"] = _md(ficha, f"Ficha del capítulo {n}.\n")
+    return ficheros
+
+
+# --- Capítulo: lo que escribiría el escritor -------------------------------------------------
+
+
+def frase_de_hecho(n: int) -> str:
+    return f"En la noche {n} Elena comprobó que la puerta de la linterna seguía forzada."
+
+
+def frase_de_escena(n: int, escena: int) -> str:
+    return f"Aquella escena {escena} del capítulo {n} empezó con el viento del norte."
+
+
+def capitulo(novela: Novela, n: int) -> str:
+    plantar, pagar = novela.pistas_de(n)
+    abre, cierra = novela.hilos_de(n)
+    relleno = f"Elena contó los escalones del faro por {n} vez y el mar siguió en su sitio."
+    parrafos = [frase_de_escena(n, 1) + " " + frase_de_hecho(n)]
+    parrafos += [f"Elena encontró la pista {p[-1]} donde nadie miraba." for p in plantar + pagar]
+    cuerpo_min = " ".join(parrafos)
+    while len(cuerpo_min.split()) < PALABRAS_POR_CAPITULO - 20:
+        parrafos.append(relleno)
+        cuerpo_min = " ".join(parrafos)
+    mitad = len(parrafos) // 2
+    cuerpo = (
+        f"# Capítulo {n}\n\n"
+        + "\n\n".join(parrafos[:mitad])
+        + "\n\n***\n\n"
+        + frase_de_escena(n, 2)
+        + "\n\n"
+        + "\n\n".join(parrafos[mitad:])
+        + "\n"
+    )
+    meta = {
+        "capitulo": n,
+        "titulo": f"La linterna, noche {n}",
+        "pov": ELENA,
+        "palabras": len(cuerpo.split()),
+        "escenas": [f"esc-{nn(n)}-1", f"esc-{nn(n)}-2"],
+        "pistas_plantadas": plantar,
+        "pistas_pagadas": pagar,
+        "hilos_abiertos": abre,
+        "hilos_cerrados": cierra,
+        "version_canon": 1,
+        "version_plan": 1,
+        "run_id": run_id(n),
+    }
+    return _md(meta, cuerpo)
+
+
+# --- Revisores y cronista --------------------------------------------------------------------
+
+
+def informe(n: int, agente: str, **extra: Any) -> str:
+    datos = {"capitulo": n, "agente": agente, "veredicto": "aprobado", "hallazgos": []} | extra
+    return json.dumps(datos, ensure_ascii=False, indent=2)
+
+
+def informes(novela: Novela, n: int) -> dict[str, str]:
+    tension = 2 + (7 * (n - 1)) // max(1, novela.num_capitulos - 1)
+    return {
+        f"qa/{nn(n)}-continuidad.json": informe(n, "continuista"),
+        f"qa/{nn(n)}-estilo.json": informe(n, "editor-estilo"),
+        f"qa/{nn(n)}-suspense.json": informe(
+            n,
+            "lector-suspense",
+            puntuaciones={"tension": tension, "fair_play": 0.9, "coherencia": 0.8},
+        ),
+    }
+
+
+def delta(novela: Novela, n: int) -> dict[str, Any]:
+    abre, cierra = novela.hilos_de(n)
+    hilos = []
+    for j, (a, c) in enumerate(novela.hilos, 1):
+        if a == n or c == n:
+            hilos.append(
+                {
+                    "id": f"hil-{j:03d}",
+                    "estado": "cerrado" if c == n else "abierto",
+                    "abierto_en": a,
+                    "cerrado_en": c if c == n else None,
+                    "descripcion": f"La pregunta {j} del faro.",
+                }
+            )
+    assert {h["id"] for h in hilos if h["abierto_en"] == n} == set(abre)
+    assert {h["id"] for h in hilos if h["cerrado_en"] == n} == set(cierra)
+    hecho = f"hec-{n:03d}"
+    return {
+        "capitulo": n,
+        "linea_temporal": [
+            {
+                "escena": f"esc-{nn(n)}-1",
+                "capitulo": n,
+                "inicio": f"dia {n}, 21:00",
+                "duracion_min": 40,
+                "cita": frase_de_escena(n, 1),
+            },
+            {
+                "escena": f"esc-{nn(n)}-2",
+                "capitulo": n,
+                "inicio": f"dia {n}, 23:00",
+                "duracion_min": 30,
+            },
+        ],
+        "personajes": {
+            ELENA: {
+                "ubicacion": PUERTO,
+                "estado_fisico": "cansada",
+                "estado_emocional": "alerta",
+                "condicion": "viva",
+                "objetivo_activo": "saber quién apagó el faro",
+                "ultima_aparicion": n,
+            },
+            TOMAS: {
+                "ubicacion": FARO,
+                "estado_fisico": "bien",
+                "estado_emocional": "nervioso",
+                "condicion": "viva",
+                "objetivo_activo": "que nadie suba a la linterna",
+                "ultima_aparicion": n,
+            },
+        },
+        "conocimiento": {ELENA: [{"hecho": hecho, "desde_capitulo": n, "cita": frase_de_hecho(n)}]},
+        "conocimiento_lector": [{"hecho": hecho, "desde_capitulo": n}],
+        "relaciones": [
+            {
+                "de": ELENA,
+                "a": TOMAS,
+                "tipo": "sospecha",
+                "intensidad": min(1.0, n / 24),
+                "desde": 1,
+            }
+        ],
+        "objetos": [
+            {
+                "id": "obj-001",
+                "poseedor": TOMAS,
+                "ubicacion": None,
+                "capitulo_intro": 1,
+                "relevancia": "alta",
+            }
+        ],
+        "libro_de_hechos": [
+            {
+                "id": hecho,
+                "texto": f"La puerta de la linterna estaba forzada en la noche {n}.",
+                "capitulo": n,
+                "cita": frase_de_hecho(n),
+            }
+        ],
+        "hilos": hilos,
+        "resumen": {
+            "linea": f"Capítulo {n}: Elena vuelve a la linterna.",
+            "parrafo": f"En el capítulo {n} Elena sube al faro, discute con Tomás y oye a Inés.",
+            "escena": {
+                f"esc-{nn(n)}-1": "Elena y Tomás en la casa del faro.",
+                f"esc-{nn(n)}-2": "Inés habla de más en el puerto.",
+            },
+        },
+    }
+
+
+def escribir(raiz: Path, ficheros: dict[str, str]) -> None:
+    for relativa, texto in ficheros.items():
+        ruta = raiz / relativa
+        ruta.parent.mkdir(parents=True, exist_ok=True)
+        ruta.write_bytes(texto.encode("utf-8"))
+
+
+def sha256(ruta: Path) -> str:
+    return hashlib.sha256(ruta.read_bytes()).hexdigest()
+
+
+def _estado_sintetico(novela: Novela, cerrados: int) -> Estado:
+    # ponytail: fase 1 sintetiza el estado; la fase 2 lo sustituye por el bucle real con
+    # aplicar-delta y checkpoint, y esta función desaparece.
+    k = cerrados
+    hilos = [
+        Hilo(
+            id=f"hil-{j:03d}",
+            estado="cerrado" if c <= k else "abierto",
+            abierto_en=a,
+            cerrado_en=c if c <= k else None,
+            descripcion=f"La pregunta {j} del faro.",
+        )
+        for j, (a, c) in enumerate(novela.hilos, 1)
+        if a <= k
+    ]
+    pistas = {}
+    for i, (p, q) in enumerate(novela.pistas, 1):
+        plantada, pagada = (p if p <= k else None), (q if q is not None and q <= k else None)
+        estado = "pagada" if pagada else "plantada" if plantada else "pendiente"
+        pistas[f"pis-{i:03d}"] = EstadoPista(estado=estado, plantada_en=plantada, pagada_en=pagada)
+    libro = [
+        Hecho(id=f"hec-{n:03d}", texto="t", capitulo=n, cita=frase_de_hecho(n))
+        for n in range(1, k + 1)
+    ]
+    palabras = sum(len(frontmatter.partir(capitulo(novela, n))[1].split()) for n in range(1, k + 1))
+    return Estado(
+        cursor=Cursor(
+            capitulo=max(k, 1),
+            fase="registro" if k else "escritura",
+            ultimo_paso="aplicar-delta" if k else None,
+            intento=1,
+        ),
+        hilos=hilos,
+        pistas=pistas,
+        libro_de_hechos=libro,
+        metricas=Metricas(
+            palabras_totales=palabras,
+            desviacion_vs_plan=palabras / (PALABRAS_POR_CAPITULO * k) - 1 if k else 0.0,
+        ),
+    )
+
+
+def construir(base: Path, slug: str, novela: Novela, cerrados: int) -> Path:
+    total = novela.num_capitulos
+    orden = ["nueva", slug, "--idea", "Un faro apagado.", "--capitulos", str(total)]
+    orden += ["--palabras", str(PALABRAS_POR_CAPITULO * total)]
+    resultado = CliRunner().invoke(app, orden, env={"NOVELAS_DIR": str(base)})
+    assert resultado.exit_code == 0, resultado.output
+    raiz = base / slug
+    escribir(raiz, canon(novela) | plan(novela))
+    for n in range(1, cerrados + 1):
+        escribir(raiz, {f"capitulos/{nn(n)}.md": capitulo(novela, n)} | informes(novela, n))
+        escribir(raiz, {f"estado/deltas/{nn(n)}.json": json.dumps(delta(novela, n), indent=2)})
+    with estado_db.abrir(raiz / "estado" / "estado.db") as conn, estado_db.transaccion(conn):
+        estado_db.guardar(conn, _estado_sintetico(novela, cerrados))
+    if cerrados:
+        punto = Checkpoint(
+            capitulo=cerrados,
+            cursor=Cursor(capitulo=cerrados, fase="cerrado", ultimo_paso="checkpoint", intento=1),
+            run_id=run_id(cerrados),
+            version_canon="0" * 64,
+            version_plan="0" * 64,
+            capitulos_sha256={
+                n: sha256(raiz / "capitulos" / f"{nn(n)}.md") for n in range(1, cerrados + 1)
+            },
+        )
+        texto = punto.model_dump_json(indent=2)
+        escribir(
+            raiz, {f"checkpoints/{nn(cerrados)}.json": texto, "checkpoints/latest.json": texto}
+        )
+    return raiz
