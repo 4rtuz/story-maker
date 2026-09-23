@@ -63,6 +63,10 @@ de arranque. El retorno del agente se lee y no se pasa a ningún otro prompt.
      `briefing 01 trazador -> error · WorkspaceInvalido` → es el gate: reintento del `arquitecto`
      con su mismo briefing y `causa:` = el texto tras `·` en esa línea, y repite 3. Es la
      excepción a la tabla de códigos: un canon inválido sale con 4, no con 1.
+   - **Salvo si esa causa contiene `misterio.md`**, que se busca sin separador porque en Windows
+     la ruta va con `\`. No hay reintento: el `arquitecto` no puede leer ese fichero, así que
+     tampoco sobrescribirlo. Escribe `novelas/<slug>/runs/<run_id>/intervencion.md` con el gate
+     `arquitecto` y la causa, y para.
    - **Cuenta de intentos**: las líneas `briefing 01 trazador -> error · WorkspaceInvalido` de ese
      log. Con dos reintentos consumidos, el siguiente fallo escribe
      `novelas/<slug>/runs/<run_id>/intervencion.md` con el gate, los intentos y la ruta del

@@ -433,7 +433,7 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 | F-06 | Un informe de QA malformado, o sin `veredicto` | El orquestador lee basura en el gate y puede aprobar | El procedimiento cuenta un `veredicto` ausente o ilegible como rechazo. Después, `novela gate` lo valida contra el modelo | D; A | activo en el procedimiento (CA-18, revisión); en ejecución, la novela de humo (CA-10); después, 0002 |
 | F-07 | Un revisor lee `capitulos/NN.md` del disco en vez del texto incrustado, mientras el `editor-estilo` lo reescribe en el mismo turno | Veredicto sobre una versión intermedia que la custodia no ve, porque su briefing lleva el hash correcto | El cuerpo del agente manda juzgar lo incrustado. No hay verificador mecánico | I | U (§5.15) |
 | F-08 | Un retorno de más de tres líneas | Consume el contexto del orquestador | Auditoría de trayectoria (§4.16) | A | 0002 |
-| F-09 | En un reintento, el `arquitecto` no puede reescribir `canon/misterio.md`: el `deny` le impide leerlo, y `Write` no sobrescribe un fichero que el agente no ha leído | Un canon inválido por el misterio gasta los dos reintentos del gate del `arquitecto` y acaba en intervención | Ninguno. El cuerpo del agente manda fallar citando la causa | — | propuesto |
+| F-09 | En un reintento, el `arquitecto` no puede reescribir `canon/misterio.md`: el `deny` le impide leerlo, y `Write` no sobrescribe un fichero que el agente no ha leído | Un canon inválido por el misterio gasta los dos reintentos del gate del `arquitecto` y acaba en intervención | `/novela-nueva` no reintenta si la causa nombra `misterio.md`: `intervencion.md` y para (RF-34). Un test fija que la causa lo nombra | T + I | activo (CA-22) |
 
 **Hook `PreToolUse`**
 
