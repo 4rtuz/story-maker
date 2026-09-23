@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from novela.dominio.artefactos import FrontmatterCapitulo
+from novela.dominio.artefactos import FrontmatterCapitulo, contar_palabras
 from novela.dominio.config import PalabrasPorCapitulo
 from novela.dominio.plan import FichaCapitulo
 from novela.dominio.qa import Hallazgo
@@ -24,11 +24,6 @@ class Contexto:
     personajes: frozenset[str]  # ids con ficha en canon/personajes/
     pistas: frozenset[str]  # ids de canon.misterio.pistas
     hilos_abiertos: frozenset[str]  # abiertos en el estado antes de este capítulo
-
-
-def contar_palabras(cuerpo: str) -> int:
-    """Del cuerpo, no del `palabras` del frontmatter: eso es una declaración del escritor."""
-    return len(cuerpo.split())
 
 
 def _frontmatter(meta: Mapping[str, Any] | None, capitulo: int) -> FrontmatterCapitulo | Hallazgo:

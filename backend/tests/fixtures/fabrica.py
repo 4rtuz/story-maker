@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from typer.testing import CliRunner
+from typer.testing import CliRunner, Result
 
 from novela.cli import app
 from novela.dominio import frontmatter
@@ -443,6 +443,30 @@ def escribir(raiz: Path, ficheros: dict[str, str]) -> None:
 
 def sha256(ruta: Path) -> str:
     return hashlib.sha256(ruta.read_bytes()).hexdigest()
+
+
+def cli(base: Path, *orden: str, run: str) -> Result:
+    entorno = {"NOVELAS_DIR": str(base), "NOVELA_RUN_ID": run}
+    return CliRunner().invoke(app, list(orden), env=entorno)
+
+
+def preparar_capitulo(base: Path, slug: str, novela: Novela, n: int) -> None:
+    """El bucle por capítulo hasta dejar el delta escrito, con el CLI real y agentes falsos:
+    lo que escribirían el escritor, los tres revisores y el cronista."""
+    raiz, run = base / slug, run_id(n)
+
+    def paso(*orden: str) -> None:
+        resultado = cli(base, *orden, run=run)
+        assert resultado.exit_code == 0, f"{orden}: {resultado.output}"
+
+    paso("briefing", slug, str(n), "escritor")
+    escribir(raiz, {f"capitulos/{nn(n)}.md": capitulo(novela, n)})
+    paso("validar", slug, str(n))
+    for agente in ("continuista", "editor-estilo", "lector-suspense"):
+        paso("briefing", slug, str(n), agente)
+    escribir(raiz, informes(novela, n))  # el editor falso aprueba sin reescribir
+    paso("briefing", slug, str(n), "cronista")
+    escribir(raiz, {f"estado/deltas/{nn(n)}.json": json.dumps(delta(novela, n), indent=2)})
 
 
 def _estado_sintetico(novela: Novela, cerrados: int) -> Estado:

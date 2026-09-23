@@ -20,6 +20,11 @@ from novela.dominio.ids import (
 )
 
 
+def contar_palabras(cuerpo: str) -> int:
+    """Del cuerpo, no del `palabras` del frontmatter: eso es una declaración del escritor."""
+    return len(cuerpo.split())
+
+
 class FrontmatterCapitulo(Modelo):
     """Cabecera de `capitulos/NN.md`. Es una declaración del escritor, no una prueba: `validar`
     cuenta las palabras del cuerpo en vez de fiarse de `palabras`."""
