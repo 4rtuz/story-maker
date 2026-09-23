@@ -8,7 +8,7 @@ from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
-from novela.dominio.base import SCHEMA_VERSION, ColeccionAppendOnly, Modelo, SchemaVersion
+from novela.dominio.base import SCHEMA_VERSION, ColeccionAppendOnly, Modelo, Nivel, SchemaVersion
 from novela.dominio.ids import (
     CapituloNum,
     EscenarioId,
@@ -17,8 +17,6 @@ from novela.dominio.ids import (
     PistaId,
     RevelacionId,
 )
-
-Nivel = Literal["alta", "media", "baja"]
 
 # --- 2.1 Premisa -----------------------------------------------------------------------------
 

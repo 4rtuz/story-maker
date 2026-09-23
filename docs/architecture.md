@@ -502,7 +502,7 @@ Lo que sigue no es el formato de almacenamiento, es la **vista serializada**: lo
   "schema_version": "1.0.0",
   "cursor": { "capitulo": 7, "fase": "revision", "ultimo_paso": "continuista", "intento": 1 },
   "linea_temporal": [
-    { "escena": "esc-07-2", "capitulo": 7, "inicio": "dia 3, 21:40", "duracion_min": 35 }
+    { "escena": "esc-07-2", "capitulo": 7, "inicio": "dia 3, 21:40", "duracion_min": 35, "cita": null }
   ],
   "personajes": {
     "per-elena-vidal": {
@@ -515,7 +515,7 @@ Lo que sigue no es el formato de almacenamiento, es la **vista serializada**: lo
     }
   },
   "conocimiento": {
-    "per-elena-vidal": [ { "hecho": "hec-014", "desde_capitulo": 5 } ]
+    "per-elena-vidal": [ { "hecho": "hec-014", "desde_capitulo": 5, "cita": "..." } ]
   },
   "relaciones": [
     { "de": "per-elena-vidal", "a": "per-tomas-reyes", "tipo": "sospecha", "intensidad": 0.8, "desde": 6 }
@@ -526,13 +526,15 @@ Lo que sigue no es el formato de almacenamiento, es la **vista serializada**: lo
   "libro_de_hechos": [
     { "id": "hec-014", "texto": "El faro lleva nueve años sin funcionar.", "capitulo": 5, "cita": "..." }
   ],
-  "hilos": [ { "id": "hil-004", "estado": "abierto", "abierto_en": 2, "descripcion": "..." } ],
+  "hilos": [ { "id": "hil-004", "estado": "abierto", "abierto_en": 2, "cerrado_en": null, "descripcion": "..." } ],
   "pistas": { "pis-007": { "estado": "plantada", "plantada_en": 4, "pagada_en": null } },
-  "conocimiento_lector": [ { "hecho": "hec-014", "desde_capitulo": 5 } ],
+  "conocimiento_lector": [ { "hecho": "hec-014", "desde_capitulo": 5, "cita": null } ],
   "tension_real": [ 4, 5, 6, 5, 7, 8, 7 ],
   "metricas": { "palabras_totales": 21840, "desviacion_vs_plan": -0.04 }
 }
 ```
+
+`cita` es obligatoria en `libro_de_hechos` y opcional en `linea_temporal`, `conocimiento` y `conocimiento_lector`; si está, `novela aplicar-delta` exige que sea literal del capítulo (spec 0001, RF-33).
 
 Las cinco colecciones que `docs/definitions.md` declara append-only —`libro_de_hechos`, `conocimiento`, `linea_temporal`, `conocimiento_lector` y `tension_real`— lo son porque lo impone el esquema, no porque lo compruebe el código:
 

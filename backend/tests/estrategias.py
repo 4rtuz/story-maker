@@ -20,6 +20,21 @@ from novela.dominio.canon import (
     Revelacion,
     Ritmo,
 )
+from novela.dominio.estado import (
+    FASES,
+    PASOS,
+    Cursor,
+    EntradaConocimiento,
+    EntradaTemporal,
+    Estado,
+    EstadoPersonaje,
+    EstadoPista,
+    Hecho,
+    Hilo,
+    Metricas,
+    Objeto,
+    Relacion,
+)
 
 LETRAS = string.ascii_letters + "áéíóúñÁÉÍÓÚÑ"
 # Texto de prosa: letras, espacios y puntuación; sin caracteres de control.
@@ -117,4 +132,97 @@ estilos = st.builds(
     prohibiciones=st.lists(texto, max_size=5),
     parrafos_canonicos=st.lists(frase, min_size=1, max_size=2),
     convenciones_formato=st.just({}),
+)
+
+
+# --- Rama 4 ----------------------------------------------------------------------------------
+
+escenario_id = st.from_regex(r"esc-[a-z][a-z0-9-]{0,10}", fullmatch=True)
+escena_id = st.builds(lambda c, n: f"esc-{c:02d}-{n}", capitulo, st.integers(1, 9))
+cita = st.none() | frase
+
+cursores = st.builds(
+    Cursor,
+    capitulo=capitulo,
+    fase=st.sampled_from(FASES),
+    ultimo_paso=st.none() | st.sampled_from(PASOS),
+    intento=st.integers(1, 3),
+)
+entradas_temporales = st.builds(
+    EntradaTemporal,
+    escena=escena_id,
+    capitulo=capitulo,
+    inicio=texto,
+    duracion_min=st.integers(0, 600),
+    cita=cita,
+)
+estados_personaje = st.builds(
+    EstadoPersonaje,
+    ubicacion=st.none() | escenario_id,
+    estado_fisico=texto,
+    estado_emocional=texto,
+    condicion=st.sampled_from(["viva", "muerta", "desaparecida"]),
+    objetivo_activo=texto,
+    ultima_aparicion=capitulo,
+)
+entradas_conocimiento = st.builds(
+    EntradaConocimiento, hecho=id_("hec"), desde_capitulo=capitulo, cita=cita
+)
+relaciones = st.builds(
+    Relacion,
+    de=personaje_id,
+    a=personaje_id,
+    tipo=texto,
+    intensidad=st.floats(0, 1),
+    desde=capitulo,
+)
+objetos = st.builds(
+    Objeto,
+    id=id_("obj"),
+    poseedor=st.none() | personaje_id,
+    ubicacion=st.none() | escenario_id,
+    capitulo_intro=capitulo,
+    relevancia=st.sampled_from(["alta", "media", "baja"]),
+)
+hechos = st.builds(Hecho, id=id_("hec"), texto=frase, capitulo=capitulo, cita=frase)
+
+
+@st.composite
+def hilos(draw: st.DrawFn) -> Hilo:
+    abierto_en = draw(capitulo)
+    cerrado_en = draw(st.none() | st.integers(abierto_en, 30))
+    return Hilo(
+        id=draw(id_("hil")),
+        estado="abierto" if cerrado_en is None else "cerrado",
+        abierto_en=abierto_en,
+        cerrado_en=cerrado_en,
+        descripcion=draw(frase),
+    )
+
+
+estados_pista = st.builds(
+    EstadoPista,
+    estado=st.sampled_from(["plantada", "pagada", "pendiente", "huerfana"]),
+    plantada_en=st.none() | capitulo,
+    pagada_en=st.none() | capitulo,
+)
+
+estados = st.builds(
+    Estado,
+    cursor=cursores,
+    linea_temporal=st.lists(entradas_temporales, max_size=4, unique_by=lambda e: e.escena),
+    personajes=st.dictionaries(personaje_id, estados_personaje, max_size=3),
+    conocimiento=st.dictionaries(personaje_id, st.lists(entradas_conocimiento, max_size=3)),
+    relaciones=st.lists(relaciones, max_size=3, unique_by=lambda r: (r.de, r.a)),
+    objetos=st.lists(objetos, max_size=3, unique_by=lambda o: o.id),
+    libro_de_hechos=st.lists(hechos, max_size=4, unique_by=lambda h: h.id),
+    hilos=st.lists(hilos(), max_size=3, unique_by=lambda h: h.id),
+    pistas=st.dictionaries(id_("pis"), estados_pista, max_size=3),
+    conocimiento_lector=st.lists(entradas_conocimiento, max_size=3),
+    tension_real=st.lists(st.integers(1, 10), max_size=5),
+    metricas=st.builds(
+        Metricas,
+        palabras_totales=st.integers(0, 10**6),
+        desviacion_vs_plan=st.floats(-1, 10, allow_nan=False),
+    ),
 )

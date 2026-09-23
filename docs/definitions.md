@@ -208,16 +208,16 @@ Lo que debería ocurrir. Se genera una vez a partir del canon y puede revisarse,
 
 Lo que ya ocurrió. Fuente única de verdad sobre el texto existente. Vive en `estado/estado.db`, una base SQLite con una tabla por colección, no en la conversación de ningún agente. La mutabilidad que declara cada entrada de abajo la impone el esquema: las colecciones append-only tienen triggers que abortan cualquier `UPDATE` o `DELETE`.
 
-**`cursor`** — `{capitulo, fase, ultimo_paso, intento}`. Lo primero que lee el orquestador al reanudar. Sin él no hay recuperación posible tras un corte. `fase` es `escritura | revision | registro | cerrado`; `ultimo_paso` es uno de los nueve pasos del bucle; `intento` se persiste porque la parada al tercero depende de él.
+**`cursor`** — `{capitulo, fase, ultimo_paso, intento}`. Lo primero que lee el orquestador al reanudar. Sin él no hay recuperación posible tras un corte. `fase` es `escritura | revision | registro | cerrado`; `ultimo_paso` es uno de los nueve pasos del bucle —`briefing | escritor | validar | continuista | editor-estilo | lector-suspense | cronista | aplicar-delta | checkpoint`— o `null` antes del primero; `intento` va de 1 a 3 y se persiste porque la parada al tercero depende de él.
 `objeto` · **MUTABLE** · orquestador → orquestador
 
-**`linea_temporal[]`** — Cada escena escrita con su momento diegético y duración. Permite detectar el error más común del formato largo: dos cosas ocurriendo simultáneamente en sitios distintos.
+**`linea_temporal[]`** — `{escena, capitulo, inicio, duracion_min, cita}`: cada escena escrita con su momento diegético y duración. `cita` es opcional y, si está, es literal del capítulo. Permite detectar el error más común del formato largo: dos cosas ocurriendo simultáneamente en sitios distintos.
 `lista` · **APPEND-ONLY** · cronista → continuista
 
-**`personajes[]`** — Por personaje: ubicación, estado físico y emocional, condición vital, objetivo activo y última aparición. Es el estado de entrada de la siguiente escena en que aparezca.
+**`personajes[]`** — Por personaje: ubicación, estado físico y emocional, condición vital (`viva | muerta | desaparecida`), objetivo activo y última aparición. Es el estado de entrada de la siguiente escena en que aparezca.
 `mapa` · **MUTABLE** · cronista → escritor, continuista
 
-**`conocimiento[]`** — Qué sabe cada personaje y desde qué capítulo. En suspense es la estructura más importante del estado: casi todo el género consiste en administrar asimetrías de información.
+**`conocimiento[]`** — Por personaje, entradas `{hecho, desde_capitulo, cita}`: qué sabe y desde qué capítulo, con `cita` opcional y literal. En suspense es la estructura más importante del estado: casi todo el género consiste en administrar asimetrías de información.
 `mapa` · **APPEND-ONLY** · cronista → escritor, continuista
 
 **`relaciones`** — Aristas entre personajes con su estado actual de confianza, sospecha o alianza. Evoluciona; el canon solo fijó el punto de partida.
@@ -229,13 +229,13 @@ Lo que ya ocurrió. Fuente única de verdad sobre el texto existente. Vive en `e
 **`libro_de_hechos[]`** — Registro de hechos afirmados por el texto, con capítulo de origen y cita. Es el contrato de no contradicción: una vez que el texto afirma algo, es verdad para siempre. El continuista valida contra esta lista antes que contra ninguna otra cosa.
 `lista` · **APPEND-ONLY, INMUTABLE por entrada** · cronista → continuista
 
-**`hilos[]`** — Subtramas y preguntas pendientes, en una sola colección con `estado` (`abierto | cerrado`) como discriminante, y el capítulo en que se abrieron. Un hilo abierto sin cerrar a tres capítulos del final es una alerta.
+**`hilos[]`** — `{id, estado, abierto_en, cerrado_en, descripcion}`: subtramas y preguntas pendientes, en una sola colección con `estado` (`abierto | cerrado`) como discriminante. `cerrado_en` es `null` mientras está abierto y obligatorio al cerrarse. Un hilo abierto sin cerrar a tres capítulos del final es una alerta.
 `listas` · **MUTABLE** · cronista → orquestador, auditoría
 
 **`pistas[]`** — Ciclo de vida de cada pista: `plantada`, `pagada`, `pendiente`, `huérfana`. Derivado del cruce entre plan y texto escrito; una pista plantada y nunca pagada es el fallo de calidad más caro del género.
 `mapa` · **DERIVADO** · cronista → auditoría final
 
-**`conocimiento_lector`** — Qué sabe el lector en este punto, frente a lo que saben los personajes. La diferencia entre ambos es la ironía dramática, y es un parámetro que se dosifica, no un subproducto.
+**`conocimiento_lector`** — Lista plana de la misma entrada `{hecho, desde_capitulo, cita}` que `conocimiento`: qué sabe el lector en este punto, frente a lo que saben los personajes. La diferencia entre ambos es la ironía dramática, y es un parámetro que se dosifica, no un subproducto.
 `objeto` · **APPEND-ONLY** · cronista → lector de suspense
 
 **`tension_real[]`** — Puntuación efectiva por capítulo escrito, emitida por el lector de suspense. Se compara contra la curva objetivo del plan.

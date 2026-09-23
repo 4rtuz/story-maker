@@ -5,18 +5,17 @@ cada capítulo, que es el prompt de trabajo del escritor. Ojo: el plan dice `pis
 capítulo escrito `pistas_plantadas`. Son contratos distintos, de entrada y de salida.
 """
 
-from typing import Annotated, Literal, Self
+from typing import Literal, Self
 
 from pydantic import Field, ValidationInfo, model_validator
 
-from novela.dominio.base import SCHEMA_VERSION, Modelo, SchemaVersion
+from novela.dominio.base import SCHEMA_VERSION, Modelo, SchemaVersion, Tension
 from novela.dominio.ids import CapituloNum, EscenaId, EscenarioId, HiloId, PersonajeId, PistaId
 
 # Se especifica el tipo de cliffhanger, no su texto, para no encorsetar al escritor.
 GanchoFinal = Literal[
     "pregunta_abierta", "revelacion", "amenaza", "decision_pendiente", "giro", "calma_inquietante"
 ]
-Tension = Annotated[int, Field(ge=1, le=10)]
 
 
 class Acto(Modelo):

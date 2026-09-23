@@ -3,15 +3,19 @@ append-only."""
 
 from collections.abc import Iterable, Iterator
 from types import GenericAlias
-from typing import Any, Literal, get_args
+from typing import Annotated, Any, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, GetCoreSchemaHandler
+from pydantic import BaseModel, ConfigDict, Field, GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
 
 # Todo documento del workspace lleva su schema_version (RF-26). Un documento con otra versión se
 # rechaza en el borde en vez de interpretarse a medias.
 SchemaVersion = Literal["1.0.0"]
 SCHEMA_VERSION: SchemaVersion = "1.0.0"
+
+# Valores que usan varias ramas; aquí para que ninguna importe de otra.
+Nivel = Literal["alta", "media", "baja"]
+Tension = Annotated[int, Field(ge=1, le=10)]
 
 
 class Modelo(BaseModel):
