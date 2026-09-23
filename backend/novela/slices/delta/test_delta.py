@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 from typer.testing import Result
 
+from novela.dominio.artefactos import Memoria
 from novela.dominio.estado import Delta, Estado
 from novela.plataforma import estado_db
 from novela.plataforma.workspace import WorkspaceRepository
@@ -77,3 +78,22 @@ def test_aplica_y_es_idempotente_en_disco(novelas: Novelas) -> None:
     assert _aplicar(ws).exit_code == 0  # reanudar repite el paso
     with estado_db.abrir(ws.estado_db, solo_lectura=True) as conn:
         assert estado_db.leer(conn) == una
+
+
+def test_renderiza_memoria(novelas: Novelas) -> None:
+    """CA-19: memoria/resumenes/NN.md trae las tres granularidades del delta, con la escena por
+    id; lo escribe aplicar-delta, no el cronista, y se reconstruye desde el delta sin cuota."""
+    ws, _ = _preparado(novelas)
+    ruta = ws.raiz / "memoria" / "resumenes" / "08.md"
+    ruta.unlink(missing_ok=True)
+    assert _aplicar(ws).exit_code == 0
+    memoria = ws.leer_md(ruta, Memoria)
+    resumen = Delta.model_validate_json(
+        (ws.raiz / "estado" / "deltas" / "08.json").read_bytes()
+    ).resumen
+    assert (memoria.linea, memoria.parrafo, memoria.escena) == (
+        resumen.linea,
+        resumen.parrafo,
+        resumen.escena,
+    )
+    assert set(memoria.escena) == {"esc-08-1", "esc-08-2"}
