@@ -462,6 +462,14 @@ Se rellena durante la implementación.
 |---|---|---|---|
 | RF-01 a RF-03 | CA-01 | `backend/tests/test_contratos.py::test_agentes_de_claude` | hecho |
 | RF-04, RF-24 | CA-02 | `backend/tests/test_contratos.py::test_agentes_nombran_sus_salidas` | hecho |
+| RF-05 | CA-03 | `backend/tests/test_hook.py::test_estado_denegado_salvo_delta`, `::test_estado_rutas_no_normalizables` | hecho |
+| RF-06 | CA-04 | `backend/tests/test_hook.py::test_falla_cerrado` | hecho |
+| RF-07 | CA-05 | `backend/tests/test_hook.py::test_salidas_por_rol`, `::test_sin_rol_fuera_del_workspace`, `::test_salidas_casan_el_contrato` | hecho |
+| RF-08, RF-09, RF-10, RF-20 | CA-06 | `backend/tests/test_contratos.py::test_settings_de_claude` | hecho |
+| RF-20 | CA-11 | `backend/tests/test_hook.py::test_ordenes` | hecho |
+| RF-25 | CA-14 | `backend/tests/test_hook.py::test_sesion_principal` | hecho |
+| RF-26 | CA-15 | `backend/tests/test_hook.py::test_subagentes` (parte estática; la dinámica es el intento 5 de CA-09) | hecho en su parte estática |
+| RNF-01 | — | `backend/tests/test_hook.py::test_rendimiento` | hecho |
 
 ## 13. Verificación
 

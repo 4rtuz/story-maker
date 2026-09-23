@@ -229,3 +229,30 @@ def test_agentes_nombran_sus_salidas() -> None:
             assert ruta in cuerpo, f"{rol} no nombra {ruta}"
         for citado in re.findall(r"backend/schemas/[\w.-]+\.json", cuerpo):
             assert (RAIZ_REPO / citado).is_file(), f"{rol} cita {citado}, que no existe"
+
+
+SETTINGS = RAIZ_REPO / ".claude" / "settings.json"
+DENY = {
+    "Read(./novelas/*/canon/misterio.md)",
+    "Edit(./novelas/*/estado/estado.db*)",
+    "Edit(./novelas/*/estado/state.lock)",
+    "Bash(sqlite3:*)",
+}
+MATCHER = {"Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell", "Agent", "Task"}
+
+
+def test_settings_de_claude() -> None:
+    """CA-06 (RF-08, RF-09, RF-10, RF-20). En -p, un settings.json inválido se ignora sin avisar, y
+    con él desaparecerían el deny del misterio y el hook."""
+    texto = SETTINGS.read_text(encoding="utf-8")
+    settings = json.loads(texto)
+    assert set(settings) <= {"permissions", "hooks"}, "ni claves, ni enabledPlugins, ni env"
+    assert "bypassPermissions" not in texto
+    assert settings["permissions"]["allow"] == ["Agent", "Bash(novela:*)", "Edit(./novelas/**)"]
+    assert DENY <= set(settings["permissions"]["deny"])
+    [registro] = settings["hooks"]["PreToolUse"]
+    assert set(registro["matcher"].split("|")) == MATCHER
+    [orden] = [h["command"] for h in registro["hooks"]]
+    script = re.search(r"\$CLAUDE_PROJECT_DIR/([^\"\s]+)", orden)
+    assert script and (RAIZ_REPO / script[1]).is_file(), orden  # F-10: la ruta existe
+    assert orden.startswith("python "), "python3 es el alias de la Store en Windows (E-11)"

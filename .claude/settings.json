@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": ["Agent", "Bash(novela:*)", "Edit(./novelas/**)"],
+    "deny": [
+      "Read(./novelas/*/canon/misterio.md)",
+      "Edit(./novelas/*/estado/estado.db*)",
+      "Edit(./novelas/*/estado/state.lock)",
+      "Bash(sqlite3:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/denegar-escritura-estado.py\""
+          }
+        ]
+      }
+    ]
+  }
+}
