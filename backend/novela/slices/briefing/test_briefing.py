@@ -266,6 +266,18 @@ def test_canon_invalido_en_el_log(tmp_path: Path) -> None:
     assert "briefing 01 trazador -> error · WorkspaceInvalido" in log.splitlines()[-1]
 
 
+def test_misterio_invalido_en_el_log(tmp_path: Path) -> None:
+    """CA-22 (RF-34, F-09): /novela-nueva no reintenta al arquitecto si la causa nombra
+    misterio.md, que no puede leer ni, por tanto, reescribir. La causa tiene que nombrarlo."""
+    ws = _nueva(tmp_path)
+    fabrica.escribir(ws.raiz, fabrica.canon(fabrica.HUERFANA) | fabrica.plan(fabrica.HUERFANA))
+    fabrica.escribir(ws.raiz, {"canon/misterio.md": "---\npistas: 3\n---\nRoto.\n"})
+    resultado = fabrica.cli(tmp_path, "briefing", ws.slug, "1", "trazador", run=ARRANQUE)
+    assert resultado.exit_code == 4
+    ultima = (ws.raiz / "runs" / ARRANQUE / "harness.log").read_text("utf-8").splitlines()[-1]
+    assert "WorkspaceInvalido" in ultima and "misterio.md" in ultima
+
+
 @given(misterio=estrategias.misterios())
 def test_pista_permitida_dentro_del_secreto_no_lo_tapa(misterio: Misterio) -> None:
     """Contraejemplo que encontró Hypothesis: una pista permitida que es subcadena del secreto no
