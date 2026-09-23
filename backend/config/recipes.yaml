@@ -1,0 +1,63 @@
+# Qué entra en el briefing de cada agente y con qué presupuesto (architecture.md §6.2).
+#
+# `capas` es una lista de mapas de un solo par, no un mapa: el orden es el de ensamblado.
+# Presupuestos de §6.5: briefing ≤ 100.000 − 10.000 fijo − salida esperada − 15.000 de margen.
+#
+# Techo conocido: la salida de arquitecto y trazador escala con num_capitulos (el trazador emite
+# una ficha por capítulo). Estos presupuestos suponen num_capitulos ≤ 30; más allá, o se
+# re-derivan o el trazador escribe por actos en varias invocaciones.
+#
+# La versión de recetas que se anota en cada manifest.json es el sha256 de este fichero.
+
+arquitecto:
+  presupuesto_tokens: 50000
+  capas:
+    - permanente: [config.yaml]
+
+trazador:
+  presupuesto_tokens: 55000
+  capas:
+    - permanente: [config.yaml, canon/*]
+    - personajes: todos
+
+escritor:
+  presupuesto_tokens: 60000
+  capas:
+    - permanente: [canon/premisa, canon/mundo, canon/estilo]
+    - personajes: presentes_en_escena
+    - estado: [personajes, conocimiento, hilos_abiertos, objetos]
+    - inmediata: capitulo_anterior_completo
+    - reciente: {n: 3, granularidad: parrafo}
+    - remota: {granularidad: una_linea, desde: 1}
+    - plan: capitulo_actual
+    - variacion: restriccion_de_apertura
+  excluir: [canon/misterio]
+
+continuista:
+  presupuesto_tokens: 65000
+  capas:
+    - permanente: [canon/*, canon/misterio]
+    - estado: [libro_de_hechos, linea_temporal, coartadas]
+    - objetivo: capitulo_recien_escrito
+
+editor-estilo:
+  presupuesto_tokens: 68000
+  capas:
+    - permanente: [canon/estilo]
+    - personajes: presentes_en_escena
+    - objetivo: capitulo_recien_escrito
+  excluir: [canon/misterio]
+
+lector-suspense:
+  presupuesto_tokens: 67000
+  capas:
+    - permanente: [canon/misterio, plan/escaleta]
+    - estado: [pistas, conocimiento_lector, tension_real]
+    - objetivo: capitulo_recien_escrito
+
+cronista:
+  presupuesto_tokens: 70000
+  capas:
+    - estado: [personajes, conocimiento, hilos_abiertos, objetos, relaciones, libro_de_hechos]
+    - objetivo: capitulo_recien_escrito
+  excluir: [canon/misterio]
