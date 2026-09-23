@@ -7,6 +7,9 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    env:
+      # Sin .pyc: mutmut reutilizaría bytecode rancio en mutaciones del mismo tamaño.
+      PYTHONDONTWRITEBYTECODE: "1"
     defaults:
       run:
         working-directory: backend

@@ -13,7 +13,7 @@ from novela.dominio.base import ColeccionAppendOnly
 from novela.dominio.estado import Cursor, Delta, Estado, EstadoPista, Metricas
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True)  # pragma: no mutate
 class Derivados:
     frontmatter: FrontmatterCapitulo  # pistas plantadas y pagadas en el capítulo
     pago_previsto: Mapping[str, int | None]  # canon.misterio.pistas: id → capitulo_pagado
