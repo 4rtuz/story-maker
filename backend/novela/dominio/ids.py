@@ -29,6 +29,9 @@ RUN_ID_PATRON = r"^r-[0-9]{8}-[0-9]{4}$"
 Slug = Annotated[str, StringConstraints(pattern=SLUG_PATRON)]
 RunId = Annotated[str, StringConstraints(pattern=RUN_ID_PATRON)]
 
+# Hash de los bytes en disco, sin normalizar: la custodia del capítulo (RF-30 a RF-32).
+Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+
 # Número de capítulo: el rango real (1..num_capitulos) depende de config.yaml; el tipo fija el
 # techo absoluto y `nn` el formato, que es uno solo para todo el workspace.
 CapituloNum = Annotated[int, Field(ge=1, le=999)]

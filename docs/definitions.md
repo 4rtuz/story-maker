@@ -288,7 +288,7 @@ El contexto persiste como ficheros, no como historial de conversación. Cada sub
 
 **`capitulos/NN.md`** — Salida final, con frontmatter que declara capítulo, pov, palabras y pistas tratadas.
 
-**`qa/NN-<agente>.json`** — Un fichero por agente —`continuidad`, `estilo`, `suspense`— más `validacion`, que lo escribe el CLI. Formato en `architecture.md` §7.3. Es el único input del reintento.
+**`qa/NN-<agente>.json`** — Un fichero por agente —`continuidad`, `estilo`, `suspense`— más `validacion`, que lo escribe el CLI. Formato y vocabulario de hallazgos en `architecture.md` §7.3. Es el único input del reintento. `novela auditar` usa el mismo formato en `qa/auditoria.json`.
 
 **`checkpoints/`** — Snapshots de estado y cursor. Permiten reanudar sin reprocesar y sin gastar requests.
 
