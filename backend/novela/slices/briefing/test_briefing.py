@@ -1,15 +1,22 @@
+import os
+from collections.abc import Callable
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
+from typer.testing import CliRunner, Result
 
+from novela.cli import app
 from novela.dominio import frontmatter
 from novela.dominio.base import ColeccionAppendOnly
 from novela.dominio.canon import Misterio
 from novela.dominio.ids import Agente
+from novela.plataforma.workspace import WorkspaceRepository
 from novela.slices.briefing import assemble, recipes
 from tests import estrategias
+from tests.fixtures import fabrica
 from tests.fuentes import FICHA, PERSONAJE, fuentes
 
 RECETAS = recipes.cargar()
@@ -86,3 +93,110 @@ def test_el_error_no_repite_el_secreto(misterio: Misterio) -> None:
         assemble.ensamblar(RECETAS[Agente.EDITOR_ESTILO], f)
     assert "canon/estilo.md" in str(error.value)
     assert secreto not in str(error.value)
+
+
+# --- La cáscara: novela briefing ----------------------------------------------------------------
+
+GOLDEN = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "golden" / "08-escritor.md"
+RUN = "r-20260923-1000"
+Novelas = Callable[[str], WorkspaceRepository]
+
+
+def _briefing(ws: WorkspaceRepository, cap: int, agente: str, run_id: str = RUN) -> Result:
+    entorno = {"NOVELAS_DIR": str(ws.raiz.parent), "NOVELA_RUN_ID": run_id}
+    return CliRunner().invoke(app, ["briefing", ws.slug, str(cap), agente], env=entorno)
+
+
+def _fichero(ws: WorkspaceRepository, cap: int, agente: str, run_id: str = RUN) -> Path:
+    return ws.raiz / "runs" / run_id / "briefings" / f"{cap:02d}-{agente}.md"
+
+
+def test_golden_escritor(novelas: Novelas) -> None:
+    """CA-08: el briefing del escritor sobre el fixture coincide byte a byte con el esperado. Si
+    cambia a propósito, REGENERAR=1 lo reescribe y el diff del golden es la revisión."""
+    ws = novelas("demo-24")
+    resultado = _briefing(ws, 8, "escritor")
+    assert resultado.exit_code == 0, resultado.output
+    obtenido = _fichero(ws, 8, "escritor").read_bytes()
+    if os.environ.get("REGENERAR") == "1":
+        GOLDEN.parent.mkdir(parents=True, exist_ok=True)
+        GOLDEN.write_bytes(obtenido)
+    assert obtenido == GOLDEN.read_bytes()
+
+
+def test_fuga_por_cli_no_deja_fichero(novelas: Novelas) -> None:
+    """CA-09, la mitad del comando: sale != 0 y no deja fichero."""
+    ws = novelas("demo-24")
+    ficha = ws.raiz / "plan" / "capitulos" / "08.md"
+    secreto = "Lo hizo para cobrar el seguro que había firmado tres semanas antes del naufragio."
+    ficha.write_bytes(ficha.read_bytes() + f"\nNota del trazador: {secreto}\n".encode())
+    resultado = _briefing(ws, 8, "escritor")
+    assert resultado.exit_code == 1
+    assert "canon/misterio.md" in resultado.output and secreto not in resultado.output
+    assert not _fichero(ws, 8, "escritor").exists()
+
+
+def test_misterio_incrustado_por_cli(novelas: Novelas) -> None:
+    """CA-10 sobre el workspace: el continuista recibe canon/misterio.md literal."""
+    ws = novelas("demo-24")
+    fabrica.escribir(ws.raiz, {"capitulos/08.md": fabrica.capitulo(fabrica.DEMO, 8)})
+    assert _briefing(ws, 8, "continuista").exit_code == 0
+    misterio = (ws.raiz / "canon" / "misterio.md").read_text(encoding="utf-8").strip()
+    assert misterio in _fichero(ws, 8, "continuista").read_text(encoding="utf-8")
+
+
+def test_presupuesto_excedido_falla(novelas: Novelas) -> None:
+    """CA-11: canon/ no se degrada nunca; si ella sola no cabe, sale != 0 y no hay fichero."""
+    ws = novelas("demo-24")
+    premisa = ws.raiz / "canon" / "premisa.md"
+    premisa.write_bytes(premisa.read_bytes() + ("La niebla. " * 30_000).encode())
+    resultado = _briefing(ws, 8, "escritor")
+    assert resultado.exit_code == 1
+    assert "presupuesto" in resultado.output
+    assert not _fichero(ws, 8, "escritor").exists()
+
+
+def test_hash_del_capitulo_incrustado(novelas: Novelas) -> None:
+    """CA-34: quien incrusta capitulos/NN.md lleva su sha256; el escritor, que no, no lo lleva."""
+    ws = novelas("demo-24")
+    fabrica.escribir(ws.raiz, {"capitulos/08.md": fabrica.capitulo(fabrica.DEMO, 8)})
+    assert _briefing(ws, 8, "continuista").exit_code == 0
+    assert _briefing(ws, 8, "escritor").exit_code == 0
+    meta = frontmatter.partir(_fichero(ws, 8, "continuista").read_text(encoding="utf-8"))[0]
+    assert meta["capitulo_sha256"] == fabrica.sha256(ws.raiz / "capitulos" / "08.md")
+    meta = frontmatter.partir(_fichero(ws, 8, "escritor").read_text(encoding="utf-8"))[0]
+    assert "capitulo_sha256" not in meta
+
+
+def test_sello_capitulos_cerrados(novelas: Novelas) -> None:
+    """CA-39: tras el checkpoint del 7, un byte cambiado en un capítulo cerrado hace salir al
+    briefing del 8 con 4 sin escribir; sin cambios, se escribe."""
+    ws = novelas("demo-24")
+    assert _briefing(ws, 8, "escritor").exit_code == 0
+    _fichero(ws, 8, "escritor").unlink()
+    tercero = ws.raiz / "capitulos" / "03.md"
+    tercero.write_bytes(tercero.read_bytes().replace(b"Elena", b"Elen4", 1))
+    resultado = _briefing(ws, 8, "escritor")
+    assert resultado.exit_code == 4
+    assert "03" in resultado.output
+    assert not _fichero(ws, 8, "escritor").exists()
+
+
+def test_capitulo_sin_checkpoint_del_anterior(novelas: Novelas) -> None:
+    """validators.md §4.10: nunca un capítulo N+1 con el N sin checkpoint."""
+    ws = novelas("demo-24")
+    assert _briefing(ws, 9, "escritor").exit_code == 1
+    assert not _fichero(ws, 9, "escritor").exists()
+
+
+def test_manifiesto_y_log_por_cli(novelas: Novelas) -> None:
+    """CA-13 y CA-33 desde el comando: el run del entorno, su manifiesto y su línea de log; un
+    NOVELA_RUN_ID con basura aborta sin crear directorio."""
+    ws = novelas("demo-24")
+    assert _briefing(ws, 8, "escritor").exit_code == 0
+    assert (ws.raiz / "runs" / RUN / "manifest.json").exists()
+    log = (ws.raiz / "runs" / RUN / "harness.log").read_text(encoding="utf-8")
+    assert "briefing 08 escritor -> 0" in log
+    antes = sorted(p.name for p in (ws.raiz / "runs").iterdir())
+    assert _briefing(ws, 8, "escritor", run_id="../../fuera").exit_code == 2
+    assert sorted(p.name for p in (ws.raiz / "runs").iterdir()) == antes

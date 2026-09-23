@@ -288,6 +288,17 @@ def _vigilar_el_secreto(receta: Receta, f: Fuentes, secciones: list[str]) -> Non
             )
 
 
+# --- sello de capítulos cerrados (RF-35) -----------------------------------------------------
+
+
+def capitulos_alterados(
+    sellados: Mapping[int, str], actuales: Mapping[int, str | None]
+) -> list[int]:
+    """Los capítulos cerrados cuyo hash ya no es el del checkpoint, o que han desaparecido. Los
+    hashes los calcula la cáscara; esto solo compara."""
+    return sorted(c for c, sha in sellados.items() if actuales.get(c) != sha)
+
+
 # --- ensamblado ------------------------------------------------------------------------------
 
 

@@ -6,7 +6,7 @@ dentro de `BEGIN IMMEDIATE … COMMIT`: un corte a mitad deja la base en el punt
 """
 
 import sqlite3
-from collections.abc import Iterable, Iterator
+from collections.abc import Collection, Iterable, Iterator
 from contextlib import contextmanager
 from importlib import resources
 from pathlib import Path
@@ -83,32 +83,48 @@ _APPEND_ONLY = ("linea_temporal", "libro_de_hechos", "conocimiento_lector")
 _MUTABLES = ("relaciones", "objetos", "hilos")
 
 
-def _filas(conn: sqlite3.Connection, tabla: str) -> list[dict[str, Any]]:
+def _filas(
+    conn: sqlite3.Connection, tabla: str, donde: str = "", valores: tuple[str, ...] = ()
+) -> list[dict[str, Any]]:
     # Todo en orden de inserción: las append-only lo exigen y las mutables se reescriben enteras
     # en el orden de la lista, así que leer devuelve lo que se guardó.
-    cursor = conn.execute(f"SELECT * FROM {tabla} ORDER BY rowid")  # noqa: S608
+    filtro = f" WHERE {donde}" if donde else ""
+    cursor = conn.execute(f"SELECT * FROM {tabla}{filtro} ORDER BY rowid", valores)  # noqa: S608
     columnas = [c[0] for c in cursor.description]
     return [dict(zip(columnas, fila, strict=True)) for fila in cursor]
 
 
-def leer(conn: sqlite3.Connection) -> Estado:
-    """La vista serializada de architecture.md §7.1, desde las tablas."""
+def leer(conn: sqlite3.Connection, personajes: Collection[str] | None = None) -> Estado:
+    """La vista serializada de architecture.md §7.1, desde las tablas.
+
+    Con `personajes`, solo lo que toca a esos personajes en las colecciones que se indexan por
+    entidad: el largo plazo se consulta, no se carga (architecture.md §6.4)."""
     cursores, metricas_ = _filas(conn, "cursor"), _filas(conn, "metricas")
     if len(cursores) != 1 or len(metricas_) != 1:
         raise EstadoIlegible("estado.db sin cursor o sin métricas")
     cursor, metricas = cursores[0], metricas_[0]
+    ids = tuple(personajes) if personajes is not None else ()
+    marcas = ", ".join("?" * len(ids))
+
+    def de(tabla: str, donde: str = "", repetir: int = 1) -> list[dict[str, Any]]:
+        if personajes is None or not donde:
+            return _filas(conn, tabla)
+        return _filas(conn, tabla, donde.format(marcas), ids * repetir)
+
     conocimiento: dict[str, list[dict[str, Any]]] = {}
-    for fila in _filas(conn, "conocimiento"):
+    for fila in de("conocimiento", "personaje IN ({})"):
         conocimiento.setdefault(fila.pop("personaje"), []).append(fila)
     datos: dict[str, Any] = {
         "cursor": {k: v for k, v in cursor.items() if k != "id"},
-        "personajes": {f.pop("id"): f for f in _filas(conn, "personajes")},
+        "personajes": {f.pop("id"): f for f in de("personajes", "id IN ({})")},
         "conocimiento": conocimiento,
-        "pistas": {f.pop("id"): f for f in _filas(conn, "pistas")},
-        "tension_real": [f["valor"] for f in _filas(conn, "tension_real")],
+        "relaciones": de("relaciones", "de IN ({0}) OR a IN ({0})", repetir=2),
+        "objetos": de("objetos", "poseedor IS NULL OR poseedor IN ({})"),
+        "pistas": {f.pop("id"): f for f in de("pistas")},
+        "tension_real": [f["valor"] for f in de("tension_real")],
         "metricas": {k: v for k, v in metricas.items() if k != "id"},
     }
-    datos |= {tabla: _filas(conn, tabla) for tabla in (*_APPEND_ONLY, *_MUTABLES)}
+    datos |= {tabla: de(tabla) for tabla in (*_APPEND_ONLY, "hilos")}
     return Estado.model_validate(datos)
 
 

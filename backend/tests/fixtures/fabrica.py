@@ -15,7 +15,7 @@ from typer.testing import CliRunner
 
 from novela.cli import app
 from novela.dominio import frontmatter
-from novela.dominio.artefactos import Checkpoint
+from novela.dominio.artefactos import Checkpoint, Memoria
 from novela.dominio.estado import Cursor, Estado, EstadoPista, Hecho, Hilo, Metricas
 from novela.plataforma import estado_db
 
@@ -428,6 +428,12 @@ def delta(novela: Novela, n: int) -> dict[str, Any]:
     }
 
 
+def memoria(novela: Novela, n: int) -> str:
+    """Lo que renderiza aplicar-delta desde el resumen del delta."""
+    resumen = Memoria(capitulo=n, **delta(novela, n)["resumen"])
+    return frontmatter.unir(resumen.model_dump(mode="json"), "")
+
+
 def escribir(raiz: Path, ficheros: dict[str, str]) -> None:
     for relativa, texto in ficheros.items():
         ruta = raiz / relativa
@@ -492,6 +498,7 @@ def construir(base: Path, slug: str, novela: Novela, cerrados: int) -> Path:
     for n in range(1, cerrados + 1):
         escribir(raiz, {f"capitulos/{nn(n)}.md": capitulo(novela, n)} | informes(novela, n))
         escribir(raiz, {f"estado/deltas/{nn(n)}.json": json.dumps(delta(novela, n), indent=2)})
+        escribir(raiz, {f"memoria/resumenes/{nn(n)}.md": memoria(novela, n)})
     with estado_db.abrir(raiz / "estado" / "estado.db") as conn, estado_db.transaccion(conn):
         estado_db.guardar(conn, _estado_sintetico(novela, cerrados))
     if cerrados:

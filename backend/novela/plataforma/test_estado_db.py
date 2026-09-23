@@ -85,3 +85,18 @@ def test_guardar_no_reescribe_la_historia(estado: Estado, hecho: Hecho) -> None:
         with estado_db.transaccion(conn):
             estado_db.guardar(conn, estado)
     assert estado_db.leer(conn) == ampliado
+
+
+@given(estrategias.estados)
+def test_leer_filtrado_por_personajes(estado: Estado) -> None:
+    conn = _en_memoria()
+    with estado_db.transaccion(conn):
+        estado_db.guardar(conn, estado)
+    elegidos = set(list(estado.personajes)[:1])
+    filtrado = estado_db.leer(conn, personajes=elegidos)
+    assert set(filtrado.personajes) == elegidos
+    assert set(filtrado.conocimiento) <= elegidos
+    assert all(r.de in elegidos or r.a in elegidos for r in filtrado.relaciones)
+    assert all(o.poseedor is None or o.poseedor in elegidos for o in filtrado.objetos)
+    assert filtrado.libro_de_hechos == estado.libro_de_hechos
+    assert filtrado.hilos == estado.hilos

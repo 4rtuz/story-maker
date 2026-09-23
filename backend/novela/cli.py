@@ -6,6 +6,7 @@ import sys
 import typer
 
 from novela.plataforma.salida import con_codigos
+from novela.slices.briefing.cmd import briefing
 from novela.slices.estado.cmd import estado, pendiente
 from novela.slices.nueva.cmd import nueva
 
@@ -25,3 +26,4 @@ def novela() -> None:
 app.command()(con_codigos(nueva))
 app.command()(con_codigos(estado))
 app.command()(con_codigos(pendiente))
+app.command()(con_codigos(briefing))
