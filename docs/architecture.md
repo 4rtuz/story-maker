@@ -110,15 +110,22 @@ La variación creativa que antes se buscaba con temperatura alta se compensa por
 
 ### 2.3 Modo desatendido
 
-El bucle puede correr sin supervisión invocando Claude Code en modo headless:
+El bucle puede correr sin supervisión invocando Claude Code en modo headless, en Git Bash:
 
 ```bash
+export MSYS_NO_PATHCONV=1                 # sin esto, "/novela-continuar" llega como ruta de Windows
+export CC_LANGFUSE_TRACE_TAGS=<slug>
+novela comprobar-entorno || exit 1
 while novela pendiente <slug>; do
-  claude -p "/novela-continuar <slug> --capitulos 1" || break
+  antes=$(cat novelas/<slug>/checkpoints/latest.json 2>/dev/null)
+  export NOVELA_SESSION_ID=$(python -c "import uuid; print(uuid.uuid4())")
+  claude -p "/novela-continuar <slug> --capitulos 1" --session-id "$NOVELA_SESSION_ID" \
+    --setting-sources project,local --permission-mode dontAsk --model opus || break
+  [ "$(cat novelas/<slug>/checkpoints/latest.json 2>/dev/null)" != "$antes" ] || break
 done
 ```
 
-Un capítulo por sesión mantiene el contexto del orquestador pequeño y acota el daño de un fallo. El `|| break` es deliberado: ante un error, el sistema para y deja el checkpoint, no insiste.
+Un capítulo por sesión mantiene el contexto del orquestador pequeño y acota el daño de un fallo. El `|| break` es deliberado: ante un error, el sistema para y deja el checkpoint, no insiste. `novela comprobar-entorno` para antes de la primera sesión, y la última línea para el bucle si una sesión termina sin avanzar el checkpoint: un permiso que falte o una confianza no aceptada no se convierten en sesiones sin fin que gastan cuota. `--setting-sources project,local` deja fuera los plugins y hooks del ámbito de usuario, y `--model opus` fija el modelo del orquestador. Las sesiones interactivas del harness se abren igual de aisladas y con `NOVELA_SESSION_ID`, para que la regla 5 del hook y la correlación del log valgan también en ellas.
 
 ### 2.4 Higiene de contexto de la sesión orquestadora
 
@@ -830,6 +837,17 @@ GET /novelas/{slug}/runs/{run_id}         manifest.json
 ```
 
 Se arranca desde `backend/` con `uv run uvicorn api.main:app --reload`.
+
+**Puesta en marcha del harness**, una vez por máquina. Cada paso tiene su comprobación, porque si falla en silencio el síntoma aparece más tarde con otra cara:
+
+| # | Paso | Comprobación | Si no se hace |
+|---|---|---|---|
+| 1 | `uv` en el PATH de usuario, de forma persistente | `uv --version` en una terminal nueva, en Git Bash y en PowerShell | El hook del plugin de Langfuse cae a `python3` y falla; `uv tool` no existe |
+| 2 | `uv tool install --editable ./backend` desde la raíz | `novela --help` en Git Bash y en PowerShell | Toda orden `novela` del procedimiento falla |
+| 3 | Abrir `claude` en la raíz del repo y aceptar el diálogo de confianza | `hasTrustDialogAccepted: true` para el proyecto en `~/.claude.json` | `claude -p` ignora el `allow` y el bucle no avanza |
+| — | `python` resuelve a un intérprete real, no al alias de la Microsoft Store | `python -c "import sys; print(sys.executable)"` | El hook falla abierto: sale con un código distinto de 2 y la escritura pasa |
+
+Si `python` no resuelve, se desactiva el alias en «Alias de ejecución de aplicaciones» o se pone Python 3.12 por delante en el PATH; el comando del hook no se cambia a una ruta absoluta. `novela comprobar-entorno` comprueba `python`, el script del hook y `settings.local.json` antes de cada bucle.
 
 ### 11.2 Frontend (`frontend/`)
 

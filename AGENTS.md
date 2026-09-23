@@ -154,6 +154,12 @@ cd backend  && uv sync                              # Python 3.12
 cd frontend && npm install
 ```
 
+Una vez por máquina, para poder lanzar el harness:
+
+1. `uv` en el PATH de usuario, de forma persistente: lo necesitan `uv tool` y el hook del plugin de Langfuse.
+2. `uv tool install --editable ./backend` desde la raíz: deja `novela` en `~/.local/bin`.
+3. Abrir `claude` una vez en la raíz del repo y aceptar el diálogo de confianza: sin ella, `claude -p` ignora el `allow` del proyecto.
+
 **Desarrollo**
 
 ```bash
@@ -162,7 +168,14 @@ cd frontend && npm run dev                           # panel, consume la API
 cd backend  && uv run pytest                         # sin llamadas a modelo, sin cuota
 ```
 
-**Escribir una novela.** Interactivo, con `/clear` entre actos:
+**Escribir una novela.** Interactivo, en una sesión del harness y con `/clear` entre actos. La sesión se abre aislada del ámbito de usuario y con la variable que activa la regla 5 del hook; las sesiones de desarrollo del harness no la exportan:
+
+```bash
+export NOVELA_SESSION_ID=$(python -c "import uuid; print(uuid.uuid4())")
+claude --session-id "$NOVELA_SESSION_ID" --setting-sources project,local --model opus
+```
+
+Dentro de ella:
 
 ```
 /novela-nueva <slug> --idea "..." --capitulos 24 --palabras 80000
@@ -170,15 +183,22 @@ cd backend  && uv run pytest                         # sin llamadas a modelo, si
 /novela-auditar <slug>
 ```
 
-Desatendido, una sesión por capítulo para acotar el contexto y el daño de un fallo:
+Desatendido, una sesión por capítulo para acotar el contexto y el daño de un fallo. En Git Bash:
 
 ```bash
+export MSYS_NO_PATHCONV=1                 # sin esto, "/novela-continuar" llega como ruta de Windows
+export CC_LANGFUSE_TRACE_TAGS=<slug>
+novela comprobar-entorno || exit 1
 while novela pendiente <slug>; do
-  claude -p "/novela-continuar <slug> --capitulos 1" || break
+  antes=$(cat novelas/<slug>/checkpoints/latest.json 2>/dev/null)
+  export NOVELA_SESSION_ID=$(python -c "import uuid; print(uuid.uuid4())")
+  claude -p "/novela-continuar <slug> --capitulos 1" --session-id "$NOVELA_SESSION_ID" \
+    --setting-sources project,local --permission-mode dontAsk --model opus || break
+  [ "$(cat novelas/<slug>/checkpoints/latest.json 2>/dev/null)" != "$antes" ] || break
 done
 ```
 
-El `|| break` es deliberado: ante un error el sistema para y deja el checkpoint, no insiste. Para reanudar, vuelve a lanzarlo — `/novela-continuar` lee `checkpoints/latest.json` y repite el último paso no confirmado. Nunca reconstruyas el estado desde una conversación previa.
+El `|| break` es deliberado: ante un error el sistema para y deja el checkpoint, no insiste. `comprobar-entorno` para antes de la primera sesión, y la última línea, si una sesión no avanza el checkpoint. Para reanudar, vuelve a lanzarlo — `/novela-continuar` lee `checkpoints/latest.json` y repite el último paso no confirmado. Nunca reconstruyas el estado desde una conversación previa.
 
 Si el bucle escribe `runs/<run_id>/intervencion.md`, ha agotado los intentos de un gate y necesita una decisión humana. Léelo antes de relanzar nada.
 

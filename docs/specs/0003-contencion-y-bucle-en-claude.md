@@ -476,6 +476,8 @@ Se rellena durante la implementación.
 | RF-21 | CA-12 | `backend/novela/slices/validacion/test_validacion.py::test_sesion_en_el_log` | hecho |
 | RF-28 | CA-17 | `backend/novela/slices/entorno/test_entorno.py` | hecho |
 | RF-29 | CA-18 | Revisión de `.claude/commands/novela-nueva.md` y `novela-continuar.md` en su commit, y `backend/novela/slices/briefing/test_briefing.py::test_canon_invalido_en_el_log` | hecho |
+| RF-23, RF-30 | CA-13 | Revisión de `AGENTS.md` en su commit: los tres pasos, el bucle de §5.6 con `novela comprobar-entorno` y la sesión interactiva del harness | hecho |
+| RF-22 | CA-10 | En seco (plan, tarea 6.3): con `claude` sustituido por una sesión que no avanza, el bucle hace una iteración y sale; con `settings.local.json` ampliado, sale antes de la primera | hecho en seco; con el bucle real, pendiente de CA-10 |
 
 ## 13. Verificación
 

@@ -455,10 +455,10 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 |---|---|---|---|---|---|
 | F-21 | `settings.json` inválido | En `-p` se ignora sin avisar, y con él desaparecen el `deny` del misterio y el hook | Parseo y claves de primer nivel en el test | T | activo (CA-06) |
 | F-22 | `settings.local.json` amplía permisos: un `allow` más, un `defaultMode`, otro hook | No está versionado, CI no lo ve, y el bucle lo carga con `--setting-sources project,local` | Comprobación previa de que solo contiene `enabledPlugins`, en `ejecutar.py` del canario y antes de lanzar el bucle | T | activo en su parte de código (CA-17); que el bucle y el canario la ejecuten, 0003 (RF-30, RF-18) |
-| F-23 | La confianza del repo no está aceptada | El `allow` se ignora y el bucle gira sin avanzar | Freno del bucle (RF-22) | D | 0003 |
+| F-23 | La confianza del repo no está aceptada | El `allow` se ignora y el bucle gira sin avanzar | Freno del bucle (RF-22) | D | activo en seco (plan, tarea 6.3); con el bucle real, la novela de humo (CA-10) |
 | F-24 | La herramienta `PowerShell` de Windows queda fuera del `matcher` | La rama de texto del hook no la ve. En `-p` con `dontAsk` se deniega porque no está en `allow`; en interactivo, Claude Code pregunta | Añadir `PowerShell` al `matcher` y comprobarlo en CA-06 | T | activo (CA-06, CA-11, RF-20) |
 | F-25 | Una orden compuesta tras el prefijo permitido (`novela estado x && …`) | Si `Bash(novela:*)` casara solo el prefijo, el resto correría sin permiso | Canario del orquestador: una orden compuesta que debe denegarse | T | 0002 (§4.16); comportamiento sin verificar |
-| F-26 | `claude` se lanza desde un subdirectorio, como `backend/` | Si no encuentra `.claude/`, no hay permisos, ni hook, ni comandos | Freno del bucle. El bucle documentado corre en la raíz | D | 0003 |
+| F-26 | `claude` se lanza desde un subdirectorio, como `backend/` | Si no encuentra `.claude/`, no hay permisos, ni hook, ni comandos | Freno del bucle. El bucle documentado corre en la raíz | D | activo en seco: el bucle documentado corre en la raíz y lo para el freno; con el bucle real, CA-10 |
 
 **Procedimientos**
 
@@ -470,7 +470,7 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 | F-33 | Un prompt de Task lleva prosa o el capítulo | Contexto contaminado y fuga de la señal (§4.6) | Inspección de las trazas en la novela de humo. Después, la auditoría de trayectoria | I; A | 0003 (CA-10); 0002 |
 | F-34 | No se detecta un `intervencion.md` vivo | El bucle sigue sobre una novela parada | Ensayo: un `intervencion.md` sin `resuelto:` en el workspace de humo y una sesión de `/novela-continuar`, que debe parar sin invocar a ningún agente. Después, `novela pendiente` | D; T | 0003, CA-19 (RF-31); 0002 |
 | F-35 | Punto de reanudación equivocado | Se repite un paso ya confirmado o se salta uno | Ensayo de reanudación (§4.12) sobre las cuatro filas de la tabla de reanudación. La custodia para lo que se salte `validar` | D + A | 0002 (§4.12) |
-| F-36 | El slash command no se resuelve, por la conversión de rutas de MSYS | La sesión recibe una ruta y no hace nada | `MSYS_NO_PATHCONV=1` en el bucle, y el freno | D | 0003 |
+| F-36 | El slash command no se resuelve, por la conversión de rutas de MSYS | La sesión recibe una ruta y no hace nada | `MSYS_NO_PATHCONV=1` en el bucle, y el freno | D | activo: MSYS_NO_PATHCONV=1 en el bucle documentado; en ejecución, CA-10 |
 
 **Backend**
 
@@ -489,7 +489,7 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 
 | # | Fallo | Consecuencia | Verificador | Clase | Estado |
 |---|---|---|---|---|---|
-| F-50 | `novela` fuera del PATH, o la instalación editable sin sincronizar | Todas las órdenes fallan (ver F-32) | Comprobación de puesta en marcha, y `novela comprobar-entorno` antes del bucle | D + T | 0003, CA-13 y CA-17 (RF-30) |
+| F-50 | `novela` fuera del PATH, o la instalación editable sin sincronizar | Todas las órdenes fallan (ver F-32) | Comprobación de puesta en marcha, y `novela comprobar-entorno` antes del bucle | D + T | activo (CA-13, CA-17) |
 | F-51 | Una sesión del harness sin `--setting-sources project,local` | Los hooks del ámbito de usuario reescriben órdenes, y el `allow` deja de casar (E-10). Además se inyecta contexto que el manifiesto no registra | El flag va en el bucle documentado y en las sesiones interactivas. Una sesión manual no tiene verificador | D | 0003; U (§5.17) |
 | F-52 | El plugin de Langfuse no carga, o falla | Sin trazas y sin aviso: el bucle sigue | Novela de humo (CA-10) y `~/.claude/state/langfuse_hook.log` | D | 0003 |
 | F-53 | Una sesión avanza el checkpoint pero ha hecho algo indebido | El freno no lo ve, porque solo mira si hubo avance | Auditoría de trayectoria | A | 0002 |

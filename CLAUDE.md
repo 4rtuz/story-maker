@@ -50,15 +50,27 @@ Si modificas el prompt de un agente, hazlo en su fichero y commitea: el sha del 
 /novela-auditar <slug>
 ```
 
-En modo desatendido, una sesión por capítulo:
+En modo desatendido, una sesión por capítulo, en Git Bash:
 
 ```bash
+export MSYS_NO_PATHCONV=1                 # sin esto, "/novela-continuar" llega como ruta de Windows
+export CC_LANGFUSE_TRACE_TAGS=<slug>
+novela comprobar-entorno || exit 1
 while novela pendiente <slug>; do
-  claude -p "/novela-continuar <slug> --capitulos 1" || break
+  antes=$(cat novelas/<slug>/checkpoints/latest.json 2>/dev/null)
+  export NOVELA_SESSION_ID=$(python -c "import uuid; print(uuid.uuid4())")
+  claude -p "/novela-continuar <slug> --capitulos 1" --session-id "$NOVELA_SESSION_ID" \
+    --setting-sources project,local --permission-mode dontAsk --model opus || break
+  [ "$(cat novelas/<slug>/checkpoints/latest.json 2>/dev/null)" != "$antes" ] || break
 done
 ```
 
-En modo interactivo, `/clear` entre actos.
+En modo interactivo, `/clear` entre actos, en una sesión del harness abierta así (las de desarrollo no exportan la variable):
+
+```bash
+export NOVELA_SESSION_ID=$(python -c "import uuid; print(uuid.uuid4())")
+claude --session-id "$NOVELA_SESSION_ID" --setting-sources project,local --model opus
+```
 
 ### Hooks
 
