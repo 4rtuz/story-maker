@@ -16,6 +16,7 @@ from typing import Any
 MOTIVO = "denegar-escritura-estado:"  # prefijo de todo motivo; el canario lo busca en el transcript
 _NN = r"\d{2,3}"
 _DELTA = rf"estado/deltas/{_NN}\.json"
+_INTERVENCION = r"runs/[^/]+/intervencion\.md"
 # spec 0003 §5.1, relativas a novelas/<slug>/. test_hook comprueba que casa con CONTRATO de
 # test_contratos (D-2): el hook no puede importar backend/, así que es una copia vigilada.
 SALIDAS = {
@@ -96,6 +97,10 @@ def decidir(entrada: dict[str, Any], entorno: Mapping[str, str]) -> str | None:
     rol = entrada.get("agent_type")
     if rol in ROLES and not any(re.fullmatch(p, r) for p in SALIDAS[rol] for r in relativas):
         return f"{rol} solo escribe en sus salidas: {valor}"
+    # Regla 3: sin agent_type es la sesión principal (E-1). Si Claude Code dejara de mandarlo en
+    # los subagentes, esto los pararía a todos: falla cerrado, y lo ven el freno y el canario.
+    if rol is None and relativas and not any(re.fullmatch(_INTERVENCION, r) for r in relativas):
+        return f"la sesión principal solo escribe intervencion.md en el workspace: {valor}"
     return None
 
 

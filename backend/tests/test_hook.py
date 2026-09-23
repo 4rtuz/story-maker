@@ -180,3 +180,22 @@ def test_salidas_casan_el_contrato() -> None:
             assert any(re.fullmatch(r, ruta) for r in hook.SALIDAS[rol]), (rol, ruta)
         for r in hook.SALIDAS[rol]:  # y ningún patrón del hook sobra
             assert any(re.fullmatch(r, ruta) for ruta in rutas), (rol, r)
+
+
+# --- Regla 3: la sesión principal no escribe en el workspace ---------------------------------
+
+
+def test_sesion_principal(tmp_path: Path) -> None:
+    """CA-14 (RF-25): sin agent_type, en novelas/ solo runs/*/intervencion.md. El orquestador no
+    escribe el capítulo, el delta ni un qa/ «para ahorrar una llamada»."""
+    for ruta, esperado in (
+        ("novelas/x/capitulos/07.md", 2),
+        ("novelas/x/qa/07-continuidad.json", 2),
+        ("novelas/x/estado/deltas/07.json", 2),  # la regla 1 lo permitiría; la 3, no
+        ("novelas/x/runs/r-20260101-0000/intervencion.md", 0),
+        ("novelas/x/runs/r-20260101-0000/manifest.json", 2),
+        ("README.md", 0),
+        ("docs/specs/0003-contencion-y-bucle-en-claude.md", 0),
+    ):
+        resultado = _hook(_escritura(ruta, tmp_path, agente=None), tmp_path)
+        assert resultado.returncode == esperado, (ruta, resultado.stderr)
