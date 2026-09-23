@@ -1,0 +1,29 @@
+# Valores por defecto de config.yaml. `novela nueva` los combina con sus flags y valida el
+# resultado contra dominio/config.py; idea_semilla la pone siempre el flag --idea.
+parametros_obra:
+  longitud_total_palabras: 80000
+  num_capitulos: 24
+  subgenero: thriller_psicologico
+  punto_de_vista: tercera_limitada
+  tiempo_verbal: pasado
+  idioma: es
+  restricciones_contenido: []
+
+parametros_sistema:
+  modelo_por_agente:
+    arquitecto: opus
+    trazador: opus
+    escritor: opus
+    continuista: sonnet
+    editor-estilo: sonnet
+    lector-suspense: sonnet
+    cronista: haiku
+  temperatura_por_agente: {}
+  presupuesto:
+    requests_dia: 900
+    tokens_por_llamada: 100000
+    tokens_contexto_por_agente: 100000
+  politica_reintentos:
+    max_intentos: 3
+    entrada_del_reintento: informe_qa
+  politica_checkpoint: por_capitulo

@@ -29,16 +29,16 @@ Todo lo que el usuario decide antes de que el sistema arranque y que el sistema 
 **`parametros_obra.num_capitulos`** — Número de capítulos a producir. Si el usuario fija longitud y número, `palabras_por_capitulo` se deriva; si fija solo uno, el trazador propone el otro.
 `int` · **INMUTABLE** · usuario → trazador
 
-**`parametros_obra.palabras_por_capitulo`** — Terna `{objetivo, min, max}`. El rango, no el objetivo, es lo que evalúa el gate de longitud: exigir un número exacto degrada la prosa.
+**`parametros_obra.palabras_por_capitulo`** — Terna `{objetivo, min, max}`. El rango, no el objetivo, es lo que evalúa el gate de longitud: exigir un número exacto degrada la prosa. Derivada, es `objetivo = longitud_total_palabras // num_capitulos` con `min` y `max` a ±20 %.
 `objeto` · **INMUTABLE** · usuario o derivado → escritor, gates
 
-**`parametros_obra.subgenero`** — Thriller psicológico, noir, domestic suspense, procedural, etc. Condiciona el canon de estilo y las expectativas de fair play.
+**`parametros_obra.subgenero`** — `thriller_psicologico | noir | domestic_suspense | procedural`. Condiciona el canon de estilo y las expectativas de fair play. Añadir un valor es cambio de esquema.
 `enum` · **INMUTABLE** · usuario → arquitecto
 
-**`parametros_obra.punto_de_vista`** — Primera persona, tercera limitada, múltiple, narrador no fiable. En suspense es una decisión estructural, no estilística: determina qué puede saber el lector.
+**`parametros_obra.punto_de_vista`** — `primera_persona | tercera_limitada | multiple | narrador_no_fiable`. En suspense es una decisión estructural, no estilística: determina qué puede saber el lector.
 `enum` · **INMUTABLE** · usuario → arquitecto, escritor
 
-**`parametros_obra.tiempo_verbal` / `idioma` / `restricciones_contenido`** — Presente o pasado; lengua de salida; límites explícitos de contenido que ningún agente puede cruzar.
+**`parametros_obra.tiempo_verbal` / `idioma` / `restricciones_contenido`** — `presente | pasado`; lengua de salida; límites explícitos de contenido que ningún agente puede cruzar.
 `enum` / `string` / `lista` · **INMUTABLE** · usuario → todos
 
 **`parametros_sistema.modelo_por_agente`** — Asignación de modelo a cada rol. Permite usar un modelo caro para el escritor y uno barato para el cronista.
