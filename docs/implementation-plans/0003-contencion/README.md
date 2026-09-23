@@ -7,6 +7,11 @@ comprueba. Este plan dice **en qué orden**, qué test abre cada ciclo y dónde 
 **Si el plan y la spec se contradicen, manda la spec.** Este directorio es ruta de ejecución, no
 contrato. Cuando la spec pase a `implementada`, se borra entero, `decisiones-abiertas.md` incluido.
 
+**Estado a 2026-09-23.** Hechas las fases 1 a 4 y la 6, salvo el paso 3 de la 6.1 (la confianza,
+que acepta el operador), y el código de la 5. Quedan la comprobación de trazado de la 5.1, el
+canario en verde de la 5.3, que necesita antes la enmienda de F-64, y la fase 7. Los hallazgos
+están en la spec, §13.
+
 ## Los siete documentos
 
 | Fase | Fichero | Qué construye | Utilizable al terminar |

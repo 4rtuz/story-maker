@@ -412,12 +412,12 @@ No aplica: no hay novelas empezadas y los cambios en `manifest.json` y `harness.
 
 ## 11. Criterios de aceptación
 
-- [ ] **CA-01** (RF-01, RF-02, RF-03) El test de contrato lee `.claude/agents/*.md` y falla si falta o sobra un rol, si `name` no casa con el fichero, o si `tools` o `model` difieren de §5.1
-- [ ] **CA-02** (RF-04, RF-24) El mismo test falla si el cuerpo de un agente no nombra alguna de sus salidas o su esquema de §5.1, o si una ruta `backend/schemas/*.json` citada en un cuerpo no existe
-- [ ] **CA-03** (RF-05) Property-based, con `agent_type: "Explore"` para aislar la regla 1. Para toda ruta generada bajo `novelas/<slug>/estado/` que no sea `estado/deltas/NN.json` el hook sale con 2, con variaciones de mayúsculas, separadores, `..`, ruta absoluta o relativa, prefijo `\\?\` y puntos o espacios finales por segmento. Para `estado/deltas/NN.json` sale con 0. Una ruta con `:` fuera de la unidad, o con un segmento de tres puntos, sale con 2
-- [ ] **CA-04** (RF-06) Una entrada que no es JSON, o una escritura sin `file_path`, hace salir al hook con 2
-- [ ] **CA-05** (RF-07) Property-based: para cada rol y cada salida de su fila de §5.1, el hook sale con 0; para cada rol y cada salida de otra fila, o una ruta fuera de `novelas/`, sale con 2. Con `agent_type: Explore` o sin `agent_type`, una ruta del repo fuera de `novelas/` sale con 0
-- [ ] **CA-06** (RF-08, RF-09, RF-10, RF-20) El test parsea `.claude/settings.json` y falla en cualquiera de estos casos:
+- [x] **CA-01** (RF-01, RF-02, RF-03) El test de contrato lee `.claude/agents/*.md` y falla si falta o sobra un rol, si `name` no casa con el fichero, o si `tools` o `model` difieren de §5.1
+- [x] **CA-02** (RF-04, RF-24) El mismo test falla si el cuerpo de un agente no nombra alguna de sus salidas o su esquema de §5.1, o si una ruta `backend/schemas/*.json` citada en un cuerpo no existe
+- [x] **CA-03** (RF-05) Property-based, con `agent_type: "Explore"` para aislar la regla 1. Para toda ruta generada bajo `novelas/<slug>/estado/` que no sea `estado/deltas/NN.json` el hook sale con 2, con variaciones de mayúsculas, separadores, `..`, ruta absoluta o relativa, prefijo `\\?\` y puntos o espacios finales por segmento. Para `estado/deltas/NN.json` sale con 0. Una ruta con `:` fuera de la unidad, o con un segmento de tres puntos, sale con 2
+- [x] **CA-04** (RF-06) Una entrada que no es JSON, o una escritura sin `file_path`, hace salir al hook con 2
+- [x] **CA-05** (RF-07) Property-based: para cada rol y cada salida de su fila de §5.1, el hook sale con 0; para cada rol y cada salida de otra fila, o una ruta fuera de `novelas/`, sale con 2. Con `agent_type: Explore` o sin `agent_type`, una ruta del repo fuera de `novelas/` sale con 0
+- [x] **CA-06** (RF-08, RF-09, RF-10, RF-20) El test parsea `.claude/settings.json` y falla en cualquiera de estos casos:
   - no es JSON válido;
   - tiene claves de primer nivel distintas de `permissions` y `hooks`;
   - `allow` no es exactamente el de §5.2;
@@ -425,8 +425,8 @@ No aplica: no hay novelas empezadas y los cambios en `manifest.json` y `harness.
   - aparece `bypassPermissions`;
   - el `matcher` de `PreToolUse` no cubre las ocho herramientas de §5.2;
   - el script que nombra la orden del hook no existe.
-- [ ] **CA-07** (RF-11) Tras `novela briefing <slug> 1 arquitecto` y `… trazador`, los dos briefings están en el mismo run con `fase: "arranque"`. El primer `novela briefing <slug> 1 escritor` abre otro run con `fase: "capitulo"`, cuyo manifiesto registra el hash del canon y el plan presentes
-- [ ] **CA-08** (RF-12) Probado sobre un repo git temporal. Con un fichero de `.claude/agents/` modificado sin commitear, el manifiesto registra `sucio: true` y un hash distinto del commiteado. Lo mismo con `CLAUDE.md`. Sin git, `sucio` es `true`
+- [x] **CA-07** (RF-11) Tras `novela briefing <slug> 1 arquitecto` y `… trazador`, los dos briefings están en el mismo run con `fase: "arranque"`. El primer `novela briefing <slug> 1 escritor` abre otro run con `fase: "capitulo"`, cuyo manifiesto registra el hash del canon y el plan presentes
+- [x] **CA-08** (RF-12) Probado sobre un repo git temporal. Con un fichero de `.claude/agents/` modificado sin commitear, el manifiesto registra `sucio: true` y un hash distinto del commiteado. Lo mismo con `CLAUDE.md`. Sin git, `sucio` es `true`
 - [ ] **CA-09** (RF-18, RF-26) Lo que informa `ejecutar.py`:
   - los cinco intentos, como fallidos;
   - los dos controles positivos, como pasados;
@@ -437,13 +437,13 @@ No aplica: no hay novelas empezadas y los cambios en `manifest.json` y `harness.
 
   Con `novela comprobar-entorno --limpio` fallando, `ejecutar.py` no lanza ninguna sesión.
 - [ ] **CA-10** (RF-13 a RF-17, RF-19, RF-22) La novela de humo de §5.7 termina con `checkpoints/03.json` confirmado, una traza en Langfuse con la etiqueta `humo-0003` por sesión (una por capítulo, más la del arranque y la del ensayo) y los briefings de los cinco agentes por capítulo en `runs/`
-- [ ] **CA-11** (RF-20) El hook sale con 2 ante `cat novelas/x/canon/misterio.md` y `sqlite3 novelas/x/estado/estado.db` como `Bash`, y ante `Get-Content novelas\x\CANON\Misterio.md` como `PowerShell`. Sale con 0 ante `novela estado el-misterio-del-faro --breve`
-- [ ] **CA-12** (RF-21) Con `NOVELA_SESSION_ID` válido, la línea de `harness.log` de un `validar` lleva `sesion=<uuid>` y conserva la subcadena `validar NN -> <código>`. Con un valor que no es UUID, no lo lleva y el comando no falla
-- [ ] **CA-13** (RF-23, RF-30) Revisión en el commit: `AGENTS.md` contiene los tres pasos y el bucle de §5.6 con `novela comprobar-entorno`, y la forma de abrir una sesión interactiva del harness
-- [ ] **CA-14** (RF-25) Sin `agent_type`, el hook sale con 2 ante una escritura en `capitulos/NN.md`, `qa/NN-x.json` y `estado/deltas/NN.json` de un workspace, con 0 ante `runs/r-20260101-0000/intervencion.md`, y con 0 ante `README.md` del repo
-- [ ] **CA-15** (RF-26) Con `NOVELA_SESSION_ID` en el entorno del subproceso, el hook sale con 2 ante `Agent` con `subagent_type: "general-purpose"` y ante `Task` sin `subagent_type`, y con 0 ante `escritor` y `canario`. Sin la variable, sale con 0 ante `general-purpose`
-- [ ] **CA-16** (RF-27) Con `NOVELA_RUN_ID` fijado a un run con manifiesto de `fase: "arranque"`, `novela briefing <slug> 1 escritor` sale con 2 y no escribe briefing. Lo mismo con un run de otro capítulo
-- [ ] **CA-17** (RF-28) `comprobar-entorno` sale con 1 y nombra el hallazgo en cada caso:
+- [x] **CA-11** (RF-20) El hook sale con 2 ante `cat novelas/x/canon/misterio.md` y `sqlite3 novelas/x/estado/estado.db` como `Bash`, y ante `Get-Content novelas\x\CANON\Misterio.md` como `PowerShell`. Sale con 0 ante `novela estado el-misterio-del-faro --breve`
+- [x] **CA-12** (RF-21) Con `NOVELA_SESSION_ID` válido, la línea de `harness.log` de un `validar` lleva `sesion=<uuid>` y conserva la subcadena `validar NN -> <código>`. Con un valor que no es UUID, no lo lleva y el comando no falla
+- [x] **CA-13** (RF-23, RF-30) Revisión en el commit: `AGENTS.md` contiene los tres pasos y el bucle de §5.6 con `novela comprobar-entorno`, y la forma de abrir una sesión interactiva del harness
+- [x] **CA-14** (RF-25) Sin `agent_type`, el hook sale con 2 ante una escritura en `capitulos/NN.md`, `qa/NN-x.json` y `estado/deltas/NN.json` de un workspace, con 0 ante `runs/r-20260101-0000/intervencion.md`, y con 0 ante `README.md` del repo
+- [x] **CA-15** (RF-26) Con `NOVELA_SESSION_ID` en el entorno del subproceso, el hook sale con 2 ante `Agent` con `subagent_type: "general-purpose"` y ante `Task` sin `subagent_type`, y con 0 ante `escritor` y `canario`. Sin la variable, sale con 0 ante `general-purpose`
+- [x] **CA-16** (RF-27) Con `NOVELA_RUN_ID` fijado a un run con manifiesto de `fase: "arranque"`, `novela briefing <slug> 1 escritor` sale con 2 y no escribe briefing. Lo mismo con un run de otro capítulo
+- [x] **CA-17** (RF-28) `comprobar-entorno` sale con 1 y nombra el hallazgo en cada caso:
   - `settings.json` inválido;
   - `settings.local.json` con una clave `permissions`;
   - el script del hook ausente;
@@ -451,7 +451,7 @@ No aplica: no hay novelas empezadas y los cambios en `manifest.json` y `harness.
   - `--limpio` con el árbol sucio.
 
   Sin ningún caso, sale con 0. Se prueba sobre un directorio temporal, sin tocar el repo
-- [ ] **CA-18** (RF-29) Revisión en el commit: `novela-nueva.md` y `novela-continuar.md` contienen las tres reglas de lectura y la tabla de códigos de §5.4, y `novela-nueva.md` contiene la excepción del paso 3. Un test de `test_briefing.py` fija la línea de esa excepción: con un canon inválido, `novela briefing <slug> 1 trazador` sale con 4 y la última línea de `harness.log` contiene `briefing 01 trazador -> error · WorkspaceInvalido`
+- [x] **CA-18** (RF-29) Revisión en el commit: `novela-nueva.md` y `novela-continuar.md` contienen las tres reglas de lectura y la tabla de códigos de §5.4, y `novela-nueva.md` contiene la excepción del paso 3. Un test de `test_briefing.py` fija la línea de esa excepción: con un canon inválido, `novela briefing <slug> 1 trazador` sale con 4 y la última línea de `harness.log` contiene `briefing 01 trazador -> error · WorkspaceInvalido`
 - [ ] **CA-19** (RF-31) En la novela de humo: la sesión del ensayo de intervención termina sin crear ningún run ni briefing, y el resultado de `/memory` consta en §13
 
 ## 12. Trazabilidad
@@ -479,6 +479,8 @@ Se rellena durante la implementación.
 | RF-29 | CA-18 | Revisión de `.claude/commands/novela-nueva.md` y `novela-continuar.md` en su commit, y `backend/novela/slices/briefing/test_briefing.py::test_canon_invalido_en_el_log` | hecho |
 | RF-23, RF-30 | CA-13 | Revisión de `AGENTS.md` en su commit: los tres pasos, el bucle de §5.6 con `novela comprobar-entorno` y la sesión interactiva del harness | hecho |
 | RF-22 | CA-10 | En seco (plan, tarea 6.3): con `claude` sustituido por una sesión que no avanza, el bucle hace una iteración y sale; con `settings.local.json` ampliado, sale antes de la primera | hecho en seco; con el bucle real, pendiente de CA-10 |
+| RF-13 a RF-17, RF-19, RF-22 | CA-10 | Novela de humo `humo-0003` (plan, fase 7). Sin ejecutar: necesita la confianza aceptada, las claves de Langfuse y el canario en verde | pendiente |
+| RF-31 | CA-19 | Ensayo de intervención y `/memory` en la novela de humo. Sin ejecutar | pendiente |
 
 ## 13. Verificación
 
@@ -499,6 +501,21 @@ Se rellena durante la implementación.
   - La segunda regla del hook no sabe qué capítulo está en curso: permite `capitulos/NN.md` para cualquier `NN`. Reescribir uno cerrado lo detecta el sello de 0001 RF-35.
   - Los tres revisores comparten turno con el `editor-estilo`, que reescribe el capítulo (`validators.md` §5.15).
   - El baseline es de una sola ejecución (`validators.md` §5.16).
+
+### Hallazgos de la implementación (2026-09-23)
+
+Lo que la implementación encontró y la spec no decía. Los fallos nuevos están en `validators.md` §4.17.
+
+- **F-09, propuesto.** En un reintento, el `arquitecto` no puede reescribir `canon/misterio.md`: el `deny` le impide leerlo, y `Write` no sobrescribe un fichero que el agente no ha leído. Su cuerpo manda fallar citando la causa, y el gate acaba en intervención.
+- **F-47, activo.** Una causa con saltos de línea, como un `ValidationError`, partía la entrada de `harness.log` en varias líneas, y la regla de lectura 1 leía la última línea equivocada. Lo encontró el test de CA-18: `Run.registro` escribe ahora siempre una sola línea.
+- **F-54, propuesto.** Los scores de `novela checkpoint` leen `TRACE_TO_LANGFUSE` y las claves del entorno, y `comprobar-entorno` prohíbe `env` en `settings.local.json`. Tienen que estar en el entorno de usuario, o el baseline de CA-10 se queda sin scores.
+- **F-64, propuesto.** En la primera ejecución del canario, los dos agentes se negaron a intentar lo prohibido: `CLAUDE.md` y `AGENTS.md` también se cargan en ellos. El veredicto salió en rojo, que es lo correcto, pero CA-09 no se cierra hasta rehacer los prompts de `agente.json` por enmienda.
+- **Un 1 de `novela briefing` o de `novela checkpoint`** no tiene reintento en ningún paso de §5.4. Los procedimientos lo tratan como un 4: escriben `intervencion.md` y paran.
+- **Los prompts del canario** hacen que lo que se pruebe sea el hook y no otra capa. El intento 1 escribe además un fichero nuevo bajo `estado/`, que ningún `deny` cubre y que `Write` no exige leer antes. El impostor lee `canon/estilo.md` antes de reescribirlo.
+- **Detección del workspace en el hook.** El hook mira todos los segmentos `novelas/<slug>/` de la ruta, no el primero, para que un antecesor llamado `novelas/` no esconda el estado. Tiene un techo: con el repo bajo un directorio `novelas/`, la regla 3 tomaría el repo entero por workspace. Deniega además los segmentos hechos solo de puntos y espacios, salvo `.` y `..`, porque Win32 convierte `.. ` en `..`.
+- **F-42 en la lectura en seco.** El arranque y el capítulo 1 cayeron en el mismo minuto, y `briefing 1 escritor` salió con 2, como prevé la spec. En una sesión real los separa lo que tardan el `arquitecto` y el `trazador`.
+- **`.claude/settings.json` ya existía sin versionar**, con plugins de desarrollo. Esos plugins pasan al ámbito de usuario (P-11) y el fichero queda con `permissions` y `hooks`.
+- **Riesgos del plan.** El 2 (el plugin con `--setting-sources project,local`) sigue sin comprobar. El 3 está resuelto: `--agents` sustituye al `escritor` del proyecto, porque el impostor corrió con haiku. El 4 también: el hook hereda el entorno de `claude`, porque la regla 5 paró a `general-purpose` en una sesión real. El 5 (la memoria de usuario con `--setting-sources`) sigue sin comprobar, a la espera de CA-19.
 
 ### Baseline
 
