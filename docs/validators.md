@@ -61,8 +61,12 @@ Decirlo aquí, y no solo en `architecture.md` §12.7, es parte del método: un c
 | 19 | Model checking | A | bucle por capítulo | enumeración de la máquina de estados | v1 |
 | 20 | Control negativo de revisores | T + I | `continuista`, `editor-estilo`, `lector-suspense` | fixtures con defecto sembrado | v1 |
 | 21 | Ensayo de reanudación y degradación | D + T | bucle, política de cuota | corte inyectado, niveles forzados | v1 |
-| 22 | Detección de deriva a escala de novela | A + T | la novela entera | métricas entre capítulos en `auditar` | v1 |
+| 22 | Detección de deriva a escala de novela | A + T | la novela entera | métricas entre capítulos en `auditar`, huella de estilo contra el canon, carga de preguntas abiertas | v1 |
 | 23 | Reproducción del estado | A + T | `estado.db`, `memoria/` | replay de `estado/deltas/*.json` sobre base vacía | v1 |
+| 24 | Custodia del capítulo | A + T | `qa/`, delta, `capitulos/NN.md` | sha256 encadenado, `novela gate` | v1 |
+| 25 | Integridad semántica del delta | A + T | `estado/deltas/NN.json`, `memoria/` | invariantes narrativos en `validar-delta` | v1 |
+| 26 | Sondas ciegas del secreto | I + A | briefing del `escritor`, capítulos del acto | modelo sin misterio predice el culpable; comparación mecánica | v1 |
+| 27 | Auditoría de trayectoria del orquestador | A | transcript de la sesión principal | script en el hook `Stop` + parada en `pendiente` | v1 |
 
 ---
 
@@ -147,6 +151,8 @@ Un gate es código barato en una frontera. El sistema tiene hoy uno solo, `novel
 
 **1. `plan/` y `canon/`, antes del capítulo 1.** Es el punto de mayor apalancamiento del sistema entero y no tiene verificación. El fair play (invariante 4) es comprobable sobre el plan sin leer una línea de prosa: toda `rev-` tiene al menos una `pis-` plantada en un capítulo anterior, ninguna pista se paga antes de plantarse, todo id citado en una ficha de capítulo existe en el canon, y las palabras planificadas suman lo que dice `config.yaml`. `novela auditar` ya calcula casi esto, pero al cerrar la novela. Las mismas cuentas antes del capítulo 1 son un gate; después del 24 son una autopsia, y el coste de la diferencia es una novela entera de cuota.
 
+Dos comprobaciones más sobre el mismo plan. La **forma de `curva_tension_objetivo`**: el clímax es su máximo, el punto medio es un pico local y no hay más de tres capítulos seguidos sin subir en los actos 2 y 3. Un colapso de tensión puede venir planificado, y ningún revisor de capítulo lo ve porque cada capítulo cumple su objetivo. Y el **secreto por capítulo**: ninguna ficha anterior al `capitulo_previsto` de una revelación comparte bloques de cinco palabras con su contenido. El `trazador` ve el misterio y escribe el prompt del `escritor` (§4.9).
+
 **2. El delta contra el capítulo, antes de `aplicar-delta`.** `aplicar-delta` valida forma —esquema, ids únicos, cursor monótono— y nada comprueba que lo que el `cronista` fija haya ocurrido en el texto. El campo `cita` de `libro_de_hechos` lo hace mecánico: debe ser subcadena literal del capítulo aprobado. Es gratis, y es la única defensa contra que una alucinación entre en un registro que el invariante 2 ya no permite corregir (§5.9). Que el `cronista` sea el agente más barato del bucle no es un argumento en contra: es la razón.
 
 **3. El capítulo después del `editor-estilo`.** `validar` corre antes de los tres revisores, y el `editor-estilo` reescribe `capitulos/NN.md` después (`architecture.md` §7.5). El fichero que el `cronista` lee, que se exporta y que queda como salida final nunca ha pasado un gate en su forma definitiva: el editor puede dejar el frontmatter desincronizado con el texto, bajar las palabras del mínimo o deshacer la frase donde estaba plantada una pista. Y el veredicto del `continuista` es sobre una versión que ya no existe. Re-ejecutar `validar` tras el editor cuesta milisegundos y cierra el hueco, con la condición del punto 4: sin él, la pista borrada no se ve.
@@ -156,6 +162,22 @@ Un gate es código barato en una frontera. El sistema tiene hoy uno solo, `novel
 **5. Canon y plan, entre dos capítulos.** `ColeccionAppendOnly` (spec 0001, RF-28) protege las colecciones del canon dentro de un proceso. Entre procesos el canon es markdown en disco y se edita sin que nada lo note. `checkpoint` guarda el hash de `canon/` y `plan/`, y el primer `briefing` del capítulo siguiente lo compara. Si difiere, para: cambiar el canon a mitad de novela es una decisión del orquestador (AGENTS.md) y tiene que constar, no descubrirse. Si además alguna colección append-only del canon anterior no es prefijo de la nueva, el cambio es inválido con o sin autorización.
 
 **6. El rastro del capítulo, en el checkpoint.** `CLAUDE.md` exige generar el briefing antes de delegar y nada lo comprueba (§5.8). `checkpoint` puede hacerlo: antes de confirmar, exige que cada paso del capítulo tenga su `runs/<run_id>/briefings/NN-<agente>.md` y su salida declarada (capítulo, `qa/NN-*.json`, delta). Un agente invocado sin briefing no deja ese fichero, y el capítulo no se confirma. De paso cubre el borrado de briefings contra el que advierte §4.1.
+
+**7. La custodia del capítulo, antes de `aplicar-delta`.** Hoy nada ata un veredicto al texto que juzgó. Cada `qa/NN-*.json` y el delta registran el sha256 del capítulo que leyeron; el `editor-estilo` registra el de entrada y el de salida. `aplicar-delta` solo aplica si la cadena cierra: el hash del `continuista` es la entrada del editor, y la salida del editor es la que re-validó el punto 3, la que leyó el `cronista` y la que hay en disco. Lo decide `novela gate` (§4.16), no la sesión. Cierra también el hueco que abre la política de cuota: los niveles 2 y 4 de `architecture.md` §9 difieren el `editor-estilo` hasta después del `cronista`, y el editor diferido reescribe un texto cuyas citas ya están en un registro append-only. Con la cadena, ese capítulo cambia de hash y el delta del siguiente no aplica hasta que alguien lo decida. Son campos nuevos en tres contratos y un subcomando nuevo, así que entra por spec.
+
+**8. El delta contra la narrativa, antes de `aplicar-delta`.** El punto 2 comprueba que el hecho está en el texto; nada comprueba que el delta sea coherente con el estado al que se suma. El `cronista` es haiku y escribe en tablas que no admiten corrección (§5.9). `validar-delta` añade tres cosas, todas sin modelo y todas property-based por la regla de `delta.py`:
+
+- **Cita en toda colección append-only**, no solo en `libro_de_hechos`. `conocimiento` es la estructura más importante del género y hoy entra sin evidencia: «el personaje ya sabe X» es exactamente la alucinación que después no hay forma de retirar. Igual `linea_temporal` y `conocimiento_lector`.
+- **Invariantes narrativos.** Un personaje con `condicion` muerta no reaparece ni aprende nada. Toda `ubicacion` es un escenario del canon. Solo se cierra un hilo abierto y solo se paga una pista plantada. Nadie está en dos escenas que se solapan en `linea_temporal`. Un objeto de relevancia alta no se queda sin poseedor ni ubicación. Con punto de vista limitado, `conocimiento_lector` incluye lo que aprende el personaje POV en el capítulo.
+- **Triple cruce.** Las pistas y los hilos del delta, del frontmatter y de la ficha del plan son el mismo conjunto. Hoy los declaran tres productores distintos y ninguno se contrasta con los otros.
+
+La cita en las demás colecciones cambia el modelo del delta y entra por spec. Las invariantes y el cruce se calculan sobre datos que ya existen.
+
+**9. El estilo contra el canon, en `validar`.** Dos gates que hoy son juicio del `editor-estilo` sobre algo medible. **Léxico vetado**: `canon/estilo.md` `prohibiciones` es una lista, y la presencia de una entrada de la lista en el cuerpo se comprueba con una búsqueda, no con un modelo. **Huella estilométrica**: los rasgos que `ritmo` declara medibles —longitud media y dispersión de frase, proporción de diálogo— más frecuencias de palabras funcionales (Delta de Burrows), comparados contra `parrafos_canonicos` y contra la media de los capítulos 1–3, con la tolerancia que declare `ritmo`. La referencia es fija y nunca el capítulo anterior (§4.13). Los umbrales se calibran con la novela de humo: con párrafos canónicos cortos la Delta es ruidosa, y un umbral inventado es un gate que falla al azar.
+
+**10. Gancho y pista falsa, contra la prosa.** El patrón de la cita del punto 4, aplicado a dos cosas que hoy solo se declaran. El `lector-suspense` devuelve `gancho: {tipo, cita}`: la cita es subcadena de la última escena y el tipo es el `gancho_final` de la ficha. Cada pista falsa lleva la cita del pasaje que la desmonta en su capítulo `cuando_se_desmonta`. `auditar` solo mira el estado, y el estado dice lo que el `cronista` creyó leer.
+
+**11. Los resúmenes, contra el capítulo.** `memoria/` es derivada, pero es lo único que el `escritor` ve de los capítulos 1..N-2 durante el resto de la novela: una alucinación en el resumen es contaminación efectiva aunque `estado.db` esté limpio. `aplicar-delta` comprueba que todo id y todo nombre propio de `memoria/resumenes/NN.md` aparece en el delta o en el cuerpo del capítulo. Detecta el personaje o el lugar inventado; la interpretación equivocada sigue en §5.9.
 
 ---
 
@@ -185,6 +207,8 @@ La señal más barata y más infravalorada es **intentos por gate**. Es gratis, 
 
 Riesgo conocido, mitigado y no eliminado: el juez y el escritor son la misma familia de modelo y comparten puntos ciegos. La mitigación es que el juez puntúe **contra el libro de hechos y el plan**, no contra su gusto. Un juez que compara con hechos verifica; uno que opina, coincide. Ver §5.4.
 
+Dos métricas no pueden salir del agente que evalúan. `estilo` se calcula con la huella de §3.9.9, no con `qa/NN-estilo.json`: quien reescribe el capítulo no puntúa su propia reescritura. Y la previsibilidad no la puede puntuar el `lector-suspense`, que lee `misterio.md` (`architecture.md` §7.5) y por tanto juzga la incertidumbre del lector conociendo ya la respuesta. La da el lector ciego de §4.15. El `lector-suspense` se queda con lo que sí exige conocer la solución: si el fair play se cumple en el texto.
+
 ### 4.3 Sandboxed execution — D
 
 Parcial y por construcción, no por contenedor:
@@ -202,12 +226,18 @@ Preventivos: actúan **antes** de la acción, a diferencia de un gate, que detec
 
 | Guardrail | Impide |
 |---|---|
-| `novela briefing` aborta si el contenido ensamblado procede de `canon/misterio.md` | Fuga del secreto (invariante 3) |
+| `novela briefing` aborta si el contenido ensamblado procede de `canon/misterio.md` | Fuga literal del secreto (invariante 3). No ve la paráfrasis: las tres filas siguientes y §4.15 |
+| `novela briefing` excluye por campo `secreto` y `coartada_y_cronologia_privada` de las fichas de personaje del `escritor` y el `editor-estilo`, salvo revelación con `capitulo_previsto ≤ N` | Fuga por la ficha del culpable, que no procede de `misterio.md` y lo contiene entero. Exige fichas de personaje con frontmatter estructurado |
+| `novela briefing` aborta si el briefing del `escritor` o del `editor-estilo` comparte bloques de cinco palabras con `verdad_oculta` o con una revelación de `capitulo_previsto > N` | Copia retocada del secreto en las fichas del `trazador`. No la paráfrasis real |
+| En reintento, del `qa/` solo entran al briefing campos de lista blanca —`tipo`, `gravedad`, `ubicacion`, referencias `hec-`, `pis-`, `hil-`— y se descartan los hallazgos que citan `rev-`, `pfa-` o al culpable | Fuga por `correccion_sugerida`: la escriben `continuista` y `lector-suspense`, que ven el misterio |
+| `novela gate` decide avanzar, reintentar o intervenir desde `qa/*.json` y el cursor, e incrementa `cursor.intento` en `estado.db` | Que la sesión apruebe un capítulo rechazado o reinicie la cuenta de intentos tras compactar su contexto (§4.16) |
+| La política de cuota (`novela budget`, `architecture.md` §9) fija el nivel de degradación y lo escribe en el manifiesto | Que la sesión omita un revisor «por cuota» por decisión propia |
 | `tools` restringido por agente | Que un agente descubra ficheros que su briefing no nombra (sin `Glob` ni `Grep`), ejecute el CLI, delegue o invoque skills. **No** impide leer una ruta conocida: eso sería una regla `deny` |
 | Hook `PreToolUse` sobre `estado/**` | Que un agente escriba el estado por fuera de `aplicar-delta` |
 | Triggers append-only en las tablas de `estado.db` | Reescribir la historia, por cualquier ruta de escritura y no solo por delta (invariante 2) |
 | Validación del slug antes de tocar disco | Path traversal por la API |
 | `novela pendiente` sale con un código propio, distinto de 0, mientras exista un `intervencion.md` sin marcar como resuelto | Que el bucle desatendido siga lanzando sesiones sobre una novela parada. Su `\|\| break` depende hoy del código de salida de `claude -p`, que ningún test fija (§5.8); `pendiente` sí es código y se prueba |
+| `novela pendiente` sale con ese mismo código si falta `runs/<run_id>/trayectoria-NN.json` del último capítulo o registra violaciones | Que una sesión que se saltó el orden o leyó prosa pase su capítulo a la siguiente sin que nadie lo sepa (§4.16) |
 
 Prefiere siempre un guardrail a un gate para la misma propiedad: es más barato y no quema un reintento. Cuando un hook salta, la respuesta correcta es corregir el contrato del agente, no silenciarlo — un guardrail silenciado es peor que ausente, porque el sistema sigue reportando que está protegido.
 
@@ -258,12 +288,12 @@ El mecanismo de flag ya existe a medias: la versión de receta va en `manifest.j
 
 Modelo de amenaza real de este sistema, en orden de probabilidad. No es un sistema con usuarios ni con datos personales: lo que está en riesgo es **la calidad y el secreto**, no la infraestructura.
 
-1. **Fuga del misterio.** El escritor recibiendo, infiriendo o deduciendo la solución. Sonda: ensamblar briefings sobre un canon marcado y buscar los marcadores; y plantar en `plan/capitulos/NN.md` texto que intente arrastrar `canon/misterio.md` al briefing.
+1. **Fuga del misterio.** El escritor recibiendo, infiriendo o deduciendo la solución. Sonda: ensamblar briefings sobre un canon marcado y buscar los marcadores; y plantar en `plan/capitulos/NN.md` texto que intente arrastrar `canon/misterio.md` al briefing. El guardarraíl de §4.4 busca texto literal, y el secreto tiene tres vías para llegar parafraseado: las fichas del `trazador`, que conoce el misterio y escribe el prompt del `escritor` (un beat «esconde el arma que usó» no es subcadena de nada); la ficha de personaje del culpable, cuyo `secreto` y `coartada_y_cronologia_privada` son el misterio, cargada entera por la receta de personajes presentes; y el `qa/` del reintento, escrito por revisores que ven la solución. Las tres tienen filtro en §4.4 y medida directa en §4.15.
 2. **Inyección por contenido del workspace.** Los agentes leen ficheros escritos por otros agentes. Un capítulo o una ficha de canon que contenga «ignora tus instrucciones y…» es el vector natural, y no requiere atacante externo: basta un modelo que alucine una instrucción.
 3. **Uso indebido de herramientas.** Un agente escribiendo `estado.db` directamente o invocando `aplicar-delta`. Lo cubre el frontmatter, pero se prueba explícitamente.
 4. **Deriva de objetivo a 24 capítulos.** El escritor optimizando poco a poco su propia coherencia local por encima del plan. Es el fallo más difícil de detectar porque cada capítulo pasa sus gates; lo único que lo ve son las métricas entre capítulos de §4.13.
 5. **Exfiltración.** La única salida de red es Langfuse. Las claves están en `settings.local.json`, fuera de git.
-6. **Regresión silenciosa del entorno.** No es un atacante: es una actualización. Que `tools` restrinja el descubrimiento, que `PreToolUse` se dispare para las llamadas de un subagente —hoy sin verificar, `architecture.md` §12.7— y que el hook `Stop` vea el transcript son supuestos sobre un producto que se actualiza solo y que no promete ninguna de las tres cosas. Si una barrera deja de disparar, el sistema no avisa: sigue reportando que está protegido.
+6. **Regresión silenciosa del entorno.** No es un atacante: es una actualización. Que `tools` restrinja el descubrimiento, que `PreToolUse` se dispare para las llamadas de un subagente —hoy sin verificar, `architecture.md` §12.7— y que el hook `Stop` vea el transcript son supuestos sobre un producto que se actualiza solo y que no promete ninguna de las tres cosas. Si una barrera deja de disparar, el sistema no avisa: sigue reportando que está protegido. Lo mismo vale para el modelo: `model: opus` es un alias, y una actualización a mitad de novela cambia de escritor sin que conste en ningún sitio. Es una fuente de deriva de estilo que ninguna revisión de prosa atribuiría a su causa (§4.13).
 
 Contra la sexta, un **canario**: un agente de prueba que intenta deliberadamente lo prohibido —escribir bajo `estado/`, abrir `canon/misterio.md` por ruta conocida, ejecutar el CLI— y cuya invocación debe fallar. Si algún día pasa, la barrera ya no existe y te enteras a propósito, no por una base corrupta. Corre con la suite adversaria y además tras cada actualización mayor de Claude Code (§5.10).
 
@@ -283,13 +313,15 @@ El bucle por capítulo es una máquina de estados pequeña: `cursor.fase` × `ul
 
 El espacio de estados son decenas, no millones, así que **la versión que se hace es un test que enumera las transiciones**, no TLA+. Si el bucle crece a ramas condicionales por acto o a paralelismo entre capítulos, entonces TLA+ empieza a pagar; hoy sería ceremonia.
 
-Con un límite que conviene no perder de vista: esto verifica la máquina que el procedimiento *debería* seguir. Quien la implementa es `.claude/commands/novela-continuar.md`, prosa que ningún test ejecuta (§5.8).
+Con un límite que conviene no perder de vista: esto verifica la máquina que el procedimiento *debería* seguir. Quien la implementa es `.claude/commands/novela-continuar.md`, prosa que ningún test ejecuta (§5.8). Dos cosas acortan esa distancia. `novela gate` (§4.4) convierte en precondiciones de código los invariantes que dependen de un veredicto o de la cuenta de intentos, y esas sí se prueban con el agente falso. Y la auditoría de §4.16 contrasta cada sesión real con esta misma máquina.
 
 ### 4.11 Control negativo de los revisores — T + I
 
 Un revisor que aprueba siempre es indistinguible de un sistema sano: los scores suben, los reintentos bajan y todo parece ir bien. La mutación de §3.7 hace exactamente esta pregunta sobre el código —«si rompo esto, ¿lo nota alguien?»— y nadie la hace sobre los agentes, que son la mitad cara de la verificación.
 
 El ensayo es el mismo, aplicado a prosa: capítulos fixture con un defecto conocido sembrado —una contradicción contra el `libro_de_hechos`, un hilo cerrado que nunca se abrió, una pista pagada sin plantar, una filtración del misterio— y una tasa de detección por revisor. Un `continuista` que no coge la contradicción marcada no está revisando, y sin este control no hay forma de saberlo.
+
+Al `editor-estilo` le corresponde su propio defecto sembrado: léxico vetado y frases fuera del `ritmo` del canon. Al `lector-suspense`, que puntúa en vez de detectar, una **calibración**: capítulos fixture de tensión conocida, baja y alta. Si el plano recibe 6 o más, o la separación entre ambos es menor que la banda del gate (§4.13), el juez está saturado y sus puntuaciones no valen como gate hasta que se corrija su prompt. Es la versión medida del síntoma que §5.4 deja como condición de revisión.
 
 Y el control inverso: capítulos fixture sin defecto, para medir la tasa de falsos positivos. Un revisor que lo marca todo no se nota en los scores sino en las intervenciones, cuando ya ha agotado los reintentos de capítulos sanos.
 
@@ -300,7 +332,7 @@ Llama a modelos, así que no entra en `pytest` (§3.5): corre por release, con l
 Dos procedimientos escritos y nunca ejecutados, y los dos se estrenan en el peor momento posible: uno después de una caída, el otro al borde del límite de cuota.
 
 - **Reanudación.** `restore(checkpoint(e)) == e` (§3.6) prueba la función, no el procedimiento. Nadie ha matado el bucle entre `aplicar-delta` y `checkpoint` para ver si `/novela-continuar` repite el paso correcto sobre un workspace real. Un checkpoint que nunca se ha restaurado no es un checkpoint, es un fichero. Se ensaya con el agente falso, cortando en cada frontera de paso.
-- **Degradación por cuota.** Los cinco niveles de `architecture.md` §9 no se han ejercitado nunca. Forzar cada nivel con el agente falso y comprobar qué agentes se invocan y cuáles no cuesta un test de integración, y evita descubrir que el nivel 4 estaba mal escrito justo cuando ya no queda cuota para arreglarlo.
+- **Degradación por cuota.** Los cinco niveles de `architecture.md` §9 no se han ejercitado nunca. Forzar cada nivel con el agente falso y comprobar qué agentes se invocan y cuáles no cuesta un test de integración, y evita descubrir que el nivel 4 estaba mal escrito justo cuando ya no queda cuota para arreglarlo. El ensayo tiene un resultado conocido de antemano que conviene ver fallar: en los niveles 2 y 4 el `editor-estilo` corre después del `cronista`, y la custodia de §3.9.7 tiene que detenerlo. Si pasa, la cadena de hashes no está donde debe.
 
 ### 4.13 Deriva a escala de novela — A + T
 
@@ -314,8 +346,17 @@ Lo mecánico, barato y sin modelo:
 | Convergencia de aperturas y de vocabulario | n-gramas repetidos entre capítulos |
 | Deriva de longitud y de ritmo | `metricas.desviacion_vs_plan` acumulada |
 | Hilos sin cerrar, pistas plantadas sin pagar | lo que ya hace `auditar` |
+| Distancia de estilo al canon | huella de §3.9.9 contra `parrafos_canonicos` y la media de los capítulos 1–3 |
+| Carga de preguntas abiertas | hilos abiertos + pistas plantadas sin pagar + revelaciones pendientes, desde `estado.db` |
+| Modelo resuelto por agente | id real de cada invocación, sacado del transcript (§4.16) |
 
 Lo que falta no es el cálculo, es la **cadencia**: `auditar` corre al cerrar la novela. Las mismas cuentas en cada frontera de acto son un gate. Es además la única forma de saber si la restricción de apertura de `architecture.md` §2.2 sirve de algo: hoy es una mitigación declarada y sin un solo dato detrás.
+
+**La deriva de estilo es un paseo aleatorio, y por eso el ancla es fija.** El `escritor` recibe el capítulo anterior entero (`architecture.md` §6.2) e imita mejor de lo que obedece (`definitions.md` §2.3). Cada capítulo se parece al anterior, así que cualquier comparación entre vecinos da por bueno un texto que, al capítulo 15, ya no se parece a los párrafos canónicos. La distancia se mide siempre contra el canon y contra el arranque, nunca contra N-1. Si el modelo resuelto de un agente cambia entre dos capítulos, `pendiente` para: es una causa de deriva que conviene conocer antes que medir.
+
+**El colapso de tensión tiene una parte que no necesita juez.** En suspense, la tensión es en buena parte cuántas preguntas tiene abiertas el lector. Si la carga de preguntas abiertas cae a cero antes del clímax, o baja tres capítulos seguidos en el acto 2, hay colapso aunque el `lector-suspense` siga puntuando alto. Se calcula en cada `checkpoint`, no solo en frontera de acto, porque sale de datos que ya están en `estado.db`.
+
+**El gate de tensión necesita una banda y una tendencia.** `definitions.md` §8 habla de «tensión dentro de la banda objetivo» y la banda no está definida en ningún sitio. La regla: si `|tension_real − objetivo| > banda_tension` de `config.yaml`, se reintenta el capítulo. Si la desviación es negativa tres capítulos seguidos, se va directo a intervención: un descenso sostenido nace del plan, y reintentar capítulos solo gasta los intentos antes de llegar al mismo sitio. Los capítulos sin `tension_real` porque la cuota bajó al nivel 3 (`architecture.md` §9) se marcan como huecos en la auditoría de acto y no se interpolan. Una curva rellenada hace pasar el gate sin datos.
 
 ### 4.14 Reproducción del estado — A + T
 
@@ -330,6 +371,36 @@ Hay un efecto más. Ni el `restore(checkpoint(e)) == e` de §3.6 ni el «se rest
 
 Lo que no cubre: perder `estado/` entero se lleva los deltas junto con la base (§5.7). Tampoco cubre un delta fiel que fija una interpretación equivocada: la reproducción la reproduce igual (§5.9).
 
+### 4.15 Sondas ciegas del secreto — I + A
+
+Los filtros de §4.4 impiden que el secreto viaje por las vías conocidas y en forma literal o casi literal. Ninguno mide lo que importa: si con lo que el `escritor` tiene delante se puede deducir la solución. La sonda lo mide preguntándolo.
+
+- **Sonda del briefing.** Un modelo sin herramientas recibe *solo* el briefing del `escritor` y devuelve `{culpable_id, confianza}` en JSON. La comparación con `culpable_o_amenaza` es mecánica. Si acierta antes del `capitulo_previsto` de la revelación que lo destapa, el briefing filtra, sea cual sea la vía. Es la única medida directa del invariante 3 tal como lo vive el `escritor`.
+- **Sonda del texto.** La misma pregunta sobre los capítulos escritos del acto. Tienen que ser los capítulos y no los resúmenes, porque la fuga vive en el subtexto y el `cronista` no resume subtexto. Da dos señales: la **previsibilidad real**, que el `lector-suspense` no puede dar porque conoce la respuesta (§4.2), y el **fair play en el texto**: en el capítulo anterior a una revelación, con las pistas ya plantadas, la sonda debería poder deducirla. Si no puede, las pistas figuran en el frontmatter con su cita pero no funcionan como pistas.
+
+La respuesta es un id, no prosa, así que aquí sí hay mayoría sobre la que votar: tres ejecuciones y se toma la moda. Es la condición con la que §5.3 se reabre. Cadencia: la sonda del briefing en el primer capítulo de cada acto, en los capítulos que pagan pista y en la novela de humo; la del texto, en cada frontera de acto. La clase es I porque juzga un modelo; la comparación con el canon es A, y eso es lo que evita que la propiedad crítica quede solo con I (§1).
+
+### 4.16 Trayectoria del orquestador — A
+
+§4.10 verifica la máquina que la sesión *debería* seguir, y `.claude/commands/novela-continuar.md` la implementa en prosa (§5.8). Lo que la sesión *hizo* está en un solo sitio: el transcript que el hook `Stop` ya lee para Langfuse. Un script determinista lo recorre al terminar la sesión y escribe `runs/<run_id>/trayectoria-NN.json`.
+
+**Orden.** Se reconstruye la secuencia de `Bash: novela …` y de llamadas a `Task`, y se contrasta con los invariantes de §4.10: el briefing del mismo agente antes de cada `Task`, `validar` antes de los revisores y otra vez después del editor, el `cronista` después del gate, `aplicar-delta` antes de `checkpoint`.
+
+**Lo que no deja artefacto.** Es lo que el rastro de §3.9.6 no puede ver, porque comprueba lo que existe y no lo que no debió ocurrir:
+
+- `Read` o `cat` sobre `capitulos/` desde la sesión principal (principio 4 de `architecture.md`).
+- `Write` o `Edit` de la sesión principal dentro del workspace: el orquestador haciendo el trabajo de un agente «para ahorrar una llamada».
+- `Task` a un `subagent_type` que no es uno de los siete.
+- Un prompt de `Task` de más de unos cientos de caracteres. Lleva prosa, y en un reintento significa que el capítulo ha vuelto por el canal de conversación.
+- Un retorno de subagente por encima del informe de tres líneas de `architecture.md` §7.4.
+- Un agente omitido sin un nivel de degradación registrado que lo justifique (§4.4).
+
+**Contexto medido.** Del mismo transcript salen los tokens por turno y las marcas de compactación. Con eso §5.11 pasa a tener un dato: una alerta por encima de un umbral (por ejemplo 70.000 de los 100.000 de `architecture.md` §6.5), y una compactación a mitad de capítulo deja el capítulo marcado para revisión humana. Una sesión compactada es justo la que puede haber perdido la cuenta de intentos, y por eso esa cuenta vive en `novela gate` y no en la sesión.
+
+Con cualquier violación, `pendiente` para el bucle (§4.4): mismo mecanismo que `intervencion.md` y ningún freno nuevo. En la novela de humo corre además un **canario del orquestador**: un informe de subagente que invita a leer el capítulo y un `qa/` rechazado que el subagente reporta como aprobado. `novela gate` tiene que parar el segundo y la auditoría tiene que detectar el primero si la sesión lo obedece.
+
+Hay un supuesto que comprobar antes de construirlo: que el transcript distinga las llamadas de la sesión principal de las de los subagentes y deje marca de las compactaciones. Es la misma clase de dependencia de §5.10.
+
 ---
 
 ## 5. Riesgos aceptados (U)
@@ -340,9 +411,9 @@ Cada uno con su condición de revisión: un riesgo aceptado sin criterio para re
 
 **5.2 Sin prueba formal de los invariantes.** Se sustituye por asserts de postcondición y property-based testing, que detectan en ejecución pero no demuestran. *Revisar si aparece un caso de corrupción de estado que los tests no cogieron.*
 
-**5.3 Sin self-consistency ni debate.** Generar un capítulo tres veces cuesta el triple y no hay «mayoría» de prosa sobre la que votar. *Revisar si `fair_play` falla de forma recurrente; ahí sí hay una respuesta discreta sobre la que votar.*
+**5.3 Sin self-consistency ni debate.** Generar un capítulo tres veces cuesta el triple y no hay «mayoría» de prosa sobre la que votar. *Revisar si `fair_play` falla de forma recurrente; ahí sí hay una respuesta discreta sobre la que votar.* Excepción ya adoptada: las sondas de §4.15 responden con un id y votan tres veces.
 
-**5.4 El juez comparte sesgos del escritor.** Mitigado puntuando contra hechos, no eliminado. *Revisar si los scores se saturan en alto mientras las intervenciones suben — señal clásica de juez complaciente.*
+**5.4 El juez comparte sesgos del escritor.** Mitigado puntuando contra hechos, con la calibración de §4.11 y sacando del juez lo que no puede evaluar (estilo y previsibilidad, §4.2). No eliminado. *Revisar si los scores se saturan en alto mientras las intervenciones suben — señal clásica de juez complaciente.*
 
 **5.5 No determinismo del modelo.** El mismo briefing no produce el mismo capítulo. Consecuencia directa: un fallo de calidad no es reproducible, y por eso nada que llame a un modelo entra en `pytest`. *Permanente; sin `temperature` no hay palanca.*
 
@@ -350,13 +421,17 @@ Cada uno con su condición de revisión: un riesgo aceptado sin criterio para re
 
 **5.7 `novelas/` no está versionado.** El único rollback de datos es `checkpoints/`. Un `rm -rf` del workspace no tiene deshacer. *Aceptado: son datos regenerables a coste de cuota.*
 
-**5.8 El orquestador no tiene método asignado.** El bucle lo implementa `.claude/commands/novela-continuar.md`: no es código —no le aplica el TDD— ni prosa de novela —no hay juez que la puntúe—. §4.10 verifica la máquina de estados que ese fichero debería seguir, no el fichero. Lo único que lo cubre de verdad es la novela de humo (D). *Revisar en cuanto aparezca un fallo de orden que el model checking daba por imposible: significa que el procedimiento y la máquina han divergido.*
+**5.8 El orquestador no tiene método asignado.** El bucle lo implementa `.claude/commands/novela-continuar.md`: no es código —no le aplica el TDD— ni prosa de novela —no hay juez que la puntúe—. §4.10 verifica la máquina de estados que ese fichero debería seguir, no el fichero. Lo único que lo cubre de verdad es la novela de humo (D). Reducido, no cerrado, por `novela gate` y la auditoría de trayectoria (§4.16): el fichero sigue sin ejecutarse, pero cada sesión se contrasta con la máquina después de haber corrido. Eso detecta la divergencia y no la impide, y un capítulo que la sufre ya ha gastado su cuota. *Revisar en cuanto aparezca un fallo de orden que el model checking daba por imposible: significa que el procedimiento y la máquina han divergido.*
 
 **5.9 Un error del `cronista` es permanente.** El invariante 2 protege contra reescribir la historia y, con el mismo mecanismo, fosiliza un hecho falso: no hay `UPDATE` que lo corrija, y todo capítulo posterior se escribe contra él. El gate de `cita` (§3.9) ataca la alucinación literal, no la interpretación equivocada de una escena. *Revisar si aparece una contradicción cuyo origen sea una entrada del libro de hechos y no un capítulo.*
 
-**5.10 Las barreras dependen de comportamientos no contractuales de Claude Code.** `tools`, el alcance de los hooks en subagentes y lo que el hook `Stop` puede leer no son API estable. *Mitigado por el canario de §4.9, no eliminado. Revisar en cada actualización mayor.*
+**5.10 Las barreras dependen de comportamientos no contractuales de Claude Code.** `tools`, el alcance de los hooks en subagentes, lo que el hook `Stop` puede leer, el formato del transcript del que depende §4.16 y el modelo al que resuelve cada alias no son API estable. *Mitigado por el canario de §4.9 y por el registro del modelo resuelto (§4.13), no eliminado. Revisar en cada actualización mayor.*
 
-**5.11 El contexto del orquestador no se mide.** El techo de `architecture.md` §6.5 lo comprueba `novela briefing` para los subagentes; para la sesión que los invoca, los 6.000–8.000 tokens por capítulo son una estimación que nadie ha contrastado, y es el único contexto que no se vacía entre pasos. *Revisar con los conteos por turno de la primera novela de humo.*
+**5.11 El contexto del orquestador no se mide.** El techo de `architecture.md` §6.5 lo comprueba `novela briefing` para los subagentes; para la sesión que los invoca, los 6.000–8.000 tokens por capítulo son una estimación que nadie ha contrastado, y es el único contexto que no se vacía entre pasos. *Revisar con los conteos por turno de la primera novela de humo.* Cuando exista §4.16, esos conteos salen de cada sesión y este riesgo pasa de aceptado a medido.
+
+**5.12 Las sondas ciegas son de la misma familia de modelo.** Que la sonda de §4.15 no adivine al culpable no prueba que un lector humano tampoco lo haga: da una cota inferior de la fuga, no una garantía de que no la hay. Lo mismo al revés: que la sonda deduzca la solución en el capítulo de la revelación no prueba que el fair play funcione para un lector humano. *Revisar si un lector humano de la novela de humo acierta antes que la sonda.*
+
+**5.13 Las invariantes narrativas cubren lo que se puede escribir como regla.** §3.9.8 detecta al muerto que reaparece y el hilo que se cierra sin haberse abierto. No detecta un cambio de carácter sin causa, ni una relación que evoluciona sin escena que la justifique: eso sigue siendo trabajo del `continuista` (I). *Revisar si las intervenciones por contradicción se concentran en `relaciones` o en `personajes.estado_emocional`, que son mutables y no llevan cita.*
 
 ---
 
@@ -366,18 +441,21 @@ Cada uno con su condición de revisión: un riesgo aceptado sin criterio para re
 |---|---|---|---|
 | Pre-commit | Type checking, SAST, tests unitarios | A, T | segundos |
 | CI del harness | + mutación sobre gates, contrato API, contrato de `.claude/`, model checking | T, A | minutos |
-| Tras el `trazador`, una vez | `novela validar-plan`: fair play del plan, ids, orden de pistas | A | gratis |
+| Tras el `trazador`, una vez | `novela validar-plan`: fair play del plan, ids, orden de pistas, forma de la curva de tensión, secreto por capítulo en las fichas | A | gratis |
 | Al abrir `estado.db` | `schema_version`, triggers presentes, `quick_check` | A | gratis |
 | Primer `briefing` de cada capítulo | sello de `canon/` y `plan/` contra el último checkpoint | A | gratis |
-| `novela validar <cap>` | esquema, longitud, pistas presentes con cita literal en el cuerpo, hilos | A, T | gratis |
+| Cada `briefing` de `escritor` o `editor-estilo` | secreto excluido por campo, solape con lo no revelado, `qa/` saneado en reintento | A | gratis |
+| Primer capítulo de acto y capítulos que pagan pista | sonda ciega del briefing, tres votos | I + A | 3 llamadas baratas |
+| `novela validar <cap>` | esquema, longitud, pistas presentes con cita literal en el cuerpo, hilos, léxico vetado, huella de estilo, gancho y pistas falsas con cita | A, T | gratis |
 | Tras escribir el capítulo | `continuista`, `editor-estilo`, `lector-suspense` | I | 3 llamadas |
 | Tras el `editor-estilo` | `novela validar` de nuevo, sobre el fichero final | A | gratis |
-| Antes de `aplicar-delta` | `novela validar-delta`: `cita` literal presente en el capítulo | A | gratis |
-| Cierre de capítulo | rastro completo de briefings y salidas, reproducción del estado, scores a Langfuse, checkpoint | A, T, D | gratis |
-| `novela pendiente` | parada si hay un `intervencion.md` sin resolver | A | gratis |
-| Frontera de acto | `auditar` parcial: deriva, tensión contra plan, hilos, pistas | A | gratis |
+| Antes de `aplicar-delta` | `novela gate` con cadena de hashes; `novela validar-delta`: cita en toda colección append-only, invariantes narrativos, triple cruce, resúmenes acotados | A | gratis |
+| Cierre de capítulo | rastro completo de briefings y salidas, reproducción del estado, carga de preguntas abiertas, scores a Langfuse, checkpoint | A, T, D | gratis |
+| Fin de sesión, hook `Stop` | auditoría de trayectoria: orden, lo que no deja artefacto, contexto y compactación, modelo resuelto | A | gratis |
+| `novela pendiente` | parada si hay un `intervencion.md` sin resolver, una trayectoria ausente o con violaciones, o un cambio de modelo | A | gratis |
+| Frontera de acto | `auditar` parcial: deriva contra el canon, tensión contra plan con banda y tendencia, huecos de `tension_real`, hilos, pistas; sonda ciega del texto | A, I | 3 llamadas |
 | Cierre de novela | `novela auditar`: pistas huérfanas, hilos sin cerrar | A | gratis |
 | Tercer intento de un gate | `intervencion.md` y parada | I | humano |
-| Release del harness | suite adversaria, canario de barreras, control negativo de revisores, novela de humo de 3 capítulos | I, T, D | ~1 acto de cuota |
+| Release del harness | suite adversaria, canario de barreras, canario del orquestador, control negativo y calibración de revisores, novela de humo de 3 capítulos | I, T, D | ~1 acto de cuota |
 
 **Regla de orden: lo barato primero.** Un gate de Python que cuesta veinte milisegundos evita una llamada a opus que cuesta cuota y minutos. Ejecutar `novela validar` antes de cualquier agente de revisión no es una optimización, es el diseño. Invertir ese orden gasta el presupuesto en descubrir cosas que un `assert` ya sabía.
