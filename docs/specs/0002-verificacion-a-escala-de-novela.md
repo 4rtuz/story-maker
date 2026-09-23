@@ -4,9 +4,9 @@ titulo: "Verificación a escala de novela: secreto, estado, estilo, tensión y o
 estado: borrador
 autor: ""
 fecha: 2026-09-23
-version: 0.1
+version: 0.2
 afecta: [backend, agentes, esquemas, docs]
-depende_de: [0001]
+depende_de: [0001, 0003]
 sustituye: []
 adr: []
 commit: null
@@ -31,13 +31,13 @@ La spec 0001 v0.3 ya fija la **forma** que esto necesita: custodia por hash, sel
 **Fuera del alcance**
 
 - Lo que ya está en la 0001 v0.3 (RF-30 a RF-36).
-- La regla `deny` sobre `canon/misterio.md` y el resto de la contención de `architecture.md` §12.7, salvo en lo que la trayectoria dependa de los hooks (P-13).
+- La contención de `architecture.md` §12.7: agentes, hooks, permisos, la regla `deny` sobre `canon/misterio.md` y el canario de las barreras. Es la spec 0003, de la que esta depende. También es de la 0003 la procedencia de `.claude/` en `manifest.json` (`sucio` y hashes de agentes y comandos). Aquí queda solo el modelo resuelto por invocación (RF-13).
 - El índice recuperable (`architecture.md` §12.4).
 - Los prompts concretos de los agentes. Esta spec fija contratos de entrada y salida; el texto de los prompts se valida por novela de humo (`AGENTS.md`).
 
 ## 2. Problema
 
-Cada capítulo puede pasar todos sus gates mientras la novela falla en conjunto. La evidencia es documental: no hay backend ni ejecución, y las referencias son a `docs/validators.md`, donde está el análisis completo.
+Cada capítulo puede pasar todos sus gates mientras la novela falla en conjunto. La evidencia es documental: el backend de la 0001 está implementado, pero no hay ninguna ejecución real hasta que la 0003 construya `.claude/`. Las referencias son a `docs/validators.md`, donde está el análisis completo.
 
 - **El secreto viaja parafraseado.** El guardarraíl de RF-09 busca texto literal de `misterio.md`. Llegan al `escritor` sin pasar por él: las fichas del `trazador`, que conoce la solución; la ficha del culpable, cuyo `secreto` es la solución; y el `qa/` del reintento, escrito por revisores que la ven (`validators.md` §4.9).
 - **El `cronista` escribe en tablas que no admiten corrección** y solo `libro_de_hechos` exige evidencia. Nada comprueba que un muerto no reaparezca, ni que un resumen no invente un personaje (§3.9.8, §3.9.11).
@@ -62,8 +62,8 @@ Cada capítulo puede pasar todos sus gates mientras la novela falla en conjunto.
 
 - **Invariantes que aplican**: el **3** (el secreto), el **4** (fair play), el **5** (contexto en disco: la trayectoria se escribe en `runs/`), el **7** (la degradación por cuota de `architecture.md` §9 lo viola en sus niveles 2 y 4, y el sello de 0001 RF-35 ya lo detecta) y el **1** (ninguna verificación nueva escribe `estado.db`).
 - **Restricciones técnicas**: el CLI no llama a modelos (0001 RNF-03). Las sondas ciegas y la calibración del juez son invocaciones de agente por `Task` desde el orquestador; el CLI solo compara sus salidas contra el canon.
-- **Supuestos**: (a) el transcript de Claude Code distingue las llamadas de la sesión principal de las de subagentes y marca las compactaciones (P-13); (b) una novela de humo de tres capítulos basta para dar un primer valor a los umbrales, que se revisan con la primera novela completa.
-- **Dependencias**: la 0001 v0.3 implementada. `novela gate` necesita además un ADR (P-02).
+- **Supuestos**: (a) el transcript de Claude Code marca las compactaciones (P-13). La otra mitad del supuesto ya está verificada: el experimento de la 0003 (`docs/implementation-plans/0003-contencion/decisiones-abiertas.md`, E-5) muestra que cada subagente tiene su transcript aparte, en `<sesión>/subagents/agent-<id>.jsonl` y con `isSidechain: true`, que el hook `SubagentStop` entrega su ruta y que cada mensaje de asistente lleva `message.model`; (b) una novela de humo de tres capítulos basta para dar un primer valor a los umbrales, que se revisan con la primera novela completa.
+- **Dependencias**: la 0001 v0.3 implementada y la 0003, que construye los agentes, los hooks y la novela de humo de la que salen P-09, P-10 y P-13. `novela gate` necesita además un ADR (P-02).
 
 ## 5. Propuesta
 
@@ -161,7 +161,7 @@ Provisionales: cada uno se concreta al cerrar la pregunta que indica. Los que no
 - **CLI**: **nuevos** `novela validar-plan <slug>` y `novela gate <slug> <cap>` (P-02). `pendiente` gana un código de salida propio para la trayectoria y el cambio de modelo, el mismo que `validators.md` §4.4 ya reserva para `intervencion.md`.
 - **Esquemas**: frontmatter de capítulo con pistas `{id, cita}` y `pistas_falsas_desmontadas` (**ruptura** respecto a 0001, sin datos que migrar); `qa-informe.schema.json` gana `gancho`; nuevo `trayectoria.schema.json`; `config.schema.json` gana `banda_tension`; `canon.schema.json` gana el enlace entre revelación y secreto (P-04) y el tipo de las `prohibiciones` (P-08).
 - **Contrato de agente**: **nuevo** agente `sonda`, sin herramientas, modelo según P-12. **Compatibles**: `escritor` (citas de pistas), `lector-suspense` (gancho, sin previsibilidad), `cronista` (cita obligatoria), `arquitecto` (enlace revelación–secreto).
-- **Hooks**: el `Stop` ejecuta la auditoría de trayectoria además de enviar trazas.
+- **Hooks**: un hook `Stop` propio, registrado en el `.claude/settings.json` de la 0003, ejecuta la auditoría de trayectoria. El envío de trazas no es suyo: lo hace el plugin de Langfuse con sus propios hooks `Stop` y `SessionEnd` (0003 §5.5).
 
 ## 9. Datos y estado
 
@@ -228,8 +228,12 @@ Se rellena durante la implementación.
 - [ ] **P-10** Valores de `k`, `banda_tension`, el umbral de carga de preguntas abiertas y el de contexto — novela de humo
 - [ ] **P-11** ¿Dónde empieza la última escena? Depende del separador de `convenciones_formato`, que hoy no está fijado — autor
 - [ ] **P-12** Agente `sonda`: ¿rol nuevo o variante de uno existente? ¿Qué modelo? ¿Qué umbral de `confianza` cuenta como acierto? ¿Cadencia final? — autor
-- [ ] **P-13** ¿El transcript distingue sesión principal de subagente y marca las compactaciones? Requiere una prueba sobre la versión actual de Claude Code. ¿La auditoría vive aquí o en la spec de contención de `architecture.md` §12.7? — autor, tras la prueba
-- [ ] **P-14** ¿De dónde sale el id de modelo resuelto? Probablemente del transcript: depende de P-13 — autor
+- [ ] **P-13** ¿El transcript marca las compactaciones, y cómo? Requiere una prueba que fuerce una compactación en la versión actual de Claude Code. Dos partes de la pregunta original ya están cerradas:
+  - La distinción entre sesión principal y subagente la resolvió la 0003 (E-5): hay un fichero por subagente, con `isSidechain: true`, y la ruta llega en `SubagentStop`.
+  - La auditoría vive en esta spec, y la 0003 construye los hooks de los que depende.
+
+  — autor, tras la prueba
+- [ ] **P-14** ¿De dónde sale el id de modelo resuelto? La 0003 (E-5) observó `message.model` con el id completo en cada mensaje de asistente, tanto en el transcript principal como en el de cada subagente. Queda decidir si se lee de ahí al cerrar la sesión o por invocación desde `SubagentStop` — autor
 - [ ] **P-15** ¿Cómo degrada la política de cuota sin tocar capítulos cerrados? Opciones: el editor en lote antes del `cronista` de cada capítulo del lote, o suprimir los niveles 2 y 4 — autor
 - [ ] **P-16** ¿`novela budget` entra en esta spec? La 0001 lo aplazó por falta de datos de calibración — autor
 - [ ] **P-17** ¿Puede el `escritor` abrir un hilo o plantar una pista fuera del plan? Decide si el cruce con el plan exige igualdad o inclusión — autor
