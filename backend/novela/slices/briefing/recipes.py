@@ -1,6 +1,5 @@
 """Recetas de briefing: el formato de architecture.md §6.2 como modelo, y su carga."""
 
-import hashlib
 from typing import Any, Literal
 
 import yaml
@@ -110,8 +109,3 @@ def validar(datos: Any) -> dict[Agente, Receta]:
 
 def cargar() -> dict[Agente, Receta]:
     return validar(yaml.safe_load(RUTA.read_text(encoding="utf-8")))
-
-
-def version() -> str:
-    """El identificador de las recetas que se anota en el manifiesto: el hash del fichero."""
-    return hashlib.sha256(RUTA.read_bytes()).hexdigest()

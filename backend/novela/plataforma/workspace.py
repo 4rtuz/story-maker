@@ -5,6 +5,7 @@ clase: es esta misma apuntada con `NOVELAS_DIR` a un workspace sintético de `te
 Todo lo que lee de disco pasa por un modelo de `dominio/` antes de llegar al código.
 """
 
+import hashlib
 import os
 import re
 from collections.abc import Mapping
@@ -42,6 +43,22 @@ def validar_slug(slug: str) -> str:
 
 def raiz_de_novelas(entorno: Mapping[str, str] = os.environ) -> Path:
     return Path(entorno["NOVELAS_DIR"]) if entorno.get("NOVELAS_DIR") else Path("novelas")
+
+
+def sha256(ruta: Path) -> str:
+    """De los bytes en disco, sin normalizar: la custodia compara exactamente esto."""
+    return hashlib.sha256(ruta.read_bytes()).hexdigest()
+
+
+def huella(directorio: Path) -> str:
+    """Versión de contenido de un directorio: rutas relativas y bytes, en orden."""
+    resumen = hashlib.sha256()
+    for fichero in sorted(p for p in directorio.rglob("*") if p.is_file()):
+        if fichero.suffix == ".tmp":
+            continue
+        resumen.update(fichero.relative_to(directorio).as_posix().encode() + b"\0")
+        resumen.update(fichero.read_bytes() + b"\0")
+    return resumen.hexdigest()
 
 
 @dataclass(frozen=True)

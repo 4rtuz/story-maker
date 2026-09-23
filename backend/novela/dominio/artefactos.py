@@ -41,3 +41,17 @@ class Checkpoint(Modelo):
     version_canon: Sha256
     version_plan: Sha256
     capitulos_sha256: dict[CapituloNum, Sha256]
+
+
+class Manifest(Modelo):
+    """`runs/<run_id>/manifest.json`: lo que permite atribuir un cambio de calidad a un cambio
+    concreto (validators.md §4.7). Las versiones son hashes de contenido, no números."""
+
+    schema_version: SchemaVersion = SCHEMA_VERSION
+    run_id: RunId
+    capitulo: CapituloNum
+    creado: str  # ISO 8601 con zona
+    sha_commit: str
+    version_recetas: Sha256
+    version_canon: Sha256
+    version_plan: Sha256

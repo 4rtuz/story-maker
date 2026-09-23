@@ -12,6 +12,7 @@ import typer
 
 from novela.plataforma.estado_db import EstadoIlegible
 from novela.plataforma.lock import WorkspaceOcupado
+from novela.plataforma.run import RunInvalido
 from novela.plataforma.workspace import SlugInvalido, WorkspaceInvalido
 
 USO_INCORRECTO, LOCK_OCUPADO, WORKSPACE_INVALIDO = 2, 3, 4
@@ -22,7 +23,7 @@ def con_codigos[**P](comando: Callable[P, None]) -> Callable[P, None]:
     def envoltura(*args: P.args, **kwargs: P.kwargs) -> None:
         try:
             comando(*args, **kwargs)
-        except SlugInvalido as exc:
+        except (SlugInvalido, RunInvalido) as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(USO_INCORRECTO) from exc
         except WorkspaceOcupado as exc:
