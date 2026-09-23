@@ -9,6 +9,9 @@ respuesta son los de `novela/dominio/`, y `estado.db` se abre con `mode=ro`.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.routers import novelas
+
 app = FastAPI(title="novela", summary="Estado, capítulos y manifiestos, en solo lectura")
 # El dev server de Vite.
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"], allow_methods=["GET"])
+app.include_router(novelas.router)
