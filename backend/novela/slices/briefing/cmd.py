@@ -5,7 +5,6 @@ from pathlib import Path
 import typer
 from pydantic import BaseModel
 
-from novela.dominio import frontmatter
 from novela.dominio.artefactos import Memoria
 from novela.dominio.canon import Estilo, Misterio, Mundo, Personaje, Premisa
 from novela.dominio.ids import Agente
@@ -27,13 +26,6 @@ def _texto(ruta: Path) -> str | None:
     return ruta.read_text(encoding="utf-8") if ruta.is_file() else None
 
 
-def _parsear[M: BaseModel](ruta: Path, texto: str, modelo: type[M]) -> M:
-    try:
-        return modelo.model_validate(frontmatter.partir(texto)[0])
-    except ValueError as exc:  # ValidationError, o frontmatter mal formado
-        raise WorkspaceInvalido(f"{ruta}: {exc}") from exc
-
-
 def cargar_fuentes(
     ws: WorkspaceRepository, capitulo: int, agente: Agente, run_id: str
 ) -> assemble.Fuentes:
@@ -45,21 +37,21 @@ def cargar_fuentes(
         if ruta.is_file():
             texto = ruta.read_text(encoding="utf-8")
             if ruta.parent.name == "canon" and ruta.stem in _CANON:
-                _parsear(ruta, texto, _CANON[ruta.stem])
+                ws.modelo_de_md(ruta, texto, _CANON[ruta.stem])
             ficheros[ruta.relative_to(raiz).as_posix()] = texto
     misterio_texto = ficheros.get("canon/misterio.md")
     misterio = None
     if misterio_texto is not None:
-        misterio = _parsear(raiz / "canon" / "misterio.md", misterio_texto, Misterio)
+        misterio = ws.modelo_de_md(raiz / "canon" / "misterio.md", misterio_texto, Misterio)
     personajes = {}
     for ruta in sorted(raiz.glob("canon/personajes/*.md")):
         texto = ruta.read_text(encoding="utf-8")
-        personajes[ruta.stem] = (_parsear(ruta, texto, Personaje), texto)
+        personajes[ruta.stem] = (ws.modelo_de_md(ruta, texto, Personaje), texto)
 
     nn = ws.nn(capitulo)
     ruta_ficha = raiz / "plan" / "capitulos" / f"{nn}.md"
     ficha_texto = _texto(ruta_ficha)
-    ficha = _parsear(ruta_ficha, ficha_texto, FichaCapitulo) if ficha_texto else None
+    ficha = ws.modelo_de_md(ruta_ficha, ficha_texto, FichaCapitulo) if ficha_texto else None
     if ficha and ficha.capitulo != capitulo:
         raise WorkspaceInvalido(f"{ruta_ficha}: dice ser del capítulo {ficha.capitulo}")
     presentes = {p for e in ficha.escenas for p in e.personajes} if ficha else None
@@ -70,7 +62,7 @@ def cargar_fuentes(
     for c in range(1, capitulo):
         ruta = raiz / "memoria" / "resumenes" / f"{ws.nn(c)}.md"
         if (resumen := _texto(ruta)) is not None:
-            resumenes[c] = _parsear(ruta, resumen, Memoria)
+            resumenes[c] = ws.modelo_de_md(ruta, resumen, Memoria)
     anterior = raiz / "capitulos" / f"{ws.nn(capitulo - 1)}.md" if capitulo > 1 else None
     actual = raiz / "capitulos" / f"{nn}.md"
     return assemble.Fuentes(

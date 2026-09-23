@@ -17,6 +17,7 @@ from typing import Self
 import yaml
 from pydantic import BaseModel, ValidationError
 
+from novela.dominio import frontmatter
 from novela.dominio.artefactos import Checkpoint
 from novela.dominio.config import Config
 from novela.dominio.ids import SLUG_PATRON, nn
@@ -112,6 +113,21 @@ class WorkspaceRepository:
             return modelo.model_validate(yaml.safe_load(ruta.read_text(encoding="utf-8")))
         except (OSError, yaml.YAMLError, ValidationError) as exc:
             raise WorkspaceInvalido(f"{ruta}: {exc}") from exc
+
+    @staticmethod
+    def modelo_de_md[M: BaseModel](ruta: Path, texto: str, modelo: type[M]) -> M:
+        """El frontmatter de un markdown ya leído, validado contra su modelo."""
+        try:
+            return modelo.model_validate(frontmatter.partir(texto)[0])
+        except ValueError as exc:  # ValidationError, o frontmatter mal formado
+            raise WorkspaceInvalido(f"{ruta}: {exc}") from exc
+
+    def leer_md[M: BaseModel](self, ruta: Path, modelo: type[M]) -> M:
+        try:
+            texto = ruta.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise WorkspaceInvalido(f"{ruta}: {exc}") from exc
+        return self.modelo_de_md(ruta, texto, modelo)
 
     def leer_json[M: BaseModel](self, ruta: Path, modelo: type[M]) -> M:
         try:
