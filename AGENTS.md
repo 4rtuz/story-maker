@@ -80,6 +80,7 @@ novela checkpoint <slug> <cap>
 novela pendiente <slug>               salida 0 si quedan capítulos
 novela auditar <slug>                 pistas huérfanas, hilos sin cerrar
 novela exportar <slug> --formato epub
+novela comprobar-entorno [--limpio]   hook, python y settings.local.json antes de lanzar
 ```
 
 Ejecuta `novela validar` antes de invocar a ningún agente de revisión: detecta gratis lo que no merece una llamada a un modelo.
