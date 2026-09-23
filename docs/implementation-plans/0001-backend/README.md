@@ -93,7 +93,8 @@ los necesita.
 
 ## Matriz RF → fase → tarea
 
-Los 29 requisitos funcionales de la spec §6, cada uno con la tarea que lo cierra.
+Los 36 requisitos funcionales de la spec §6, cada uno con la tarea que lo cierra. RF-30 a RF-36
+los añadió la versión 0.3.
 
 | RF | Qué exige | Fase | Tarea |
 |---|---|---|---|
@@ -126,8 +127,15 @@ Los 29 requisitos funcionales de la spec §6, cada uno con la tarea que lo cierr
 | RF-27 | Línea en `harness.log`, volcado línea a línea | 2 | 2.1 |
 | RF-28 | Append-only del canon sostenido por el tipo | 1 | 1.4 |
 | RF-29 | `run_id` de `NOVELA_RUN_ID` con fallback | 2 | 2.1 |
+| RF-30 | Hash del capítulo en el briefing que lo incrusta | 2 | 2.6 |
+| RF-31 | `validar` escribe informe también al pasar | 2 | 2.9 |
+| RF-32 | Custodia: `aplicar-delta` exige la cadena de hashes | 2 | 2.14 |
+| RF-33 | `cita` opcional y literal en las colecciones append-only | 1, 2 | 1.6, 1.9, 2.11, 2.12 |
+| RF-34 | Hilos del delta contra frontmatter | 2 | 2.12 |
+| RF-35 | Sello de capítulos cerrados | 2 | 2.17, 2.6 |
+| RF-36 | Ficha de personaje en frontmatter, con `secreto` y coartada | 1 | 1.4 |
 
-Los 33 criterios de aceptación van nombrados en la tarea que los cierra, dentro de cada fichero
+Los 40 criterios de aceptación van nombrados en la tarea que los cierra, dentro de cada fichero
 de fase.
 
 ## Qué hay que arreglar por el camino

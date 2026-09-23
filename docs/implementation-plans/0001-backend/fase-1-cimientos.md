@@ -6,7 +6,10 @@ apoyarse.
 **Al terminar existe**: la ontología como código, `estado.db` con sus triggers, escritura
 atómica, lock de workspace, y tres subcomandos — `nueva`, `estado`, `pendiente`.
 
-**Cierra**: RF-01 a RF-07, RF-26, RF-28. CA-01 a CA-07, CA-28, CA-30, CA-31, CA-32.
+**Cierra**: RF-01 a RF-07, RF-26, RF-28, RF-36. CA-01 a CA-07, CA-28, CA-30, CA-31, CA-32, CA-40.
+
+La spec 0.3 añade a esta fase RF-36 (tarea 1.4) y la forma de RF-33 (tareas 1.6, 1.7 y 1.9); su
+comportamiento se cierra en la fase 2.
 
 Antes de empezar, lee las convenciones de ciclo del [README](README.md): rojo visto fallar,
 un commit por ciclo, property-based donde toca.
@@ -184,6 +187,10 @@ Campos que la prosa enumera en línea y el modelo necesita separados:
 - `personaje.identidad`: `{id, nombre, alias, edad, rol_narrativo}`
 - `personaje.psicologia`: `{deseo, necesidad, miedo, herida}`
 - `personaje.secreto`: `{que_oculta, a_quien}` — dos campos, no uno
+- `personaje.coartada_y_cronologia_privada`: `list[{momento, ubicacion, detalle}]`, con `momento`
+  texto como `linea_temporal.inicio` y `ubicacion` un `EscenarioId`. Campo propio, no prosa
+  (spec 0.3, RF-36): es lo que dejará filtrarlo del briefing del `escritor` cuando la spec 0002 lo
+  decida
 - `personaje.voz`: el fragmento de diálogo canónico es obligatorio (`min_length=1`). El escritor
   imita mejor de lo que obedece
 - `escenario`: `{id, nombre, descripcion, detalle_sensorial, quien_tiene_acceso}`, y el último es
@@ -202,6 +209,12 @@ Campos que la prosa enumera en línea y el modelo necesita separados:
   es evaluable, y `definitions.md` §2.4 lo dice así
 - `estilo.ritmo`: longitud media de frase y proporción diálogo/acción/interioridad. **Campos
   numéricos**, no texto: es lo que hace verificable al `editor-estilo`
+
+**Ficha de personaje en disco (RF-36).** `canon/personajes/<id>.md` lleva todos los campos en
+frontmatter YAML y el cuerpo es prosa libre. `Personaje` con `extra="forbid"`: un campo desconocido
+es una ficha rechazada, no un dato perdido en silencio. Rojo:
+`novela/dominio/test_canon.py::test_ficha_personaje_estructurada` (CA-40). El briefing sigue
+incrustando la ficha entera; esta tarea solo fija la forma.
 
 **Commit**: `feat(dominio): rama 2, canon con append-only en el tipo`
 
@@ -300,8 +313,12 @@ Si añades un valor a alguno de estos, es cambio de esquema: regenera `schemas/`
 
 - `schema_version` es **campo raíz del documento**, no solo de la tabla `meta`.
 - `conocimiento` es `dict[PersonajeId, list[Entrada]]`; `conocimiento_lector` es `list[Entrada]`
-  plana. **Misma entrada `{hecho, desde_capitulo}`, contenedor distinto.** Reutiliza el tipo de
-  entrada, no el contenedor.
+  plana. **Misma entrada `{hecho, desde_capitulo, cita}`, contenedor distinto.** Reutiliza el tipo
+  de entrada, no el contenedor.
+- `cita: str | None` en las entradas de `conocimiento`, `conocimiento_lector` y `linea_temporal`
+  (spec 0.3, RF-33). Opcional a propósito: que sea obligatoria es de la spec 0002; que exista
+  desde el primer capítulo es lo que evita tener que rellenarla hacia atrás. Cuidado con 1.6b:
+  `None` y ausente tienen que seguir distinguiéndose.
 - `relaciones` es lista de aristas `{de, a, tipo, intensidad, desde}` con `intensidad` float
   `0..1`. El canon declara una `tension` cualitativa para lo mismo: **son campos distintos**, el
   del canon es el punto de partida y el del estado la evolución.
@@ -363,6 +380,10 @@ Enums a cerrar: `veredicto` (`aprobado`, `rechazado`, `aprobado_con_reservas`) y
 —`contradiccion_hecho` es el único que la documentación nombra—: un hallazgo con tipo libre es un
 hallazgo que el reintento del escritor no sabe interpretar.
 
+`capitulo_sha256: str | None` en la cabecera (spec 0.3, RF-30 a RF-32). No lo escribe ningún
+agente —un modelo no calcula un hash, lo inventaría—: lo pone `novela validar` en su propio
+informe, y los agentes lo dejan vacío.
+
 Lo usan cuatro productores: `continuista`, `editor-estilo`, `lector-suspense` y el propio
 `novela validar` (tarea 2.9). Un solo modelo para los cuatro.
 
@@ -418,6 +439,9 @@ BEGIN SELECT RAISE(ABORT, 'libro_de_hechos es append-only'); END;
 
 Convención de nombre: `<tabla>_no_update` y `<tabla>_no_delete`. Mensaje: `'<tabla> es
 append-only'`.
+
+`conocimiento`, `linea_temporal` y `conocimiento_lector` llevan columna `cita TEXT` nula (spec
+0.3, RF-33). `libro_de_hechos` ya la tenía.
 
 **Índices** por `capitulo` y por id de entidad. No son optimización prematura: `architecture.md`
 §6.4 apoya en ellos una decisión de diseño —«el largo plazo no se carga, se consulta»— y el

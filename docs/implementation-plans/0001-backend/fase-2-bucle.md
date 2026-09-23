@@ -6,7 +6,7 @@ a fin.
 **Al terminar existe**: `briefing`, `validar`, `aplicar-delta` y `checkpoint`. Con eso, un
 capítulo se puede escribir, revisar, registrar y cerrar sin intervención manual.
 
-**Cierra**: RF-08 a RF-21, RF-27, RF-29. CA-08 a CA-22, CA-27, CA-33.
+**Cierra**: RF-08 a RF-21, RF-27, RF-29 a RF-35. CA-08 a CA-22, CA-27, CA-33 a CA-39.
 
 Es la fase larga y la que más superficie tiene. Requiere la fase 1 terminada —los modelos, el
 lock, la escritura atómica y los fixtures—, pero no requiere leer su documento.
@@ -262,11 +262,22 @@ revisión del cambio.
 Aquí es donde el `run_id` determinista de la tarea 2.1 paga: sin él, la ruta del briefing cambia
 en cada ejecución y el golden no se puede comparar.
 
+**Hash del capítulo (spec 0.3, RF-30).** Cuando la receta incrusta `capitulos/NN.md`, el briefing
+lleva en su frontmatter `capitulo_sha256`, calculado sobre los bytes en disco sin normalizar. Rojo:
+`test_briefing.py::test_hash_del_capitulo_incrustado` (CA-34). Es el único registro de qué versión
+vio cada agente, y lo que `aplicar-delta` consulta en la tarea 2.14.
+
+**Sello de capítulos cerrados (spec 0.3, RF-35).** Antes de ensamblar, compara el sha256 de cada
+capítulo cerrado con `checkpoints/latest.json` (tarea 2.17). Si uno cambió o falta, sale con 4 sin
+escribir el briefing: el workspace viola el invariante 7. Rojo:
+`test_briefing.py::test_sello_capitulos_cerrados` (CA-39). La comparación es una función pura en
+`assemble.py`; los hashes los calcula la cáscara.
+
 **Nota para quien mantenga esto**: los ficheros de `runs/<run_id>/briefings/` son el único
 registro de qué vio cada agente — el trazado de Langfuse no captura el contexto ensamblado
 (`validators.md` §4.1). No los borres al limpiar.
 
-**Cierra**: CA-08, RF-08.
+**Cierra**: CA-08, CA-34, CA-39, RF-08, RF-30, RF-35.
 
 **Commit**: `feat(cli): novela briefing`
 
@@ -351,6 +362,11 @@ informativo; no lo extiendas.
 
 **Verde**: la cáscara. Escribe los hallazgos con el modelo de la tarea 1.7 y **sale con 1**.
 
+**También cuando pasa** (spec 0.3, RF-31): escribe `qa/NN-validacion.json` con `veredicto:
+aprobado`, `hallazgos: []` y el `capitulo_sha256` del fichero que acaba de validar, y sale con 0.
+Rojo: `test_validacion.py::test_informe_al_pasar` (CA-35). Sin este fichero no hay forma de
+saber después sobre qué versión pasó el gate, y la custodia de 2.14 no tendría con qué comparar.
+
 ```
 novela validar <slug> <cap>
 ```
@@ -359,7 +375,7 @@ novela validar <slug> <cap>
 capítulo de vuelta, ni un «está mal» genérico: el informe y nada más. De ahí que el formato sea
 estructurado y no prosa.
 
-**Cierra**: CA-16, RF-15.
+**Cierra**: CA-16, CA-35, RF-15, RF-31.
 
 **Commit**: `feat(cli): novela validar y su informe de QA`
 
@@ -407,6 +423,8 @@ propuesta:
   colección de la rama 4 con otro autor, y meterla en el delta del cronista sería darle un dato
   que no tiene.
 - **`cursor`**: el delta lo avanza, y `aplicar-delta` comprueba que la monotonía se respeta.
+- **`cita` opcional** en las altas de `conocimiento`, `linea_temporal` y `conocimiento_lector`
+  (spec 0.3, RF-33), como la que ya trae `libro_de_hechos`.
 - **`resumen: {linea, parrafo, escena}`** — las tres granularidades, obligatorias. Es lo que
   `aplicar-delta` renderiza a `memoria/resumenes/NN.md` en la tarea 2.15.
 
@@ -440,10 +458,23 @@ cualquier delta generado.
 **Verde**: función pura. Comprueba lo que el JSON Schema **no puede expresar**: unicidad de ids
 entre colecciones distintas y monotonía del cursor.
 
+Y dos más de la spec 0.3, que necesitan el capítulo además del delta: la función recibe el cuerpo
+y el frontmatter como datos, no los lee.
+
+- **Citas (RF-33).** Toda `cita` presente —de `libro_de_hechos`, `conocimiento`,
+  `linea_temporal` o `conocimiento_lector`— es subcadena del cuerpo sin frontmatter, después de
+  normalizar los dos lados a NFC y colapsar cada secuencia de espacios en blanco. Nada más. Rojo:
+  `test_violaciones.py::test_citas_property` (CA-37). Property-based: el generador tiene que
+  producir citas que solo difieren en espacios o en forma Unicode, que son las que deben pasar.
+- **Hilos contra frontmatter (RF-34).** Los hilos abiertos y cerrados del delta son exactamente
+  `hilos_abiertos` e `hilos_cerrados` del frontmatter. Las pistas no hace falta cruzarlas: no
+  vienen en el delta, se derivan del frontmatter (tarea 2.11). Rojo:
+  `test_violaciones.py::test_hilos_contra_frontmatter` (CA-38).
+
 Son las dos postcondiciones que `validators.md` §3.4 nombra al explicar por qué la verificación
 formal se descarta y qué subconjunto barato sí se hace.
 
-**Cierra**: CA-18, RF-17.
+**Cierra**: CA-18, CA-37, CA-38, RF-17, RF-33, RF-34.
 
 **Commit**: `feat(delta): violaciones que el esquema no expresa`
 
@@ -496,7 +527,18 @@ sobre el estado anterior. Es el invariante 1 y la única vía de escritura de `e
 El test de byte a byte es deliberadamente estricto: comprobar que el `INSERT` falló no basta:
 hay que comprobar que **nada** de la transacción quedó.
 
-**Cierra**: CA-17, RF-16.
+**Custodia (spec 0.3, RF-32).** Antes de abrir la transacción, la cáscara comprueba la cadena:
+el sha256 de `capitulos/NN.md` en disco es el del briefing del `cronista` y el del último
+`qa/NN-validacion.json`; ese informe no tiene hallazgos; y los briefings de `continuista`,
+`lector-suspense` y `editor-estilo` del mismo run llevan todos el mismo hash. Si falla, sale con 1
+sin tocar la base y deja la causa en `harness.log`. La comparación va en una función pura de
+`slices/delta/` (`custodia.py`); leer los briefings y hashear es de la cáscara. Rojo:
+`test_custodia.py::test_cadena_property` (CA-36).
+
+No lee veredictos de modelo: el gate lo sigue decidiendo el orquestador (spec §15). Lo que hace es
+convertir en precondición de código el primer invariante de orden de la tarea 2.18.
+
+**Cierra**: CA-17, CA-36, RF-16, RF-32.
 
 **Commit**: `feat(cli): novela aplicar-delta, única vía de escritura del estado`
 
@@ -568,6 +610,10 @@ comprueba.
 **Verde**: escribe `checkpoints/NN.json` y `checkpoints/latest.json` **atómicamente**, con
 cursor, versiones y `run_id`. Y emite los seis scores por `ScoreSink`.
 
+Y `capitulos_sha256`, el hash de cada capítulo cerrado hasta N (spec 0.3, RF-35). Es la mitad
+que escribe del sello que comprueba `briefing` (tarea 2.6). Entra en el round-trip de abajo como
+un campo más.
+
 ```
 novela checkpoint <slug> <cap>
 ```
@@ -621,6 +667,8 @@ uv run mutmut run --paths-to-mutate novela/slices/validacion/gates.py,novela/sli
 
 Y el bucle entero sobre un fixture, con el agente falso que escribe un capítulo prefabricado:
 briefing → capítulo → validar → QA → delta → aplicar → checkpoint, sin una sola llamada a modelo.
+Desde la spec 0.3 ese recorrido genera también los briefings de los revisores y del `cronista`:
+sin ellos la custodia de 2.14 no cierra y `aplicar-delta` sale con 1, que es lo correcto.
 Ese test de integración (`validators.md` §3.5) es lo que hace testable el bucle sin escribir una
 novela, y si no pasa, la fase no está cerrada por mucho que los unitarios estén en verde.
 

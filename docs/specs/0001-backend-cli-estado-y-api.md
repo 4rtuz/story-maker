@@ -4,7 +4,7 @@ titulo: "El backend: CLI `novela`, dominio, estado en SQLite y API de lectura"
 estado: aceptada
 autor: "arturo.soto"
 fecha: 2026-09-22
-version: 0.2
+version: 0.3
 afecta: [backend, esquemas, docs]
 depende_de: []
 sustituye: []
@@ -27,9 +27,11 @@ Construir `backend/` desde cero: el CLI determinista `novela` que el orquestador
 - `config/default.yaml` y `config/recipes.yaml`.
 - La API FastAPI de `architecture.md` §11.1: cinco `GET`, ningún verbo de escritura.
 - La suite de tests con workspaces sintéticos, sin una sola llamada a modelo.
+- Desde la v0.3, la **forma** que necesitan las verificaciones de `validators.md` §3.9.7, §3.9.8 y §4.9 y que sale cara de añadir más tarde: custodia del capítulo por hash, sello de los capítulos cerrados, `cita` opcional en las colecciones append-only y fichas de personaje estructuradas (§5.6).
 
 **Fuera del alcance**
 
+- La **política** que usa esos campos —qué es obligatorio, qué se filtra, qué para el bucle— y el resto de verificaciones de `validators.md` §3.9 a §4.16: spec 0002, en `borrador`. La v0.3 añade solo lo que no abre ninguna pregunta.
 - `.claude/`: agentes, hooks, permisos y slash commands. La contención de agentes es `architecture.md` §12.7 y merece su propia spec; aquí solo se construye la mitad que vive en Python.
 - Los prompts de los agentes y qué capas concretas maximizan la calidad de la prosa. Esta spec fija el **mecanismo** de ensamblado y el formato de las recetas, no su contenido.
 - Las cuatro decisiones abiertas de `architecture.md` §12: `indice_recuperable` (§12.4), los dos `GET` del log en vivo (§12.6), la cola en disco y `run.sh` (§12.8) y la regla `deny` sobre el misterio (§12.7). Cada una es una spec posterior; ninguna es precondición de esta.
@@ -54,6 +56,8 @@ Debajo de esa obviedad hay tres huecos que la documentación de referencia no ci
 
 **El árbol y las convenciones no coinciden en la ruta de los modelos.** `architecture.md` §3.1 los pone en `backend/novela/dominio/`; `AGENTS.md` y `docs/validators.md` §3.1 los llaman `backend/novela/models/`. Cualquiera de las dos vale, pero no las dos: la regla dura de `validators.md` —«ningún dato cruza de disco o de agente al código sin pasar por un modelo de …»— necesita una única ruta a la que apuntar.
 
+**Nada ata un veredicto al texto que juzgó** (añadido en la v0.3). Los tres revisores leen una versión del capítulo, el `editor-estilo` escribe otra y el `cronista` extrae el delta de la que haya en disco. Ningún fichero registra qué versión leyó cada uno, así que un `aplicar-delta` sobre un capítulo que cambió después de validarse no se distingue de uno correcto. Lo mismo vale entre capítulos: el invariante 7 prohíbe reescribir un capítulo cerrado, y la política de cuota de `architecture.md` §9 lo hace en sus niveles 2 y 4 sin que nada lo detecte (`validators.md` §3.9.7). Y tres formatos que esta spec fija en la fase 1 no tienen hueco para lo que exigirá la verificación: las entradas de `conocimiento`, `linea_temporal` y `conocimiento_lector` no llevan cita, y la ficha de personaje no separa `secreto` ni `coartada_y_cronologia_privada` del resto (`validators.md` §3.9.8, §4.9). Añadir cualquiera de las tres cosas con novelas ya escritas exige volver a pasar el `cronista` o el `arquitecto` sobre ellas.
+
 ## 3. Actores y partes implicadas
 
 | Actor | Interés en este cambio |
@@ -67,7 +71,7 @@ Debajo de esa obviedad hay tres huecos que la documentación de referencia no ci
 
 ## 4. Contexto y restricciones
 
-- **Invariantes que aplican**: los ocho. Los cuatro que el código tiene que hacer mecánicamente son el **1** (`estado.db` solo por `aplicar-delta`), el **2** (append-only por triggers), el **6** (escritura atómica) y el **8** (un proceso por workspace). El **3** (el secreto) lo sostiene el aborto de `novela briefing`. El **4** (fair play) lo verifican los gates de `validar` y `auditar`. El **5** y el **7** son del orquestador, no del CLI.
+- **Invariantes que aplican**: los ocho. Los cuatro que el código tiene que hacer mecánicamente son el **1** (`estado.db` solo por `aplicar-delta`), el **2** (append-only por triggers), el **6** (escritura atómica) y el **8** (un proceso por workspace). El **3** (el secreto) lo sostiene el aborto de `novela briefing`. El **4** (fair play) lo verifican los gates de `validar` y `auditar`. El **5** es del orquestador, no del CLI. El **7** también, pero desde la v0.3 el CLI **detecta** su violación con el sello de RF-35: no la impide, y basta con que no pase inadvertida.
 - **Restricciones técnicas**: Python 3.12, `uv`, sin SDK de proveedores de modelos, cero llamadas a modelo desde el CLI y desde los tests. La API no escribe. La única salida de red del CLI es la emisión de scores a Langfuse.
 - **Supuestos**: (a) la ratio de 3,5 caracteres por token de §6.5 es cota superior suficiente para español; (b) el workspace vive en un solo disco local, de modo que `os.replace` es atómico y `filelock` basta; (c) no hay ninguna novela empezada, así que no hay nada que migrar.
 - **Dependencias**: ninguna spec previa. Las cuatro decisiones de §12 dependen de esta, no al revés.
@@ -174,6 +178,25 @@ El slug se valida contra `^[a-z0-9-]+$` **antes** de construir ninguna ruta. Es 
 
 El OpenAPI se commitea; CI falla si el fichero commiteado no coincide con el que genera el código. De ahí saldrán los tipos del frontend.
 
+### 5.6 Enmienda 0.3 — custodia, sello, citas y fichas
+
+Cuatro cambios de forma sobre subcomandos que ya existen en esta spec, repartidos en las fases 1 y 2. Ninguno añade subcomando ni cambia qué entra en un briefing. La política que los usa es de la spec 0002.
+
+**Custodia del capítulo (RF-30 a RF-32, fase 2).** Ningún agente puede calcular un hash, así que lo registra el CLI en los dos puntos por donde pasa el texto. `novela briefing` escribe `capitulo_sha256` en el frontmatter del briefing cada vez que incrusta `capitulos/NN.md`: es la versión exacta que vio ese agente. `novela validar` escribe `qa/NN-validacion.json` también cuando pasa, con `veredicto: aprobado`, `hallazgos: []` y el `capitulo_sha256` del fichero validado. El hash es el de los bytes en disco, sin normalizar. `aplicar-delta` solo aplica si la cadena cierra:
+
+1. el sha256 de `capitulos/NN.md` en disco es igual al del briefing del `cronista` y al del último `qa/NN-validacion.json`, y ese informe no tiene hallazgos;
+2. los briefings de revisión del capítulo presentes en el mismo run que el del `cronista` —`continuista`, `lector-suspense`, `editor-estilo`— llevan todos el mismo hash. El del editor incluido: partió de la versión que revisaron los otros dos.
+
+Si no cierra, sale con 1 sin escribir nada y deja la causa en `harness.log`. Es una precondición sobre datos, no un juicio sobre veredictos de modelo: el orquestador sigue decidiendo los gates (§15). De paso hace mecánicas dos reglas que hoy solo están escritas en prosa. El invariante de orden 1 de la tarea 2.18: no se aplica un delta sin que `validar` haya pasado sobre esa misma versión. Y la regla de que un reintento repite todos los gates: un briefing de revisión que queda del intento anterior lleva otro hash.
+
+**Sello de capítulos cerrados (RF-35, fase 2).** `checkpoint` guarda en `checkpoints/NN.json` el sha256 de cada `capitulos/*.md` cerrado hasta N. Cada `briefing` compara los capítulos cerrados con `checkpoints/latest.json` y, si alguno ha cambiado o ha desaparecido, sale con 4 sin escribir el briefing: el workspace viola el invariante 7. El coste son veinticuatro hashes de unos veinte kilobytes por invocación.
+
+**Citas opcionales (RF-33, fases 1 y 2).** Las entradas de `conocimiento`, `linea_temporal` y `conocimiento_lector` ganan `cita: str | None`, con columna nula en `esquema.sql`. `aplicar-delta` rechaza el delta entero si alguna `cita` presente —de esas tres colecciones o de `libro_de_hechos`— no es subcadena del cuerpo del capítulo, sin el frontmatter. Antes de comparar, los dos lados se normalizan a NFC y cada secuencia de espacios en blanco se colapsa en un espacio. Nada más: ni comillas tipográficas ni mayúsculas, porque una cita que solo casa aflojando la comparación ya no es una cita. Que sea obligatoria es una política, y es de la 0002; que exista desde el capítulo 1 es lo que evita tener que rellenarla hacia atrás.
+
+**Hilos: delta contra frontmatter (RF-34, fase 2).** Las pistas no entran en el delta: son derivadas del frontmatter (tarea 2.11 del plan). Los hilos sí, así que hay dos descripciones del mismo texto que pueden divergir. `aplicar-delta` exige que los hilos abiertos y cerrados del delta sean exactamente `hilos_abiertos` e `hilos_cerrados` del frontmatter. Si difieren, uno de los dos productores se equivoca, y no hace falta saber cuál para no aplicar. Lo que el plan admita fuera de lo planificado es de la 0002.
+
+**Fichas de personaje estructuradas (RF-36, fase 1).** `canon/personajes/<id>.md` lleva los campos de `definitions.md` §2.3 en frontmatter YAML y el cuerpo es prosa libre. El modelo `Personaje` prohíbe campos desconocidos. `secreto: {que_oculta, a_quien}` y `coartada_y_cronologia_privada: list[{momento, ubicacion: EscenarioId, detalle}]` son campos propios; `momento` es texto, como `linea_temporal.inicio`. El briefing sigue incrustando la ficha entera: qué campos se filtran y a quién es la 0002.
+
 ## 6. Requisitos funcionales
 
 | Id | Requisito | Prioridad |
@@ -207,6 +230,13 @@ El OpenAPI se commitea; CI falla si el fichero commiteado no coincide con el que
 | RF-27 | Todo subcomando añade una línea a `runs/<run_id>/harness.log`, con volcado línea a línea | debería |
 | RF-28 | Los modelos de `canon.py` no exponen forma de modificar ni de borrar una entrada de las seis colecciones que `definitions.md` §2 declara append-only | debe |
 | RF-29 | `run_id` se toma de `NOVELA_RUN_ID` si está definida y casa `^r-\d{8}-\d{4}$`; si no, lo genera el CLI. Una variable con formato inválido aborta | debe |
+| RF-30 | `novela briefing` escribe `capitulo_sha256` —sha256 de los bytes en disco— en el frontmatter del briefing cuando incrusta `capitulos/NN.md` | debe |
+| RF-31 | `novela validar` escribe `qa/NN-validacion.json` también cuando pasa, con `veredicto: aprobado`, `hallazgos: []` y el `capitulo_sha256` del fichero validado | debe |
+| RF-32 | `novela aplicar-delta` sale con 1 sin escribir si el sha256 del capítulo en disco difiere del del briefing del `cronista` o del último `qa/NN-validacion.json`, si ese informe tiene hallazgos, o si los briefings de revisión del capítulo en el run del `cronista` no llevan todos el mismo hash | debe |
+| RF-33 | Las entradas de `conocimiento`, `linea_temporal` y `conocimiento_lector` admiten `cita` opcional; `aplicar-delta` rechaza el delta si alguna cita presente, incluidas las de `libro_de_hechos`, no es subcadena del cuerpo del capítulo tras normalizar a NFC y colapsar espacios en blanco | debe |
+| RF-34 | `novela aplicar-delta` rechaza el delta si sus hilos abiertos y cerrados no son exactamente `hilos_abiertos` e `hilos_cerrados` del frontmatter del capítulo | debe |
+| RF-35 | `novela checkpoint` registra el sha256 de cada capítulo cerrado; `novela briefing` sale con 4 sin escribir si alguno ha cambiado o falta respecto a `checkpoints/latest.json` | debe |
+| RF-36 | Las fichas `canon/personajes/<id>.md` llevan los campos de `definitions.md` §2.3 en frontmatter YAML, con `secreto` y `coartada_y_cronologia_privada` como campos propios; el modelo rechaza campos desconocidos | debe |
 
 ## 7. Requisitos no funcionales
 
@@ -248,19 +278,23 @@ novela exportar <slug> --formato md|epub
 
 **Variables de entorno** — **nuevas**. `NOVELA_RUN_ID` fija el run del capítulo (RF-29); `NOVELAS_DIR` reubica la raíz de workspaces, y es como los tests apuntan a los fixtures. `TRACE_TO_LANGFUSE` ya existía y solo activa el sink con el valor exacto `"true"`.
 
-**Esquemas** — todos **nuevos**, en `backend/schemas/`: `config.schema.json`, `state.schema.json`, `canon.schema.json`, `plan-capitulo.schema.json`, `delta.schema.json`, `qa-informe.schema.json`. `delta.schema.json` incluye `resumen: {linea, parrafo, escena}` (§5.0), con `resumen.escena` indexado por id de escena. `canon.schema.json` incluye los campos de `revelaciones[]` y `giros[]` de §5.0.5.
+**Esquemas** — todos **nuevos**, en `backend/schemas/`: `config.schema.json`, `state.schema.json`, `canon.schema.json`, `plan-capitulo.schema.json`, `delta.schema.json`, `qa-informe.schema.json`. `delta.schema.json` incluye `resumen: {linea, parrafo, escena}` (§5.0), con `resumen.escena` indexado por id de escena. `canon.schema.json` incluye los campos de `revelaciones[]` y `giros[]` de §5.0.5. Desde la v0.3 (§5.6): `qa-informe.schema.json` gana `capitulo_sha256` opcional; `delta.schema.json` y `state.schema.json` ganan `cita` opcional en las entradas de `conocimiento`, `linea_temporal` y `conocimiento_lector`; `canon.schema.json` define la ficha de personaje con `secreto` y `coartada_y_cronologia_privada`. `checkpoints/NN.json` gana `capitulos_sha256`, un mapa de capítulo a hash.
+
+**Briefing** — **nuevo** frontmatter: `capitulo_sha256` cuando el briefing incrusta el capítulo (RF-30). El agente lo ve y no tiene que hacer nada con él.
 
 **Contrato de agente** — **compatible** con §7.5, con una corrección: el `cronista` escribe solo `estado/deltas/NN.json`; `memoria/resumenes/NN.md` pasa a escribirlo `aplicar-delta`.
 
 **Ficheros del workspace** — el árbol de §4, creado por `novela nueva`. Orden de escritura dentro de un capítulo: briefing → capítulo (agente) → `qa/` → delta (agente) → `estado.db` + `memoria/` → `checkpoints/`.
 
+**Códigos de salida** — **compatible**. Dos usos nuevos de códigos que ya existen: 1 en `aplicar-delta` cuando la custodia no cierra (RF-32), y 4 en `briefing` cuando el sello de capítulos cerrados no coincide (RF-35).
+
 ## 9. Datos y estado
 
 | Rama | Cambio |
 |---|---|
-| `canon/` | Sin cambios de forma. El CLI lo lee para ensamblar briefings y no lo escribe nunca |
+| `canon/` | Las fichas de `personajes/` llevan sus campos en frontmatter (RF-36). El CLI lo lee para ensamblar briefings y no lo escribe nunca |
 | `plan/` | Sin cambios de forma. `validar` lo lee para saber qué pistas exigir |
-| `estado/estado.db` | Se crea aquí, con el DDL y los triggers de §5.2. Solo lo escribe `aplicar-delta`, en transacción |
+| `estado/estado.db` | Se crea aquí, con el DDL y los triggers de §5.2. Solo lo escribe `aplicar-delta`, en transacción. `conocimiento`, `linea_temporal` y `conocimiento_lector` llevan columna `cita` nula (RF-33) |
 | `memoria/` | Lo escribe `aplicar-delta` a partir del delta (§5.0). Reconstruible recorriendo `estado/deltas/*.json` |
 
 `libro_de_hechos` y `conocimiento` son append-only, y aquí dejan de serlo por acuerdo para serlo por trigger.
@@ -304,6 +338,13 @@ No aplica: no existe ninguna novela empezada ni ningún `estado.db` previo. Es l
 - [ ] **CA-31** (RNF-01) `novela estado --breve` sobre el fixture de 24 capítulos termina en < 500 ms
 - [ ] **CA-32** (RNF-07) un fichero versionado que contenga `LANGFUSE_SECRET_KEY` o equivalente hace fallar el pre-commit
 - [ ] **CA-33** (RF-29) con `NOVELA_RUN_ID` definida, el briefing se escribe bajo ese run; con un valor que no casa el formato, el comando aborta sin crear directorio
+- [ ] **CA-34** (RF-30) el briefing del `continuista` sobre el fixture lleva en su frontmatter el sha256 de `capitulos/NN.md`; el del `escritor`, que no incrusta el capítulo, no lo lleva
+- [ ] **CA-35** (RF-31) `validar` sobre un capítulo válido sale con 0 y deja un `qa/NN-validacion.json` que valida contra `qa-informe.schema.json`, con `veredicto: aprobado`, `hallazgos: []` y el hash del fichero
+- [ ] **CA-36** (RF-32) property-based: con la cadena íntegra el delta aplica. Cambiar cualquier byte de `capitulos/NN.md` después del briefing del `cronista`, o dejar un briefing de revisión con otro hash, hace salir a `aplicar-delta` con 1 y deja `estado.db` byte a byte idéntico
+- [ ] **CA-37** (RF-33) property-based: una cita presente que no es subcadena del cuerpo se rechaza; una que solo difiere en espacios en blanco o en forma de normalización Unicode se acepta; un delta sin citas opcionales aplica
+- [ ] **CA-38** (RF-34) un delta que cierra un hilo que el frontmatter no cierra, o al revés, se rechaza sin escribir nada
+- [ ] **CA-39** (RF-35) tras el `checkpoint` del capítulo N, cambiar un byte de un capítulo M ≤ N hace salir al `briefing` de N+1 con 4 sin escribir el fichero; sin cambios, el briefing se escribe
+- [ ] **CA-40** (RF-36) una ficha fixture se parsea con `secreto` y `coartada_y_cronologia_privada` como campos, y hace round-trip; una ficha con un campo desconocido en el frontmatter se rechaza
 
 ## 12. Trazabilidad
 
@@ -339,6 +380,13 @@ No aplica: no existe ninguna novela empezada ni ningún `estado.db` previo. Es l
 | RNF-05 | CA-29 | `tests/test_contratos.py::test_openapi_al_dia` | pendiente |
 | RF-28 | CA-30 | `novela/dominio/test_canon.py::test_append_only_sin_trigger` | pendiente |
 | RF-29 | CA-33 | `novela/plataforma/test_run.py::test_run_id_de_entorno` | pendiente |
+| RF-30 | CA-34 | `novela/slices/briefing/test_briefing.py::test_hash_del_capitulo_incrustado` | pendiente |
+| RF-31 | CA-35 | `novela/slices/validacion/test_validacion.py::test_informe_al_pasar` | pendiente |
+| RF-32 | CA-36 | `novela/slices/delta/test_custodia.py::test_cadena_property` | pendiente |
+| RF-33 | CA-37 | `novela/slices/delta/test_violaciones.py::test_citas_property` | pendiente |
+| RF-34 | CA-38 | `novela/slices/delta/test_violaciones.py::test_hilos_contra_frontmatter` | pendiente |
+| RF-35 | CA-39 | `novela/slices/briefing/test_briefing.py::test_sello_capitulos_cerrados` | pendiente |
+| RF-36 | CA-40 | `novela/dominio/test_canon.py::test_ficha_personaje_estructurada` | pendiente |
 | RNF-01 | CA-31 | `novela/slices/estado/test_estado.py::test_breve_rendimiento` | pendiente |
 | RNF-02 | CA-05, CA-11 | `novela/slices/estado/test_estado.py::test_breve_acotado`, `briefing/test_briefing.py::test_presupuesto_excedido_falla` | pendiente |
 | RNF-04 | CA-04, CA-17 | `novela/plataforma/test_atomic.py::test_corte_deja_fichero_anterior`, `slices/delta/test_delta.py::test_transaccion_todo_o_nada` | pendiente |
@@ -350,7 +398,7 @@ No aplica: no existe ninguna novela empezada ni ningún `estado.db` previo. Es l
 Métodos de `docs/validators.md` que cubren este cambio:
 
 - **A — tipos y análisis estático** (§3.1, §3.2): `mypy --strict` sobre `backend/`, `ruff` con reglas `S`. La regla dura del borde se hace cumplir desde el principio: ningún `json.load()` suelto, todo dato de disco o de agente entra por un modelo de `dominio/`.
-- **T — property-based** (§3.6): obligatorio en `gates.py`, `apply.py`, `violaciones.py` y `assemble.py`, que son exactamente las funciones puras de esta spec. Las cinco propiedades de la tabla de §3.6 son CA-09, CA-14, CA-18, CA-20 y CA-21.
+- **T — property-based** (§3.6): obligatorio en `gates.py`, `apply.py`, `violaciones.py` y `assemble.py`, que son exactamente las funciones puras de esta spec. Las cinco propiedades de la tabla de §3.6 son CA-09, CA-14, CA-18, CA-20 y CA-21. La v0.3 añade dos: la cadena de custodia (CA-36) y las citas (CA-37), que son ramas de `delta.py` y por tanto entran en la regla.
 - **T — mutación** (§3.7): `mutmut` solo sobre `gates.py` y `apply.py`.
 - **T — contrato** (§3.8): `schemas/` contra Pydantic y OpenAPI contra el código, los dos en CI.
 - **T — integración** (§3.5): el bucle completo con un agente falso que escribe un capítulo prefabricado desde `tests/fixtures/`. Es lo que hace testable el bucle sin escribir una novela.
@@ -359,16 +407,19 @@ Métodos de `docs/validators.md` que cubren este cambio:
 **Riesgos aceptados**, además de los de `validators.md` §5:
 
 - La estimación de tokens es una heurística de caracteres. Si se desviara por defecto en algún caso, un briefing podría pasar el presupuesto sin que el CLI lo note. Se acepta porque el error medido ronda el 10% y siempre por exceso; la señal para revisarlo es un fallo de contexto en una invocación que el CLI dio por buena.
-- El guardarraíl del secreto compara texto. El `escritor` no recibe el misterio, pero nada impide que una ficha de `plan/capitulos/NN.md` parafrasee la solución: eso es contenido, no ruta, y ningún test lo coge. Lo cubre la sonda adversaria de `validators.md` §4.9, no esta spec.
+- El guardarraíl del secreto compara texto. El `escritor` no recibe el misterio, pero nada impide que una ficha de `plan/capitulos/NN.md` parafrasee la solución, ni que la ficha de personaje del culpable la contenga en su `secreto`: eso es contenido, no ruta, y ningún test lo coge. La v0.3 deja el `secreto` en un campo propio (RF-36) para que se pueda filtrar; filtrarlo, y las sondas de `validators.md` §4.15, son de la spec 0002.
+- La custodia (RF-32) prueba que el delta se extrajo de la versión validada, no que esa versión sea la que revisaron el `continuista` y el `lector-suspense`: el `editor-estilo` reescribe entre medias por diseño (`validators.md` §3.9.3). La cadena garantiza que el editor partió de la versión revisada y que la final pasó `validar`; lo que cambió el editor solo lo ven los gates mecánicos.
+- Con el sello (RF-35), los niveles 2 y 4 de la política de cuota de `architecture.md` §9 paran el bucle, porque el `editor-estilo` diferido reescribe capítulos cerrados. Se acepta: es el invariante 7 funcionando, y esta spec no construye la degradación. Cómo degradar sin violarlo es una pregunta de la 0002.
 - La idempotencia de `aplicar-delta` se prueba sobre deltas generados por Hypothesis, no sobre deltas reales de un `cronista`. El primer acto de la novela de humo es lo que la valida de verdad.
 
 ## 14. Impacto
 
 | Área | Cambio |
 |---|---|
-| Invariantes | Ninguno se toca. Cuatro pasan de estar descritos a estar impuestos por código: 1, 2, 6 y 8 |
-| Esquemas | Se crean los seis de `backend/schemas/` y el test de contrato que los mantiene al día. `canon.schema.json` estrena los campos de `revelaciones[]` (§5.0.5) |
-| Contratos de agente | Uno: el `cronista` deja de escribir `memoria/resumenes/NN.md`. Su frontmatter no cambia |
+| Invariantes | Ninguno se toca. Cuatro pasan de estar descritos a estar impuestos por código: 1, 2, 6 y 8. Desde la v0.3, la violación del 7 se detecta (RF-35), aunque no se impide |
+| Esquemas | Se crean los seis de `backend/schemas/` y el test de contrato que los mantiene al día. `canon.schema.json` estrena los campos de `revelaciones[]` (§5.0.5). La v0.3 añade los campos de §8: todos opcionales salvo la estructura de la ficha de personaje |
+| Contratos de agente | Uno: el `cronista` deja de escribir `memoria/resumenes/NN.md`. Su frontmatter no cambia. La v0.3 añade dos contratos de salida, sin cambiar ningún frontmatter de agente: el `cronista` **puede** traer `cita` en tres colecciones más, y el `arquitecto` **debe** escribir las fichas de personaje en frontmatter (RF-36). El prompt del `arquitecto` está fuera de alcance (§1) y tendrá que reflejarlo cuando exista |
+| Docs de referencia (v0.3) | A diferencia de lo corregido en la v0.2, los campos de la v0.3 describen código futuro. Por la regla de `AGENTS.md` se documentan **en el commit que los implementa**, no antes: `architecture.md` §7.1 (`cita` en tres colecciones), §7.3 (`capitulo_sha256`), §4 (`capitulos_sha256` en los checkpoints) y `definitions.md` §2.3 y §4. `validators.md` §3.9.7 y §3.9.8 ya remiten a esta spec |
 | Docs de referencia | **Ya corregidos** al aceptar esta spec: todos eran incoherencias entre documentos vigentes, no descripciones de código futuro, así que dejarlos habría sido dejar la referencia contradiciéndose durante toda la implementación. `definitions.md` §2.4 (campos de `revelaciones` y `giros`), §4 (ocho nombres alineados con §7.1, `cursor` a cuatro campos) y §6 (`qa/NN-informe.md` → `qa/NN-<agente>.json`); `architecture.md` §5 y `AGENTS.md` (identificadores, con `hec-` y `esc-` desambiguado), §8 y `AGENTS.md` (aparecen `novela nueva` y `novela auditar`), §7.5 (el `cronista` deja de escribir `memoria/`, que ya contradecía a §6.4 del mismo documento); `domain-knowledge.md` (nodos de estado, ficheros de `qa/` y salidas del `cronista` en los diagramas 3, 4 y 5); `AGENTS.md` y `validators.md` §3.1 (`backend/novela/models/` → `dominio/`); `_plantilla.md` (misma ruta). Nada queda pendiente |
 | ADR | Se escribe `docs/adr/0001-orquestador-en-claude-code.md`, que `architecture.md` §3.1 ya nombraba y no existía |
 | Frontend | Nada que romper: no existe. La fase 4 le entrega el OpenAPI del que generará sus tipos |
@@ -381,6 +432,10 @@ Métodos de `docs/validators.md` que cubren este cambio:
 - **Repositorio por entidad y capa de casos de uso.** `architecture.md` §3.0 fija dos puertos y solo dos; el resto se llama directo.
 - **Truncar el briefing al llegar al presupuesto.** Un briefing truncado es un agente que no sabe lo que no sabe: produce un capítulo plausible y contradictorio, que es el fallo más caro de detectar.
 - **Que el `cronista` escriba `memoria/`**, como dice hoy §7.5. Ahorra código en el CLI y a cambio convierte un artefacto derivado en texto libre no validado, y hace que reconstruir `memoria/` cueste cuota.
+- **Que cada agente registre el hash del capítulo que leyó** (v0.3). Un modelo no calcula un sha256: lo inventaría. Lo registra el CLI en el briefing, que es por donde el texto llega al agente.
+- **Normalizar el capítulo antes de hashearlo** (v0.3). Obligaría a decidir qué cambios dejan «el mismo texto», que es justo la pregunta que un hash evita. Con los bytes tal cual, el error posible es parar de más, nunca aplicar de menos.
+- **Comprobar la custodia en un subcomando `novela gate`** (v0.3). Ese subcomando decidiría también los gates desde los veredictos, y eso revierte la frontera de la primera alternativa de esta lista. Está planteado en la 0002 y necesita ADR. La cadena de RF-32 es una precondición sobre datos y cabe en `aplicar-delta` sin tocar esa frontera.
+- **Cruzar también delta y plan** (v0.3). Decidir si el escritor puede abrir un hilo o plantar una pista fuera del plan es una pregunta de diseño abierta. Delta contra frontmatter no lo es: son dos descripciones del mismo texto.
 
 ## 16. Preguntas abiertas
 
@@ -395,3 +450,5 @@ hasta que la spec se implemente.
 | ¿`run_id` lo genera el CLI o el orquestador? | **Los dos, con precedencia** (RF-29). Cierra `architecture.md` §12.2 y hace deterministas las rutas de `runs/`, que es lo que el golden de CA-08 necesita |
 | ¿La fase 4 ahora o al terminar la primera novela? | **Ahora, y la última**. Los modelos de respuesta ya existen desde la fase 1; lo que se gana es establecer CA-25 antes de que exista código que asuma escritura. Los dos `GET` de §12.6 siguen fuera |
 | ¿Identificador de escena en el delta desde la fase 2? | **Sí**. Cuesta un campo hoy; añadirlo después exige reprocesar cada capítulo con el `cronista`, que es cuota y además no determinista |
+
+La v0.3 añade §5.6 sin abrir ninguna pregunta: cada decisión que exigía está tomada en el propio texto (hash de bytes sin normalizar, normalización NFC más espacios para las citas, delta contra frontmatter y no contra plan, salida 4 para el sello, forma de la coartada). Lo que sí abría preguntas —obligatoriedad de las citas, filtrado del secreto, invariantes narrativas, `novela gate`— está en `docs/specs/0002-verificacion-a-escala-de-novela.md`, en `borrador`, y no bloquea esta.
