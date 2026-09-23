@@ -5,11 +5,13 @@ description = "CLI determinista y API de solo lectura del harness de novelas de 
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "ebooklib>=0.20",
+    "fastapi>=0.141.1",
     "filelock>=3.13",
     "markdown-it-py>=4.2.0",
     "pydantic>=2.7",
     "pyyaml>=6.0",
     "typer>=0.12",
+    "uvicorn>=0.53.0",
 ]
 
 [project.scripts]
@@ -17,6 +19,7 @@ novela = "novela.cli:app"
 
 [dependency-groups]
 dev = [
+    "httpx2>=2.13.1",
     "hypothesis>=6.100",
     "jsonschema>=4.22",
     "mutmut>=2.5,<3",
