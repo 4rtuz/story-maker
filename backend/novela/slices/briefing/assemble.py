@@ -274,13 +274,15 @@ def _vigilar_el_secreto(receta: Receta, f: Fuentes, secciones: list[str]) -> Non
     if not excluye or f.misterio is None:
         return
     permitidos = _permitidos(f, f.misterio)
-    fragmentos = _fragmentos(f, f.misterio, permitidos)
-    por_longitud = sorted(permitidos, key=len, reverse=True)
+    # Un fragmento contenido en algo permitido ya es público: lo revela eso otro. El resto se
+    # busca en el texto tal cual; borrar antes lo permitido podría partir una fuga y ocultarla.
+    fragmentos = {
+        fragmento
+        for fragmento in _fragmentos(f, f.misterio, permitidos)
+        if not any(fragmento in texto for texto in permitidos)
+    }
     for seccion in secciones:
-        resto = seccion
-        for texto in por_longitud:
-            resto = resto.replace(texto, " ")
-        if any(fragmento in resto for fragmento in fragmentos):
+        if any(fragmento in seccion for fragmento in fragmentos):
             # El mensaje llega al orquestador: nombra la capa, nunca el texto filtrado.
             titulo = seccion.splitlines()[0].removeprefix("## ")
             raise FugaDelSecreto(

@@ -200,3 +200,22 @@ def test_manifiesto_y_log_por_cli(novelas: Novelas) -> None:
     antes = sorted(p.name for p in (ws.raiz / "runs").iterdir())
     assert _briefing(ws, 8, "escritor", run_id="../../fuera").exit_code == 2
     assert sorted(p.name for p in (ws.raiz / "runs").iterdir()) == antes
+
+
+@given(misterio=estrategias.misterios())
+def test_pista_permitida_dentro_del_secreto_no_lo_tapa(misterio: Misterio) -> None:
+    """Contraejemplo que encontró Hypothesis: una pista permitida que es subcadena del secreto no
+    puede ocultar la fuga del secreto entero."""
+    pista = misterio.pistas.entradas[0].model_copy(
+        update={"contenido": "la llave", "capitulo_plantado": 1}
+    )
+    secreto = "Tomás abrió la puerta con la llave que nunca devolvió."
+    misterio = misterio.model_copy(
+        update={
+            "pistas": ColeccionAppendOnly([pista, *misterio.pistas.entradas[1:]]),
+            "verdad_oculta": ColeccionAppendOnly([secreto]),
+        }
+    )
+    f = _fuentes_con(misterio, Agente.CRONISTA, capitulo=f"Relleno. {secreto}")
+    with pytest.raises(assemble.FugaDelSecreto):
+        assemble.ensamblar(RECETAS[Agente.CRONISTA], f)
