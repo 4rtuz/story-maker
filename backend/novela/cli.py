@@ -6,6 +6,7 @@ import sys
 import typer
 
 from novela.plataforma.salida import con_codigos
+from novela.slices.auditoria.cmd import auditar
 from novela.slices.briefing.cmd import briefing
 from novela.slices.checkpoint.cmd import checkpoint
 from novela.slices.delta.cmd import aplicar_delta
@@ -33,3 +34,4 @@ app.command()(con_codigos(briefing))
 app.command()(con_codigos(validar))
 app.command("aplicar-delta")(con_codigos(aplicar_delta))
 app.command()(con_codigos(checkpoint))
+app.command()(con_codigos(auditar))
