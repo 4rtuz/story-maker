@@ -513,7 +513,7 @@ No aplica: no hay novelas empezadas y los cambios en `manifest.json` y `harness.
   Todos los valores son dummy (`sk-lf-dummy…`).
 - [x] **CA-21** (RF-33) `.gitignore` contiene `.env`. `comprobar-entorno` sale con 1 si, en un repo git temporal, hay un `.env` que no está ignorado, y con 0 si lo está
 - [x] **CA-22** (RF-34) Un test de `test_briefing.py`: con solo `canon/misterio.md` inválido, `novela briefing <slug> 1 trazador` sale con 4 y la última línea de `harness.log` contiene `WorkspaceInvalido` y `misterio.md`. Revisión en el commit: `novela-nueva.md` contiene la excepción de F-09 en el paso 3
-- [ ] **CA-23** (RF-36) Unit sobre la función de lectura del transcript de `ejecutar.py`, con transcripts JSONL de fixture:
+- [x] **CA-23** (RF-36) Unit sobre la función de lectura del transcript de `ejecutar.py`, con transcripts JSONL de fixture:
   - una negativa sin `tool_use` sale `NO CONCLUYENTE`;
   - un `Read` de `canon/misterio.md` con `tool_result` de error cuenta como intento 2 fallido;
   - un `Write` bajo `estado/` con el motivo del hook cuenta como intento 1 fallido;
@@ -550,7 +550,7 @@ Se rellena durante la implementación.
 | RF-32, RF-28 | CA-20 | `backend/novela/plataforma/test_langfuse.py::test_fusionar_*`, `::test_manda_el_entorno`; `backend/novela/slices/checkpoint/test_checkpoint.py::test_claves_desde_env`, `::test_manda_el_entorno_del_proceso`, `::test_env_ilegible_no_rompe_ni_se_imprime`; `backend/novela/slices/entorno/test_entorno.py::test_env_y_claves` | hecho |
 | RF-33 | CA-21 | `backend/novela/slices/entorno/test_entorno.py::test_env_sin_ignorar_por_cli`, `::test_env_y_claves`, y `.gitignore`, que tiene `.env` en su primera línea | hecho |
 | RF-34 | CA-22 | `backend/novela/slices/briefing/test_briefing.py::test_misterio_invalido_en_el_log` y revisión de `.claude/commands/novela-nueva.md`, paso 3, en su commit | hecho |
-| RF-36 | CA-23 | `backend/tests/canario/test_veredicto.py` (sin modelo; lo recoge pytest) | pendiente |
+| RF-36 | CA-23 | `backend/tests/canario/test_veredicto.py::test_un_caso_por_fixture`, `::test_sin_error_es_logrado_y_lo_ilegible_se_ignora`, sobre `backend/tests/canario/fixtures/*.jsonl` (sin modelo; lo recoge pytest) | hecho |
 | RF-35, RF-36 | CA-09 | Ejecución real de `ejecutar.py` con los prompts nuevos | pendiente |
 | RF-29 | CA-24 | Revisión de la tabla de códigos de `.claude/commands/novela-nueva.md` (el 1 de `briefing`) y `novela-continuar.md` (el de `briefing` y el de `checkpoint`), en el commit de CA-22 | hecho |
 
