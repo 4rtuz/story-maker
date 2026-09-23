@@ -115,7 +115,7 @@ Reglas propias del proyecto:
 
 - **Ningún test llama a un modelo.** El bucle se prueba con un agente falso que escribe un capítulo prefabricado desde `backend/tests/fixtures/`.
 - Si tocas un gate de `validate.py` o una rama de `delta.py`, el test es property-based, no de ejemplo: ahí los ejemplos no cubren (`docs/validators.md` §3.6).
-- Si cambias un modelo Pydantic: regenera `backend/schemas/`, actualiza `docs/definitions.md` y ajusta el test de contrato, todo en el mismo commit.
+- Si cambias un modelo Pydantic: regenera `backend/schemas/` (`REGENERAR=1 uv run pytest tests/test_contratos.py`), actualiza `docs/definitions.md` y ajusta el test de contrato, todo en el mismo commit.
 - **Cambiar el prompt de un agente no es código y no tiene TDD**: no es determinista. Va por spec y se valida con una novela de humo de 3 capítulos comparando scores.
 
 Un commit es un ciclo cerrado. No se commitea en rojo.

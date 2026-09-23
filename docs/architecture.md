@@ -241,10 +241,11 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   └── recipes.yaml          # qué entra en el briefing de cada agente
 │   │
 │   ├── schemas/                  # JSON Schema generados desde Pydantic, versionados
+│   │   ├── config.schema.json
 │   │   ├── state.schema.json
 │   │   ├── canon.schema.json
+│   │   ├── escaleta.schema.json
 │   │   ├── plan-capitulo.schema.json
-│   │   ├── delta.schema.json
 │   │   └── qa-informe.schema.json
 │   │
 │   └── tests/                    # solo lo transversal; el test de un slice vive con él

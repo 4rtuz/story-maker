@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Hallazgo": {
+      "additionalProperties": false,
+      "properties": {
+        "tipo": {
+          "enum": [
+            "frontmatter_invalido",
+            "longitud_fuera_de_rango",
+            "pista_ausente",
+            "hilo_cerrado_sin_abrir",
+            "id_inexistente",
+            "contradiccion_hecho",
+            "contradiccion_temporal",
+            "contradiccion_personaje",
+            "contradiccion_canon",
+            "prohibicion_estilo",
+            "desviacion_ritmo",
+            "voz_de_personaje",
+            "tension_insuficiente",
+            "fair_play",
+            "previsibilidad",
+            "gancho_debil",
+            "pista_huerfana",
+            "hilo_sin_cerrar",
+            "pista_falsa_sin_desmontar",
+            "revelacion_sin_pista"
+          ],
+          "title": "Tipo",
+          "type": "string"
+        },
+        "gravedad": {
+          "enum": [
+            "alta",
+            "media",
+            "baja"
+          ],
+          "title": "Gravedad",
+          "type": "string"
+        },
+        "referencia": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Referencia"
+        },
+        "ubicacion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ubicacion"
+        },
+        "descripcion": {
+          "title": "Descripcion",
+          "type": "string"
+        },
+        "correccion_sugerida": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correccion Sugerida"
+        }
+      },
+      "required": [
+        "tipo",
+        "gravedad",
+        "descripcion"
+      ],
+      "title": "Hallazgo",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "capitulo": {
+      "maximum": 999,
+      "minimum": 1,
+      "title": "Capitulo",
+      "type": "integer"
+    },
+    "agente": {
+      "enum": [
+        "validar",
+        "continuista",
+        "editor-estilo",
+        "lector-suspense",
+        "auditar"
+      ],
+      "title": "Agente",
+      "type": "string"
+    },
+    "veredicto": {
+      "enum": [
+        "aprobado",
+        "rechazado",
+        "aprobado_con_reservas"
+      ],
+      "title": "Veredicto",
+      "type": "string"
+    },
+    "hallazgos": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Hallazgo"
+      },
+      "title": "Hallazgos",
+      "type": "array"
+    },
+    "puntuaciones": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "default": {},
+      "propertyNames": {
+        "enum": [
+          "tension",
+          "fair_play",
+          "coherencia",
+          "previsibilidad"
+        ]
+      },
+      "title": "Puntuaciones",
+      "type": "object"
+    },
+    "capitulo_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Capitulo Sha256"
+    }
+  },
+  "required": [
+    "capitulo",
+    "agente",
+    "veredicto"
+  ],
+  "title": "InformeQA",
+  "type": "object"
+}

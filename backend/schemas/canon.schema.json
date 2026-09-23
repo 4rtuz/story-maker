@@ -1,0 +1,931 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "ArcoPrevisto": {
+      "additionalProperties": false,
+      "properties": {
+        "estado_inicial": {
+          "title": "Estado Inicial",
+          "type": "string"
+        },
+        "estado_final": {
+          "title": "Estado Final",
+          "type": "string"
+        },
+        "cambios": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CambioDeArco"
+          },
+          "title": "Cambios",
+          "type": "array"
+        }
+      },
+      "required": [
+        "estado_inicial",
+        "estado_final"
+      ],
+      "title": "ArcoPrevisto",
+      "type": "object"
+    },
+    "CambioDeArco": {
+      "additionalProperties": false,
+      "properties": {
+        "capitulo": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Capitulo",
+          "type": "integer"
+        },
+        "descripcion": {
+          "title": "Descripcion",
+          "type": "string"
+        }
+      },
+      "required": [
+        "capitulo",
+        "descripcion"
+      ],
+      "title": "CambioDeArco",
+      "type": "object"
+    },
+    "EpocaYTecnologia": {
+      "additionalProperties": false,
+      "properties": {
+        "epoca": {
+          "title": "Epoca",
+          "type": "string"
+        },
+        "existe": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Existe",
+          "type": "array"
+        },
+        "no_existe": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "No Existe",
+          "type": "array"
+        }
+      },
+      "required": [
+        "epoca"
+      ],
+      "title": "EpocaYTecnologia",
+      "type": "object"
+    },
+    "Escenario": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^esc-[a-z][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "nombre": {
+          "title": "Nombre",
+          "type": "string"
+        },
+        "descripcion": {
+          "title": "Descripcion",
+          "type": "string"
+        },
+        "detalle_sensorial": {
+          "title": "Detalle Sensorial",
+          "type": "string"
+        },
+        "quien_tiene_acceso": {
+          "default": [],
+          "items": {
+            "pattern": "^per-[a-z0-9-]+$",
+            "type": "string"
+          },
+          "title": "Quien Tiene Acceso",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "nombre",
+        "descripcion",
+        "detalle_sensorial"
+      ],
+      "title": "Escenario",
+      "type": "object"
+    },
+    "Estilo": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "guia_de_voz_narrativa": {
+          "title": "Guia De Voz Narrativa",
+          "type": "string"
+        },
+        "ritmo": {
+          "$ref": "#/$defs/Ritmo"
+        },
+        "prohibiciones": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Prohibiciones",
+          "type": "array"
+        },
+        "parrafos_canonicos": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Parrafos Canonicos",
+          "type": "array"
+        },
+        "convenciones_formato": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "title": "Convenciones Formato",
+          "type": "object"
+        }
+      },
+      "required": [
+        "guia_de_voz_narrativa",
+        "ritmo",
+        "prohibiciones",
+        "parrafos_canonicos"
+      ],
+      "title": "Estilo",
+      "type": "object"
+    },
+    "Giro": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^rev-[0-9]{3}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "contenido": {
+          "title": "Contenido",
+          "type": "string"
+        },
+        "pistas_que_la_pagan": {
+          "items": {
+            "pattern": "^pis-[0-9]{3}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Pistas Que La Pagan",
+          "type": "array"
+        },
+        "capitulo_previsto": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Capitulo Previsto",
+          "type": "integer"
+        },
+        "quien_la_recibe": {
+          "enum": [
+            "lector",
+            "personaje",
+            "ambos"
+          ],
+          "title": "Quien La Recibe",
+          "type": "string"
+        },
+        "impacto": {
+          "enum": [
+            "alta",
+            "media",
+            "baja"
+          ],
+          "title": "Impacto",
+          "type": "string"
+        },
+        "que_creia_el_lector_antes": {
+          "minLength": 1,
+          "title": "Que Creia El Lector Antes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "contenido",
+        "pistas_que_la_pagan",
+        "capitulo_previsto",
+        "quien_la_recibe",
+        "impacto",
+        "que_creia_el_lector_antes"
+      ],
+      "title": "Giro",
+      "type": "object"
+    },
+    "Identidad": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^per-[a-z0-9-]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "nombre": {
+          "title": "Nombre",
+          "type": "string"
+        },
+        "alias": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Alias",
+          "type": "array"
+        },
+        "edad": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Edad"
+        },
+        "rol_narrativo": {
+          "title": "Rol Narrativo",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "nombre",
+        "rol_narrativo"
+      ],
+      "title": "Identidad",
+      "type": "object"
+    },
+    "Institucion": {
+      "additionalProperties": false,
+      "properties": {
+        "nombre": {
+          "title": "Nombre",
+          "type": "string"
+        },
+        "procedimientos": {
+          "title": "Procedimientos",
+          "type": "string"
+        }
+      },
+      "required": [
+        "nombre",
+        "procedimientos"
+      ],
+      "title": "Institucion",
+      "type": "object"
+    },
+    "Misterio": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "verdad_oculta": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Verdad Oculta",
+          "type": "array"
+        },
+        "culpable_o_amenaza": {
+          "title": "Culpable O Amenaza",
+          "type": "string"
+        },
+        "motivo_medio_oportunidad": {
+          "$ref": "#/$defs/MotivoMedioOportunidad"
+        },
+        "pistas": {
+          "items": {
+            "$ref": "#/$defs/Pista"
+          },
+          "title": "Pistas",
+          "type": "array"
+        },
+        "pistas_falsas": {
+          "items": {
+            "$ref": "#/$defs/PistaFalsa"
+          },
+          "title": "Pistas Falsas",
+          "type": "array"
+        },
+        "revelaciones": {
+          "items": {
+            "$ref": "#/$defs/Revelacion"
+          },
+          "title": "Revelaciones",
+          "type": "array"
+        },
+        "giros": {
+          "items": {
+            "$ref": "#/$defs/Giro"
+          },
+          "title": "Giros",
+          "type": "array"
+        },
+        "reloj": {
+          "$ref": "#/$defs/Reloj"
+        }
+      },
+      "required": [
+        "verdad_oculta",
+        "culpable_o_amenaza",
+        "motivo_medio_oportunidad",
+        "pistas",
+        "pistas_falsas",
+        "revelaciones",
+        "giros",
+        "reloj"
+      ],
+      "title": "Misterio",
+      "type": "object"
+    },
+    "MomentoPrivado": {
+      "additionalProperties": false,
+      "properties": {
+        "momento": {
+          "title": "Momento",
+          "type": "string"
+        },
+        "ubicacion": {
+          "pattern": "^esc-[a-z][a-z0-9-]*$",
+          "title": "Ubicacion",
+          "type": "string"
+        },
+        "detalle": {
+          "title": "Detalle",
+          "type": "string"
+        }
+      },
+      "required": [
+        "momento",
+        "ubicacion",
+        "detalle"
+      ],
+      "title": "MomentoPrivado",
+      "type": "object"
+    },
+    "MotivoMedioOportunidad": {
+      "additionalProperties": false,
+      "properties": {
+        "motivo": {
+          "title": "Motivo",
+          "type": "string"
+        },
+        "medio": {
+          "title": "Medio",
+          "type": "string"
+        },
+        "oportunidad": {
+          "title": "Oportunidad",
+          "type": "string"
+        }
+      },
+      "required": [
+        "motivo",
+        "medio",
+        "oportunidad"
+      ],
+      "title": "MotivoMedioOportunidad",
+      "type": "object"
+    },
+    "Mundo": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "escenarios": {
+          "items": {
+            "$ref": "#/$defs/Escenario"
+          },
+          "minItems": 1,
+          "title": "Escenarios",
+          "type": "array"
+        },
+        "epoca_y_tecnologia": {
+          "$ref": "#/$defs/EpocaYTecnologia"
+        },
+        "reglas_del_mundo": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Reglas Del Mundo",
+          "type": "array"
+        },
+        "instituciones": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Institucion"
+          },
+          "title": "Instituciones",
+          "type": "array"
+        }
+      },
+      "required": [
+        "escenarios",
+        "epoca_y_tecnologia"
+      ],
+      "title": "Mundo",
+      "type": "object"
+    },
+    "Personaje": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "identidad": {
+          "$ref": "#/$defs/Identidad"
+        },
+        "fisico": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "title": "Fisico",
+          "type": "object"
+        },
+        "voz": {
+          "$ref": "#/$defs/Voz"
+        },
+        "psicologia": {
+          "$ref": "#/$defs/Psicologia"
+        },
+        "secreto": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Secreto"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "arco_previsto": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArcoPrevisto"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "relaciones": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RelacionCanon"
+          },
+          "title": "Relaciones",
+          "type": "array"
+        },
+        "coartada_y_cronologia_privada": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/MomentoPrivado"
+          },
+          "title": "Coartada Y Cronologia Privada",
+          "type": "array"
+        }
+      },
+      "required": [
+        "identidad",
+        "voz",
+        "psicologia"
+      ],
+      "title": "Personaje",
+      "type": "object"
+    },
+    "Pista": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^pis-[0-9]{3}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "contenido": {
+          "title": "Contenido",
+          "type": "string"
+        },
+        "capitulo_plantado": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Capitulo Plantado",
+          "type": "integer"
+        },
+        "capitulo_pagado": {
+          "anyOf": [
+            {
+              "maximum": 999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Capitulo Pagado"
+        },
+        "quien_la_percibe": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Quien La Percibe",
+          "type": "array"
+        },
+        "es_fair_play": {
+          "title": "Es Fair Play",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "contenido",
+        "capitulo_plantado",
+        "capitulo_pagado",
+        "es_fair_play"
+      ],
+      "title": "Pista",
+      "type": "object"
+    },
+    "PistaFalsa": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^pfa-[0-9]{3}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "contenido": {
+          "title": "Contenido",
+          "type": "string"
+        },
+        "a_quien_apunta": {
+          "pattern": "^per-[a-z0-9-]+$",
+          "title": "A Quien Apunta",
+          "type": "string"
+        },
+        "cuando_se_desmonta": {
+          "anyOf": [
+            {
+              "maximum": 999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Cuando Se Desmonta"
+        }
+      },
+      "required": [
+        "id",
+        "contenido",
+        "a_quien_apunta",
+        "cuando_se_desmonta"
+      ],
+      "title": "PistaFalsa",
+      "type": "object"
+    },
+    "Premisa": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "logline": {
+          "minLength": 1,
+          "title": "Logline",
+          "type": "string"
+        },
+        "pregunta_dramatica": {
+          "title": "Pregunta Dramatica",
+          "type": "string"
+        },
+        "tema": {
+          "title": "Tema",
+          "type": "string"
+        },
+        "promesa_al_lector": {
+          "title": "Promesa Al Lector",
+          "type": "string"
+        }
+      },
+      "required": [
+        "logline",
+        "pregunta_dramatica",
+        "tema",
+        "promesa_al_lector"
+      ],
+      "title": "Premisa",
+      "type": "object"
+    },
+    "Psicologia": {
+      "additionalProperties": false,
+      "properties": {
+        "deseo": {
+          "title": "Deseo",
+          "type": "string"
+        },
+        "necesidad": {
+          "title": "Necesidad",
+          "type": "string"
+        },
+        "miedo": {
+          "title": "Miedo",
+          "type": "string"
+        },
+        "herida": {
+          "title": "Herida",
+          "type": "string"
+        }
+      },
+      "required": [
+        "deseo",
+        "necesidad",
+        "miedo",
+        "herida"
+      ],
+      "title": "Psicologia",
+      "type": "object"
+    },
+    "RelacionCanon": {
+      "additionalProperties": false,
+      "description": "Punto de partida; la evolución vive en `estado.relaciones`, que es otro campo.",
+      "properties": {
+        "con": {
+          "pattern": "^per-[a-z0-9-]+$",
+          "title": "Con",
+          "type": "string"
+        },
+        "tipo": {
+          "title": "Tipo",
+          "type": "string"
+        },
+        "tension": {
+          "title": "Tension",
+          "type": "string"
+        },
+        "historia_compartida": {
+          "title": "Historia Compartida",
+          "type": "string"
+        }
+      },
+      "required": [
+        "con",
+        "tipo",
+        "tension",
+        "historia_compartida"
+      ],
+      "title": "RelacionCanon",
+      "type": "object"
+    },
+    "Reloj": {
+      "additionalProperties": false,
+      "properties": {
+        "descripcion": {
+          "title": "Descripcion",
+          "type": "string"
+        },
+        "limite": {
+          "title": "Limite",
+          "type": "string"
+        }
+      },
+      "required": [
+        "descripcion",
+        "limite"
+      ],
+      "title": "Reloj",
+      "type": "object"
+    },
+    "Revelacion": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^rev-[0-9]{3}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "contenido": {
+          "title": "Contenido",
+          "type": "string"
+        },
+        "pistas_que_la_pagan": {
+          "items": {
+            "pattern": "^pis-[0-9]{3}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Pistas Que La Pagan",
+          "type": "array"
+        },
+        "capitulo_previsto": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Capitulo Previsto",
+          "type": "integer"
+        },
+        "quien_la_recibe": {
+          "enum": [
+            "lector",
+            "personaje",
+            "ambos"
+          ],
+          "title": "Quien La Recibe",
+          "type": "string"
+        },
+        "impacto": {
+          "enum": [
+            "alta",
+            "media",
+            "baja"
+          ],
+          "title": "Impacto",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "contenido",
+        "pistas_que_la_pagan",
+        "capitulo_previsto",
+        "quien_la_recibe",
+        "impacto"
+      ],
+      "title": "Revelacion",
+      "type": "object"
+    },
+    "Ritmo": {
+      "additionalProperties": false,
+      "description": "Numérico, no texto: es lo que hace verificable al editor-estilo.",
+      "properties": {
+        "longitud_media_frase": {
+          "exclusiveMinimum": 0,
+          "title": "Longitud Media Frase",
+          "type": "number"
+        },
+        "proporcion_dialogo": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Proporcion Dialogo",
+          "type": "number"
+        },
+        "proporcion_accion": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Proporcion Accion",
+          "type": "number"
+        },
+        "proporcion_interioridad": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Proporcion Interioridad",
+          "type": "number"
+        }
+      },
+      "required": [
+        "longitud_media_frase",
+        "proporcion_dialogo",
+        "proporcion_accion",
+        "proporcion_interioridad"
+      ],
+      "title": "Ritmo",
+      "type": "object"
+    },
+    "Secreto": {
+      "additionalProperties": false,
+      "properties": {
+        "que_oculta": {
+          "title": "Que Oculta",
+          "type": "string"
+        },
+        "a_quien": {
+          "items": {
+            "type": "string"
+          },
+          "title": "A Quien",
+          "type": "array"
+        }
+      },
+      "required": [
+        "que_oculta",
+        "a_quien"
+      ],
+      "title": "Secreto",
+      "type": "object"
+    },
+    "Voz": {
+      "additionalProperties": false,
+      "properties": {
+        "idiolecto": {
+          "title": "Idiolecto",
+          "type": "string"
+        },
+        "muletillas": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Muletillas",
+          "type": "array"
+        },
+        "registro": {
+          "title": "Registro",
+          "type": "string"
+        },
+        "dialogo_canonico": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Dialogo Canonico",
+          "type": "array"
+        }
+      },
+      "required": [
+        "idiolecto",
+        "registro",
+        "dialogo_canonico"
+      ],
+      "title": "Voz",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "El canon entero, que es lo que describe `canon.schema.json`. En disco son cinco ficheros\nmás uno por personaje; cada uno valida contra su submodelo.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "premisa": {
+      "$ref": "#/$defs/Premisa"
+    },
+    "mundo": {
+      "$ref": "#/$defs/Mundo"
+    },
+    "personajes": {
+      "items": {
+        "$ref": "#/$defs/Personaje"
+      },
+      "title": "Personajes",
+      "type": "array"
+    },
+    "misterio": {
+      "$ref": "#/$defs/Misterio"
+    },
+    "estilo": {
+      "$ref": "#/$defs/Estilo"
+    }
+  },
+  "required": [
+    "premisa",
+    "mundo",
+    "personajes",
+    "misterio",
+    "estilo"
+  ],
+  "title": "Canon",
+  "type": "object"
+}

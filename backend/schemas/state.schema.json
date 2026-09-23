@@ -1,0 +1,560 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Cursor": {
+      "additionalProperties": false,
+      "properties": {
+        "capitulo": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Capitulo",
+          "type": "integer"
+        },
+        "fase": {
+          "enum": [
+            "escritura",
+            "revision",
+            "registro",
+            "cerrado"
+          ],
+          "title": "Fase",
+          "type": "string"
+        },
+        "ultimo_paso": {
+          "anyOf": [
+            {
+              "enum": [
+                "briefing",
+                "escritor",
+                "validar",
+                "continuista",
+                "editor-estilo",
+                "lector-suspense",
+                "cronista",
+                "aplicar-delta",
+                "checkpoint"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Ultimo Paso"
+        },
+        "intento": {
+          "maximum": 3,
+          "minimum": 1,
+          "title": "Intento",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "capitulo",
+        "fase",
+        "ultimo_paso",
+        "intento"
+      ],
+      "title": "Cursor",
+      "type": "object"
+    },
+    "EntradaConocimiento": {
+      "additionalProperties": false,
+      "description": "Misma entrada para `conocimiento` (por personaje) y `conocimiento_lector` (plana).",
+      "properties": {
+        "hecho": {
+          "pattern": "^hec-[0-9]{3}$",
+          "title": "Hecho",
+          "type": "string"
+        },
+        "desde_capitulo": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Desde Capitulo",
+          "type": "integer"
+        },
+        "cita": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cita"
+        }
+      },
+      "required": [
+        "hecho",
+        "desde_capitulo"
+      ],
+      "title": "EntradaConocimiento",
+      "type": "object"
+    },
+    "EntradaTemporal": {
+      "additionalProperties": false,
+      "properties": {
+        "escena": {
+          "pattern": "^esc-[0-9]{2,3}-[0-9]+$",
+          "title": "Escena",
+          "type": "string"
+        },
+        "capitulo": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Capitulo",
+          "type": "integer"
+        },
+        "inicio": {
+          "title": "Inicio",
+          "type": "string"
+        },
+        "duracion_min": {
+          "minimum": 0,
+          "title": "Duracion Min",
+          "type": "integer"
+        },
+        "cita": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cita"
+        }
+      },
+      "required": [
+        "escena",
+        "capitulo",
+        "inicio",
+        "duracion_min"
+      ],
+      "title": "EntradaTemporal",
+      "type": "object"
+    },
+    "EstadoPersonaje": {
+      "additionalProperties": false,
+      "properties": {
+        "ubicacion": {
+          "anyOf": [
+            {
+              "pattern": "^esc-[a-z][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Ubicacion"
+        },
+        "estado_fisico": {
+          "title": "Estado Fisico",
+          "type": "string"
+        },
+        "estado_emocional": {
+          "title": "Estado Emocional",
+          "type": "string"
+        },
+        "condicion": {
+          "enum": [
+            "viva",
+            "muerta",
+            "desaparecida"
+          ],
+          "title": "Condicion",
+          "type": "string"
+        },
+        "objetivo_activo": {
+          "title": "Objetivo Activo",
+          "type": "string"
+        },
+        "ultima_aparicion": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Ultima Aparicion",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ubicacion",
+        "estado_fisico",
+        "estado_emocional",
+        "condicion",
+        "objetivo_activo",
+        "ultima_aparicion"
+      ],
+      "title": "EstadoPersonaje",
+      "type": "object"
+    },
+    "EstadoPista": {
+      "additionalProperties": false,
+      "properties": {
+        "estado": {
+          "enum": [
+            "plantada",
+            "pagada",
+            "pendiente",
+            "huerfana"
+          ],
+          "title": "Estado",
+          "type": "string"
+        },
+        "plantada_en": {
+          "anyOf": [
+            {
+              "maximum": 999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Plantada En"
+        },
+        "pagada_en": {
+          "anyOf": [
+            {
+              "maximum": 999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Pagada En"
+        }
+      },
+      "required": [
+        "estado",
+        "plantada_en",
+        "pagada_en"
+      ],
+      "title": "EstadoPista",
+      "type": "object"
+    },
+    "Hecho": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^hec-[0-9]{3}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "texto": {
+          "title": "Texto",
+          "type": "string"
+        },
+        "capitulo": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Capitulo",
+          "type": "integer"
+        },
+        "cita": {
+          "title": "Cita",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "texto",
+        "capitulo",
+        "cita"
+      ],
+      "title": "Hecho",
+      "type": "object"
+    },
+    "Hilo": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^hil-[0-9]{3}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "estado": {
+          "enum": [
+            "abierto",
+            "cerrado"
+          ],
+          "title": "Estado",
+          "type": "string"
+        },
+        "abierto_en": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Abierto En",
+          "type": "integer"
+        },
+        "cerrado_en": {
+          "anyOf": [
+            {
+              "maximum": 999,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cerrado En"
+        },
+        "descripcion": {
+          "title": "Descripcion",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "estado",
+        "abierto_en",
+        "descripcion"
+      ],
+      "title": "Hilo",
+      "type": "object"
+    },
+    "Metricas": {
+      "additionalProperties": false,
+      "properties": {
+        "palabras_totales": {
+          "minimum": 0,
+          "title": "Palabras Totales",
+          "type": "integer"
+        },
+        "desviacion_vs_plan": {
+          "title": "Desviacion Vs Plan",
+          "type": "number"
+        }
+      },
+      "required": [
+        "palabras_totales",
+        "desviacion_vs_plan"
+      ],
+      "title": "Metricas",
+      "type": "object"
+    },
+    "Objeto": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^obj-[0-9]{3}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "poseedor": {
+          "anyOf": [
+            {
+              "pattern": "^per-[a-z0-9-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Poseedor"
+        },
+        "ubicacion": {
+          "anyOf": [
+            {
+              "pattern": "^esc-[a-z][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Ubicacion"
+        },
+        "capitulo_intro": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Capitulo Intro",
+          "type": "integer"
+        },
+        "relevancia": {
+          "enum": [
+            "alta",
+            "media",
+            "baja"
+          ],
+          "title": "Relevancia",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "poseedor",
+        "ubicacion",
+        "capitulo_intro",
+        "relevancia"
+      ],
+      "title": "Objeto",
+      "type": "object"
+    },
+    "Relacion": {
+      "additionalProperties": false,
+      "description": "Arista de la evolución; `intensidad` es cuantitativa y no es la `tension` del canon.",
+      "properties": {
+        "de": {
+          "pattern": "^per-[a-z0-9-]+$",
+          "title": "De",
+          "type": "string"
+        },
+        "a": {
+          "pattern": "^per-[a-z0-9-]+$",
+          "title": "A",
+          "type": "string"
+        },
+        "tipo": {
+          "title": "Tipo",
+          "type": "string"
+        },
+        "intensidad": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Intensidad",
+          "type": "number"
+        },
+        "desde": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Desde",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "de",
+        "a",
+        "tipo",
+        "intensidad",
+        "desde"
+      ],
+      "title": "Relacion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "cursor": {
+      "$ref": "#/$defs/Cursor"
+    },
+    "linea_temporal": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EntradaTemporal"
+      },
+      "title": "Linea Temporal",
+      "type": "array"
+    },
+    "personajes": {
+      "default": {},
+      "patternProperties": {
+        "^per-[a-z0-9-]+$": {
+          "$ref": "#/$defs/EstadoPersonaje"
+        }
+      },
+      "title": "Personajes",
+      "type": "object"
+    },
+    "conocimiento": {
+      "default": {},
+      "patternProperties": {
+        "^per-[a-z0-9-]+$": {
+          "items": {
+            "$ref": "#/$defs/EntradaConocimiento"
+          },
+          "type": "array"
+        }
+      },
+      "title": "Conocimiento",
+      "type": "object"
+    },
+    "relaciones": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Relacion"
+      },
+      "title": "Relaciones",
+      "type": "array"
+    },
+    "objetos": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Objeto"
+      },
+      "title": "Objetos",
+      "type": "array"
+    },
+    "libro_de_hechos": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Hecho"
+      },
+      "title": "Libro De Hechos",
+      "type": "array"
+    },
+    "hilos": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Hilo"
+      },
+      "title": "Hilos",
+      "type": "array"
+    },
+    "pistas": {
+      "default": {},
+      "patternProperties": {
+        "^pis-[0-9]{3}$": {
+          "$ref": "#/$defs/EstadoPista"
+        }
+      },
+      "title": "Pistas",
+      "type": "object"
+    },
+    "conocimiento_lector": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EntradaConocimiento"
+      },
+      "title": "Conocimiento Lector",
+      "type": "array"
+    },
+    "tension_real": {
+      "default": [],
+      "items": {
+        "maximum": 10,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "title": "Tension Real",
+      "type": "array"
+    },
+    "metricas": {
+      "$ref": "#/$defs/Metricas",
+      "default": {
+        "palabras_totales": 0,
+        "desviacion_vs_plan": 0.0
+      }
+    }
+  },
+  "required": [
+    "cursor"
+  ],
+  "title": "Estado",
+  "type": "object"
+}

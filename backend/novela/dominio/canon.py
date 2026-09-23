@@ -224,6 +224,7 @@ class Canon(Modelo):
     """El canon entero, que es lo que describe `canon.schema.json`. En disco son cinco ficheros
     más uno por personaje; cada uno valida contra su submodelo."""
 
+    schema_version: SchemaVersion = SCHEMA_VERSION
     premisa: Premisa
     mundo: Mundo
     personajes: list[Personaje]

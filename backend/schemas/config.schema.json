@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Agente": {
+      "enum": [
+        "arquitecto",
+        "trazador",
+        "escritor",
+        "continuista",
+        "editor-estilo",
+        "lector-suspense",
+        "cronista"
+      ],
+      "title": "Agente",
+      "type": "string"
+    },
+    "PalabrasPorCapitulo": {
+      "additionalProperties": false,
+      "properties": {
+        "objetivo": {
+          "exclusiveMinimum": 0,
+          "title": "Objetivo",
+          "type": "integer"
+        },
+        "min": {
+          "exclusiveMinimum": 0,
+          "title": "Min",
+          "type": "integer"
+        },
+        "max": {
+          "exclusiveMinimum": 0,
+          "title": "Max",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "objetivo",
+        "min",
+        "max"
+      ],
+      "title": "PalabrasPorCapitulo",
+      "type": "object"
+    },
+    "ParametrosObra": {
+      "additionalProperties": false,
+      "properties": {
+        "longitud_total_palabras": {
+          "exclusiveMinimum": 0,
+          "title": "Longitud Total Palabras",
+          "type": "integer"
+        },
+        "num_capitulos": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Num Capitulos",
+          "type": "integer"
+        },
+        "palabras_por_capitulo": {
+          "$ref": "#/$defs/PalabrasPorCapitulo"
+        },
+        "subgenero": {
+          "enum": [
+            "thriller_psicologico",
+            "noir",
+            "domestic_suspense",
+            "procedural"
+          ],
+          "title": "Subgenero",
+          "type": "string"
+        },
+        "punto_de_vista": {
+          "enum": [
+            "primera_persona",
+            "tercera_limitada",
+            "multiple",
+            "narrador_no_fiable"
+          ],
+          "title": "Punto De Vista",
+          "type": "string"
+        },
+        "tiempo_verbal": {
+          "enum": [
+            "presente",
+            "pasado"
+          ],
+          "title": "Tiempo Verbal",
+          "type": "string"
+        },
+        "idioma": {
+          "default": "es",
+          "title": "Idioma",
+          "type": "string"
+        },
+        "restricciones_contenido": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Restricciones Contenido",
+          "type": "array"
+        }
+      },
+      "required": [
+        "longitud_total_palabras",
+        "num_capitulos",
+        "palabras_por_capitulo",
+        "subgenero",
+        "punto_de_vista",
+        "tiempo_verbal"
+      ],
+      "title": "ParametrosObra",
+      "type": "object"
+    },
+    "ParametrosSistema": {
+      "additionalProperties": false,
+      "properties": {
+        "modelo_por_agente": {
+          "additionalProperties": {
+            "enum": [
+              "opus",
+              "sonnet",
+              "haiku",
+              "inherit"
+            ],
+            "type": "string"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Agente"
+          },
+          "title": "Modelo Por Agente",
+          "type": "object"
+        },
+        "temperatura_por_agente": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "default": {},
+          "propertyNames": {
+            "$ref": "#/$defs/Agente"
+          },
+          "title": "Temperatura Por Agente",
+          "type": "object"
+        },
+        "presupuesto": {
+          "$ref": "#/$defs/Presupuesto"
+        },
+        "politica_reintentos": {
+          "$ref": "#/$defs/PoliticaReintentos",
+          "default": {
+            "max_intentos": 3,
+            "entrada_del_reintento": "informe_qa"
+          }
+        },
+        "politica_checkpoint": {
+          "const": "por_capitulo",
+          "default": "por_capitulo",
+          "title": "Politica Checkpoint",
+          "type": "string"
+        }
+      },
+      "required": [
+        "modelo_por_agente",
+        "presupuesto"
+      ],
+      "title": "ParametrosSistema",
+      "type": "object"
+    },
+    "PoliticaReintentos": {
+      "additionalProperties": false,
+      "properties": {
+        "max_intentos": {
+          "default": 3,
+          "maximum": 3,
+          "minimum": 1,
+          "title": "Max Intentos",
+          "type": "integer"
+        },
+        "entrada_del_reintento": {
+          "const": "informe_qa",
+          "default": "informe_qa",
+          "title": "Entrada Del Reintento",
+          "type": "string"
+        }
+      },
+      "title": "PoliticaReintentos",
+      "type": "object"
+    },
+    "Presupuesto": {
+      "additionalProperties": false,
+      "properties": {
+        "requests_dia": {
+          "exclusiveMinimum": 0,
+          "title": "Requests Dia",
+          "type": "integer"
+        },
+        "tokens_por_llamada": {
+          "exclusiveMinimum": 0,
+          "title": "Tokens Por Llamada",
+          "type": "integer"
+        },
+        "tokens_contexto_por_agente": {
+          "exclusiveMinimum": 0,
+          "title": "Tokens Contexto Por Agente",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "requests_dia",
+        "tokens_por_llamada",
+        "tokens_contexto_por_agente"
+      ],
+      "title": "Presupuesto",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "idea_semilla": {
+      "minLength": 1,
+      "title": "Idea Semilla",
+      "type": "string"
+    },
+    "parametros_obra": {
+      "$ref": "#/$defs/ParametrosObra"
+    },
+    "parametros_sistema": {
+      "$ref": "#/$defs/ParametrosSistema"
+    }
+  },
+  "required": [
+    "idea_semilla",
+    "parametros_obra",
+    "parametros_sistema"
+  ],
+  "title": "Config",
+  "type": "object"
+}

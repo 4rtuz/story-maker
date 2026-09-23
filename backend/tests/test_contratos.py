@@ -1,10 +1,18 @@
 """Contratos transversales: esquemas, claves, clientes de modelo, OpenAPI."""
 
+import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
 
+from novela.dominio import esquemas
+
 RAIZ_REPO = Path(__file__).resolve().parents[2]
+SCHEMAS = RAIZ_REPO / "backend" / "schemas"
+# REGENERAR=1 uv run pytest tests/test_contratos.py reescribe los contratos commiteados; el diff del
+# commit es la revisión del cambio.
+REGENERAR = os.environ.get("REGENERAR") == "1"
 GIT = shutil.which("git") or "git"
 
 
@@ -36,3 +44,19 @@ def test_sin_claves_versionadas(tmp_path: Path) -> None:
     resultado = _git(repo, "commit", "-qm", "con clave")
     assert resultado.returncode != 0
     assert "clave" in resultado.stderr
+
+
+def test_state_schema_al_dia() -> None:
+    """CA-06 y RF-26: el JSON Schema commiteado es el que genera Pydantic ahora mismo. Si cambias
+    un modelo y no regeneras, esto se pone rojo."""
+    generados = esquemas.generar()
+    if REGENERAR:
+        SCHEMAS.mkdir(exist_ok=True)
+        for nombre, esquema in generados.items():
+            texto = json.dumps(esquema, indent=2, ensure_ascii=False) + "\n"
+            (SCHEMAS / nombre).write_bytes(texto.encode("utf-8"))
+    commiteados = {p.name for p in SCHEMAS.glob("*.json")}
+    assert commiteados == set(generados), "schemas/ tiene ficheros de más o de menos"
+    for nombre, esquema in generados.items():
+        assert json.loads((SCHEMAS / nombre).read_text(encoding="utf-8")) == esquema, nombre
+        assert "schema_version" in esquema["properties"], nombre

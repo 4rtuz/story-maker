@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Acto": {
+      "additionalProperties": false,
+      "properties": {
+        "numero": {
+          "minimum": 1,
+          "title": "Numero",
+          "type": "integer"
+        },
+        "funcion_dramatica": {
+          "title": "Funcion Dramatica",
+          "type": "string"
+        },
+        "capitulos": {
+          "items": {
+            "maximum": 999,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Capitulos",
+          "type": "array"
+        }
+      },
+      "required": [
+        "numero",
+        "funcion_dramatica",
+        "capitulos"
+      ],
+      "title": "Acto",
+      "type": "object"
+    },
+    "PuntosDeGiro": {
+      "additionalProperties": false,
+      "description": "Claves fijas, cada una anclada a un capítulo. No es una lista.",
+      "properties": {
+        "detonante": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Detonante",
+          "type": "integer"
+        },
+        "punto_medio": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Punto Medio",
+          "type": "integer"
+        },
+        "crisis": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Crisis",
+          "type": "integer"
+        },
+        "climax": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Climax",
+          "type": "integer"
+        },
+        "resolucion": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Resolucion",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "detonante",
+        "punto_medio",
+        "crisis",
+        "climax",
+        "resolucion"
+      ],
+      "title": "PuntosDeGiro",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Se valida con `context={\"num_capitulos\": N}`: la curva tiene un valor por capítulo.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "actos": {
+      "items": {
+        "$ref": "#/$defs/Acto"
+      },
+      "minItems": 1,
+      "title": "Actos",
+      "type": "array"
+    },
+    "puntos_de_giro": {
+      "$ref": "#/$defs/PuntosDeGiro"
+    },
+    "curva_tension_objetivo": {
+      "items": {
+        "maximum": 10,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "title": "Curva Tension Objetivo",
+      "type": "array"
+    }
+  },
+  "required": [
+    "actos",
+    "puntos_de_giro",
+    "curva_tension_objetivo"
+  ],
+  "title": "Escaleta",
+  "type": "object"
+}
