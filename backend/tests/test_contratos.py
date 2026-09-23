@@ -96,7 +96,7 @@ PROHIBIDOS = (
     "langchain",
     "openrouter",
 )
-RAICES = ("novela",)
+RAICES = ("novela", "api")
 
 
 def _prohibido(modulo: str) -> bool:
@@ -120,12 +120,20 @@ def test_sin_clientes_de_modelo() -> None:
                 directos += [f"{fichero.name}: {n}" for n in nombres if _prohibido(n)]
     assert directos == []
 
-    # Proceso limpio: en el de pytest hay módulos que no son del backend.
-    codigo = "import sys, " + ", ".join(RAICES) + "; import novela.cli; print(*sys.modules)"
-    cargados = subprocess.run(  # noqa: S603
-        [sys.executable, "-c", codigo], capture_output=True, text=True, check=True, cwd=backend
+    assert [m for m in _cargados("novela.cli", "api.main") if _prohibido(m)] == []
+
+
+def _cargados(*modulos: str) -> list[str]:
+    """sys.modules tras importar `modulos` en un proceso limpio: en el de pytest hay módulos que
+    no son del backend."""
+    codigo = f"import sys, {', '.join(modulos)}; print(*sys.modules)"
+    return subprocess.run(  # noqa: S603
+        [sys.executable, "-c", codigo],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=RAIZ_REPO / "backend",
     ).stdout.split()
-    assert [m for m in cargados if _prohibido(m)] == []
 
 
 def test_openapi_al_dia() -> None:
@@ -137,3 +145,10 @@ def test_openapi_al_dia() -> None:
         texto = json.dumps(generado, indent=2, ensure_ascii=False) + "\n"
         ruta.write_bytes(texto.encode("utf-8"))
     assert json.loads(ruta.read_text(encoding="utf-8")) == generado
+
+
+def test_api_no_importa_slices() -> None:
+    """La API puede importar dominio/ y la lectura de plataforma/; slices/ es escritura. El
+    montaje en solo lectura de test_api cubre el efecto; esto cubre la causa, y nombra el import
+    el día que un router tire de delta/apply.py «solo para reutilizar la serialización»."""
+    assert [m for m in _cargados("api.main") if m.startswith("novela.slices")] == []
