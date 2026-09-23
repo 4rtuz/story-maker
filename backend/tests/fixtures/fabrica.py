@@ -7,6 +7,7 @@ Ningún fixture se genera llamando a un modelo.
 
 import hashlib
 import json
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,9 +16,7 @@ from typer.testing import CliRunner, Result
 
 from novela.cli import app
 from novela.dominio import frontmatter
-from novela.dominio.artefactos import Checkpoint, Memoria
-from novela.dominio.estado import Cursor, Estado, EstadoPista, Hecho, Hilo, Metricas
-from novela.plataforma import estado_db
+from novela.dominio.artefactos import Memoria
 
 ELENA, TOMAS, INES = "per-elena-vidal", "per-tomas-reyes", "per-ines-mar"
 FARO, PUERTO, ARCHIVO = "esc-casa-del-faro", "esc-puerto", "esc-archivo"
@@ -469,49 +468,19 @@ def preparar_capitulo(base: Path, slug: str, novela: Novela, n: int) -> None:
     escribir(raiz, {f"estado/deltas/{nn(n)}.json": json.dumps(delta(novela, n), indent=2)})
 
 
-def _estado_sintetico(novela: Novela, cerrados: int) -> Estado:
-    # ponytail: fase 1 sintetiza el estado; la fase 2 lo sustituye por el bucle real con
-    # aplicar-delta y checkpoint, y esta función desaparece.
-    k = cerrados
-    hilos = [
-        Hilo(
-            id=f"hil-{j:03d}",
-            estado="cerrado" if c <= k else "abierto",
-            abierto_en=a,
-            cerrado_en=c if c <= k else None,
-            descripcion=f"La pregunta {j} del faro.",
-        )
-        for j, (a, c) in enumerate(novela.hilos, 1)
-        if a <= k
-    ]
-    pistas = {}
-    for i, (p, q) in enumerate(novela.pistas, 1):
-        plantada, pagada = (p if p <= k else None), (q if q is not None and q <= k else None)
-        estado = "pagada" if pagada else "plantada" if plantada else "pendiente"
-        pistas[f"pis-{i:03d}"] = EstadoPista(estado=estado, plantada_en=plantada, pagada_en=pagada)
-    libro = [
-        Hecho(id=f"hec-{n:03d}", texto="t", capitulo=n, cita=frase_de_hecho(n))
-        for n in range(1, k + 1)
-    ]
-    palabras = sum(len(frontmatter.partir(capitulo(novela, n))[1].split()) for n in range(1, k + 1))
-    return Estado(
-        cursor=Cursor(
-            capitulo=max(k, 1),
-            fase="registro" if k else "escritura",
-            ultimo_paso="aplicar-delta" if k else None,
-            intento=1,
-        ),
-        hilos=hilos,
-        pistas=pistas,
-        libro_de_hechos=libro,
-        metricas=Metricas(
-            palabras_totales=palabras,
-            desviacion_vs_plan=palabras / (PALABRAS_POR_CAPITULO * k) - 1 if k else 0.0,
-        ),
-    )
+def cerrar_capitulo(base: Path, slug: str, novela: Novela, n: int) -> None:
+    """El bucle entero de un capítulo, sin una sola llamada a modelo (validators.md §3.5)."""
+    preparar_capitulo(base, slug, novela, n)
+    for orden in ("aplicar-delta", "checkpoint"):
+        resultado = cli(base, orden, slug, str(n), run=run_id(n))
+        assert resultado.exit_code == 0, f"{orden} {n}: {resultado.output}"
 
 
-def construir(base: Path, slug: str, novela: Novela, cerrados: int) -> Path:
+def construir(
+    base: Path, slug: str, novela: Novela, cerrados: int, instantaneas: dict[int, str] | None = None
+) -> Path:
+    """Crea el workspace con `novela nueva`, escribe canon y plan y cierra `cerrados` capítulos
+    con el bucle real. `instantaneas` copia el workspace a otro slug al cerrar un capítulo."""
     total = novela.num_capitulos
     orden = ["nueva", slug, "--idea", "Un faro apagado.", "--capitulos", str(total)]
     orden += ["--palabras", str(PALABRAS_POR_CAPITULO * total)]
@@ -520,24 +489,7 @@ def construir(base: Path, slug: str, novela: Novela, cerrados: int) -> Path:
     raiz = base / slug
     escribir(raiz, canon(novela) | plan(novela))
     for n in range(1, cerrados + 1):
-        escribir(raiz, {f"capitulos/{nn(n)}.md": capitulo(novela, n)} | informes(novela, n))
-        escribir(raiz, {f"estado/deltas/{nn(n)}.json": json.dumps(delta(novela, n), indent=2)})
-        escribir(raiz, {f"memoria/resumenes/{nn(n)}.md": memoria(novela, n)})
-    with estado_db.abrir(raiz / "estado" / "estado.db") as conn, estado_db.transaccion(conn):
-        estado_db.guardar(conn, _estado_sintetico(novela, cerrados))
-    if cerrados:
-        punto = Checkpoint(
-            capitulo=cerrados,
-            cursor=Cursor(capitulo=cerrados, fase="cerrado", ultimo_paso="checkpoint", intento=1),
-            run_id=run_id(cerrados),
-            version_canon="0" * 64,
-            version_plan="0" * 64,
-            capitulos_sha256={
-                n: sha256(raiz / "capitulos" / f"{nn(n)}.md") for n in range(1, cerrados + 1)
-            },
-        )
-        texto = punto.model_dump_json(indent=2)
-        escribir(
-            raiz, {f"checkpoints/{nn(cerrados)}.json": texto, "checkpoints/latest.json": texto}
-        )
+        cerrar_capitulo(base, slug, novela, n)
+        if instantaneas and n in instantaneas:
+            shutil.copytree(raiz, base / instantaneas[n])
     return raiz

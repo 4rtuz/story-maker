@@ -4,7 +4,7 @@ agente: escritor
 capitulo: 8
 run_id: r-20260923-1000
 presupuesto_tokens: 60000
-tokens_estimados: 2018
+tokens_estimados: 2391
 degradacion: []
 ---
 ## permanente · canon/premisa.md
@@ -170,13 +170,47 @@ Inés Mar es personaje de la novela sintética.
 ## estado · personajes
 
 ```yaml
-{}
+per-elena-vidal:
+  ubicacion: esc-puerto
+  estado_fisico: cansada
+  estado_emocional: alerta
+  condicion: viva
+  objetivo_activo: saber quién apagó el faro
+  ultima_aparicion: 7
+per-tomas-reyes:
+  ubicacion: esc-casa-del-faro
+  estado_fisico: bien
+  estado_emocional: nervioso
+  condicion: viva
+  objetivo_activo: que nadie suba a la linterna
+  ultima_aparicion: 7
 ```
 
 ## estado · conocimiento
 
 ```yaml
-{}
+per-elena-vidal:
+- hecho: hec-001
+  desde_capitulo: 1
+  cita: En la noche 1 Elena comprobó que la puerta de la linterna seguía forzada.
+- hecho: hec-002
+  desde_capitulo: 2
+  cita: En la noche 2 Elena comprobó que la puerta de la linterna seguía forzada.
+- hecho: hec-003
+  desde_capitulo: 3
+  cita: En la noche 3 Elena comprobó que la puerta de la linterna seguía forzada.
+- hecho: hec-004
+  desde_capitulo: 4
+  cita: En la noche 4 Elena comprobó que la puerta de la linterna seguía forzada.
+- hecho: hec-005
+  desde_capitulo: 5
+  cita: En la noche 5 Elena comprobó que la puerta de la linterna seguía forzada.
+- hecho: hec-006
+  desde_capitulo: 6
+  cita: En la noche 6 Elena comprobó que la puerta de la linterna seguía forzada.
+- hecho: hec-007
+  desde_capitulo: 7
+  cita: En la noche 7 Elena comprobó que la puerta de la linterna seguía forzada.
 ```
 
 ## estado · hilos_abiertos
@@ -202,7 +236,11 @@ Inés Mar es personaje de la novela sintética.
 ## estado · objetos
 
 ```yaml
-[]
+- id: obj-001
+  poseedor: per-tomas-reyes
+  ubicacion: null
+  capitulo_intro: 1
+  relevancia: alta
 ```
 
 ## inmediata · capítulo 07
