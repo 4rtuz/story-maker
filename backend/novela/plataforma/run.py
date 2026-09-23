@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from functools import cache
 from pathlib import Path
+from typing import Literal
 
 import typer
 
@@ -22,9 +23,12 @@ from novela.dominio.artefactos import Manifest
 from novela.dominio.ids import RUN_ID_PATRON
 from novela.plataforma.workspace import CONFIG_DIR, WorkspaceRepository, huella, sha256
 
+Fase = Literal["arranque", "capitulo"]
+
 
 class RunInvalido(ValueError):
-    """NOVELA_RUN_ID no casa el formato, o el run del reloj ya es de otro capítulo. Salida 2."""
+    """NOVELA_RUN_ID no casa el formato o es de otro capítulo o fase, o el run del reloj ya es de
+    otro. Salida 2."""
 
 
 @cache
@@ -76,39 +80,51 @@ class Run:
             self.registrar(f"{marca} {' '.join(orden)} -> {codigo}{detalle}")
 
 
+def _de(ws: WorkspaceRepository, directorio: Path) -> tuple[int, Fase] | None:
+    ruta = directorio / "manifest.json"
+    if not ruta.exists():
+        return None
+    manifiesto = ws.leer_json(ruta, Manifest)
+    return manifiesto.capitulo, manifiesto.fase
+
+
 def _run_id(
-    ws: WorkspaceRepository, capitulo: int, entorno: Mapping[str, str], ahora: datetime
+    ws: WorkspaceRepository, capitulo: int, fase: Fase, entorno: Mapping[str, str], ahora: datetime
 ) -> str:
     fijado = entorno.get("NOVELA_RUN_ID")
     if fijado is not None:
         if not re.fullmatch(RUN_ID_PATRON, fijado):
             raise RunInvalido(f"NOVELA_RUN_ID={fijado!r} no casa {RUN_ID_PATRON}")
+        # RF-27: sin esto, la variable mezclaría el arranque con el capítulo 1 por otra vía.
+        if (de := _de(ws, ws.raiz / "runs" / fijado)) not in (None, (capitulo, fase)):
+            raise RunInvalido(f"NOVELA_RUN_ID={fijado} es un run de otro capítulo o fase: {de}")
         return fijado
     punto = ws.ultimo_checkpoint()
     if not (punto and punto.capitulo >= capitulo):
         for directorio in sorted((ws.raiz / "runs").glob("r-*"), reverse=True):
-            manifiesto = directorio / "manifest.json"
-            if manifiesto.exists() and ws.leer_json(manifiesto, Manifest).capitulo == capitulo:
+            if _de(ws, directorio) == (capitulo, fase):
                 return directorio.name
     nuevo = ahora.strftime("r-%Y%m%d-%H%M")
     if (ws.raiz / "runs" / nuevo).exists():
-        raise RunInvalido(f"el run {nuevo} ya es de otro capítulo; fija NOVELA_RUN_ID")
+        raise RunInvalido(f"el run {nuevo} ya es de otro capítulo o fase; fija NOVELA_RUN_ID")
     return nuevo
 
 
 def abrir(
     ws: WorkspaceRepository,
     capitulo: int,
+    fase: Fase = "capitulo",
     entorno: Mapping[str, str] = os.environ,
     ahora: datetime | None = None,
 ) -> Run:
-    """El run abierto del capítulo, creándolo con su manifiesto si no lo hay."""
-    run = Run(ws.raiz / "runs" / _run_id(ws, capitulo, entorno, ahora or datetime.now()))
+    """El run abierto del capítulo en esa fase, creándolo con su manifiesto si no lo hay."""
+    run = Run(ws.raiz / "runs" / _run_id(ws, capitulo, fase, entorno, ahora or datetime.now()))
     ruta = run.dir / "manifest.json"
     if not ruta.exists():
         manifiesto = Manifest(
             run_id=run.id,
             capitulo=capitulo,
+            fase=fase,
             creado=datetime.now().astimezone().isoformat(timespec="seconds"),
             sha_commit=_sha_commit(),
             version_recetas=sha256(CONFIG_DIR / "recipes.yaml"),

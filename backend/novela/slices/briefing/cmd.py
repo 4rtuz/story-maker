@@ -103,7 +103,9 @@ def briefing(slug: str, capitulo: int, agente: Agente) -> None:
         typer.echo(f"capítulo {capitulo} fuera de 1..{total}", err=True)
         raise typer.Exit(USO_INCORRECTO)
     with ws.bloquear():
-        abierto = run.abrir(ws, capitulo)
+        # El arranque va a su propio run: si no, el capítulo 1 hereda el canon vacío (RF-11).
+        arranque = agente in (Agente.ARQUITECTO, Agente.TRAZADOR)
+        abierto = run.abrir(ws, capitulo, "arranque" if arranque else "capitulo")
         nn = ws.nn(capitulo)
         with abierto.registro("briefing", nn, agente.value) as causas:
 

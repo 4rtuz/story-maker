@@ -830,6 +830,15 @@
             "minimum": 1.0,
             "title": "Capitulo"
           },
+          "fase": {
+            "type": "string",
+            "enum": [
+              "arranque",
+              "capitulo"
+            ],
+            "title": "Fase",
+            "default": "capitulo"
+          },
           "creado": {
             "type": "string",
             "title": "Creado"
@@ -866,7 +875,7 @@
           "version_plan"
         ],
         "title": "Manifest",
-        "description": "`runs/<run_id>/manifest.json`: lo que permite atribuir un cambio de calidad a un cambio\nconcreto (validators.md §4.7). Las versiones son hashes de contenido, no números."
+        "description": "`runs/<run_id>/manifest.json`: lo que permite atribuir un cambio de calidad a un cambio\nconcreto (validators.md §4.7). Las versiones son hashes de contenido, no números. `fase`\nsepara el run de arranque —arquitecto y trazador— de los runs de capítulo (spec 0003)."
       },
       "Metricas": {
         "properties": {

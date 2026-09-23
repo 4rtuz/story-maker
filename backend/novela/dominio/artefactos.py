@@ -4,6 +4,8 @@ El frontmatter del capítulo es contrato del escritor (architecture.md §7.2); e
 escribe `novela checkpoint`. Los dos cruzan del disco al código, así que tienen modelo.
 """
 
+from typing import Literal
+
 from pydantic import Field
 
 from novela.dominio.base import SCHEMA_VERSION, Modelo, SchemaVersion
@@ -59,11 +61,13 @@ class Checkpoint(Modelo):
 
 class Manifest(Modelo):
     """`runs/<run_id>/manifest.json`: lo que permite atribuir un cambio de calidad a un cambio
-    concreto (validators.md §4.7). Las versiones son hashes de contenido, no números."""
+    concreto (validators.md §4.7). Las versiones son hashes de contenido, no números. `fase`
+    separa el run de arranque —arquitecto y trazador— de los runs de capítulo (spec 0003)."""
 
     schema_version: SchemaVersion = SCHEMA_VERSION
     run_id: RunId
     capitulo: CapituloNum
+    fase: Literal["arranque", "capitulo"] = "capitulo"
     creado: str  # ISO 8601 con zona
     sha_commit: str
     version_recetas: Sha256

@@ -131,7 +131,9 @@ def test_la_cli_rechaza_lo_que_la_maquina_prohibe(
     """Los invariantes que dependen de código, contra el CLI real y no contra el modelo."""
     ws = novelas("demo-24")
     assert _cli(ws, "checkpoint", ws.slug, "8") == 1  # 2: sin aplicar-delta
-    assert _cli(ws, "briefing", ws.slug, "9", "escritor") == 1  # 5: el 8 sin checkpoint
+    # 5: el 8 sin checkpoint. Con el run del 8 saldría con 2: es de otro capítulo (RF-27).
+    base, run9 = ws.raiz.parent, fabrica.run_id(9)
+    assert fabrica.cli(base, "briefing", ws.slug, "9", "escritor", run=run9).exit_code == 1
     with lock_ajeno(ws.lock):  # 3: nunca dos procesos
         assert _cli(ws, "briefing", ws.slug, "8", "escritor") == 3
 

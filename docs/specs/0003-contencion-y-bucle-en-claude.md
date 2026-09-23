@@ -470,6 +470,8 @@ Se rellena durante la implementación.
 | RF-25 | CA-14 | `backend/tests/test_hook.py::test_sesion_principal` | hecho |
 | RF-26 | CA-15 | `backend/tests/test_hook.py::test_subagentes` (parte estática; la dinámica es el intento 5 de CA-09) | hecho en su parte estática |
 | RNF-01 | — | `backend/tests/test_hook.py::test_rendimiento` | hecho |
+| RF-11 | CA-07 | `backend/novela/slices/briefing/test_briefing.py::test_arranque_no_contamina_el_capitulo_1`, `backend/novela/plataforma/test_run.py::test_run_de_arranque` | hecho |
+| RF-27 | CA-16 | `backend/novela/slices/briefing/test_briefing.py::test_run_fijado_de_otra_fase` | hecho |
 
 ## 13. Verificación
 

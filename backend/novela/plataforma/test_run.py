@@ -1,9 +1,12 @@
 import hashlib
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
+from novela.cli import app
 from novela.dominio.artefactos import Manifest
 from novela.plataforma import run
 from novela.plataforma.workspace import CONFIG_DIR, WorkspaceRepository
@@ -55,3 +58,24 @@ def test_run_id_de_entorno(novelas: Novelas) -> None:
             run.abrir(ws, 8, entorno={"NOVELA_RUN_ID": malo}, ahora=LAS_DIEZ)
     assert sorted((ws.raiz / "runs").iterdir()) == antes
     assert not (ws.raiz / "fuera").exists()
+
+
+def test_run_de_arranque(tmp_path: Path) -> None:
+    """RF-11: el arranque tiene su run y ningún otro agente lo reutiliza. Sin eso, el capítulo 1
+    quedaba atribuido al canon vacío que vio el briefing del arquitecto (spec 0003 §2, hueco 4)."""
+    orden = ["nueva", "nuevo", "--idea", "Un faro.", "--capitulos", "3", "--palabras", "900"]
+    assert CliRunner().invoke(app, orden, env={"NOVELAS_DIR": str(tmp_path)}).exit_code == 0
+    ws = WorkspaceRepository(tmp_path / "nuevo")
+
+    arranque = run.abrir(ws, 1, fase="arranque", entorno={}, ahora=LAS_DIEZ)
+    assert run.abrir(ws, 1, fase="arranque", entorno={}, ahora=LAS_DIEZ).id == arranque.id
+    manifiesto = Manifest.model_validate_json((arranque.dir / "manifest.json").read_bytes())
+    assert manifiesto.fase == "arranque"
+
+    with pytest.raises(run.RunInvalido, match="de otro capítulo o fase"):
+        run.abrir(ws, 1, entorno={}, ahora=LAS_DIEZ)  # el minuto ya es del arranque
+
+    capitulo = run.abrir(ws, 1, entorno={}, ahora=datetime(2026, 9, 23, 10, 5))
+    assert capitulo.id != arranque.id
+    manifiesto = Manifest.model_validate_json((capitulo.dir / "manifest.json").read_bytes())
+    assert manifiesto.fase == "capitulo"

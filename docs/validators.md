@@ -476,9 +476,9 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 
 | # | Fallo | Consecuencia | Verificador | Clase | Estado |
 |---|---|---|---|---|---|
-| F-40 | El run de arranque se reutiliza como run del capítulo 1, o al revés | El capítulo 1 queda atribuido a un canon vacío | Tests del run de arranque | T | 0003, CA-07 |
-| F-41 | Un `NOVELA_RUN_ID` fijado mezcla arranque y capítulo | Lo mismo que F-40, por otra vía | `run.abrir` rechaza un run fijado cuyo manifiesto sea de otra fase o de otro capítulo | T | 0003, CA-16 (RF-27) |
-| F-42 | El arranque y el capítulo 1 caen en el mismo minuto | `RunInvalido` con salida 2, y el procedimiento para | Test de la colisión. La salida 2 para sin reintentar | T | 0003 |
+| F-40 | El run de arranque se reutiliza como run del capítulo 1, o al revés | El capítulo 1 queda atribuido a un canon vacío | Tests del run de arranque | T | activo (CA-07) |
+| F-41 | Un `NOVELA_RUN_ID` fijado mezcla arranque y capítulo | Lo mismo que F-40, por otra vía | `run.abrir` rechaza un run fijado cuyo manifiesto sea de otra fase o de otro capítulo | T | activo (CA-16, RF-27) |
+| F-42 | El arranque y el capítulo 1 caen en el mismo minuto | `RunInvalido` con salida 2, y el procedimiento para | Test de la colisión. La salida 2 para sin reintentar | T | activo (test_run_de_arranque) |
 | F-43 | `git` ausente o lento | `sucio` sin dato | `true` por defecto | T | 0003 (plan, D-6) |
 | F-44 | El sufijo `sesion=` altera las líneas que cuenta el procedimiento | La cuenta de intentos se rompe sin dar error | CA-12 comprueba además que la subcadena `validar NN -> ` sigue intacta | T | 0003, CA-12 (RF-21) |
 | F-45 | `NOVELA_SESSION_ID` inválido, o heredado de la shell del bucle en una orden manual | Correlación traza ↔ paso perdida o falsa | Validación del formato (CA-12). La variable solo se exporta en la shell del bucle | T | 0003 |

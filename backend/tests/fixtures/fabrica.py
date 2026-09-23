@@ -444,9 +444,11 @@ def sha256(ruta: Path) -> str:
     return hashlib.sha256(ruta.read_bytes()).hexdigest()
 
 
-def cli(base: Path, *orden: str, run: str) -> Result:
-    entorno = {"NOVELAS_DIR": str(base), "NOVELA_RUN_ID": run}
-    return CliRunner().invoke(app, list(orden), env=entorno)
+def cli(base: Path, *orden: str, run: str, entorno: dict[str, str] | None = None) -> Result:
+    """`entorno` sustituye al de por defecto, que fija NOVELA_RUN_ID: sin él, el run sale del
+    reloj, como en una sesión real."""
+    fijo = {"NOVELAS_DIR": str(base), "NOVELA_RUN_ID": run}
+    return CliRunner().invoke(app, list(orden), env=fijo if entorno is None else entorno)
 
 
 def preparar_capitulo(base: Path, slug: str, novela: Novela, n: int) -> None:

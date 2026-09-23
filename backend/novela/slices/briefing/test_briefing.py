@@ -10,10 +10,11 @@ from typer.testing import CliRunner, Result
 
 from novela.cli import app
 from novela.dominio import frontmatter
+from novela.dominio.artefactos import Manifest
 from novela.dominio.base import ColeccionAppendOnly
 from novela.dominio.canon import Misterio
 from novela.dominio.ids import Agente
-from novela.plataforma.workspace import WorkspaceRepository
+from novela.plataforma.workspace import WorkspaceRepository, huella
 from novela.slices.briefing import assemble, recipes
 from tests import estrategias
 from tests.fixtures import fabrica
@@ -200,6 +201,57 @@ def test_manifiesto_y_log_por_cli(novelas: Novelas) -> None:
     antes = sorted(p.name for p in (ws.raiz / "runs").iterdir())
     assert _briefing(ws, 8, "escritor", run_id="../../fuera").exit_code == 2
     assert sorted(p.name for p in (ws.raiz / "runs").iterdir()) == antes
+
+
+ARRANQUE = "r-20260101-0000"
+
+
+def _nueva(base: Path, slug: str = "nuevo") -> WorkspaceRepository:
+    orden = ["nueva", slug, "--idea", "Un faro.", "--capitulos", "3", "--palabras", "900"]
+    assert CliRunner().invoke(app, orden, env={"NOVELAS_DIR": str(base)}).exit_code == 0
+    return WorkspaceRepository(base / slug)
+
+
+def _manifiesto(ws: WorkspaceRepository, run_id: str) -> Manifest:
+    return Manifest.model_validate_json((ws.raiz / "runs" / run_id / "manifest.json").read_bytes())
+
+
+def test_arranque_no_contamina_el_capitulo_1(tmp_path: Path) -> None:
+    """CA-07 (RF-11): arquitecto y trazador comparten un run de arranque, y el primer briefing del
+    escritor abre otro que registra el canon y el plan que de verdad hay."""
+    ws = _nueva(tmp_path)
+    arquitecto = fabrica.cli(tmp_path, "briefing", ws.slug, "1", "arquitecto", run=ARRANQUE)
+    assert arquitecto.exit_code == 0, arquitecto.output
+    fabrica.escribir(ws.raiz, fabrica.canon(fabrica.HUERFANA) | fabrica.plan(fabrica.HUERFANA))
+    resultado = fabrica.cli(tmp_path, "briefing", ws.slug, "1", "trazador", run=ARRANQUE)
+    assert resultado.exit_code == 0, resultado.output
+    briefings = ws.raiz / "runs" / ARRANQUE / "briefings"
+    assert {p.name for p in briefings.iterdir()} == {"01-arquitecto.md", "01-trazador.md"}
+    assert _manifiesto(ws, ARRANQUE).fase == "arranque"
+
+    entorno = {"NOVELAS_DIR": str(tmp_path)}  # sin NOVELA_RUN_ID: el run sale del reloj
+    resultado = fabrica.cli(tmp_path, "briefing", ws.slug, "1", "escritor", run="", entorno=entorno)
+    assert resultado.exit_code == 0, resultado.output
+    [capitulo] = [p.name for p in (ws.raiz / "runs").iterdir() if p.name != ARRANQUE]
+    manifiesto = _manifiesto(ws, capitulo)
+    assert manifiesto.fase == "capitulo"
+    assert manifiesto.version_canon == huella(ws.raiz / "canon")
+    assert manifiesto.version_plan == huella(ws.raiz / "plan")
+
+
+def test_run_fijado_de_otra_fase(tmp_path: Path, novelas: Novelas) -> None:
+    """CA-16 (RF-27, F-41): NOVELA_RUN_ID no mezcla el arranque con el capítulo 1, ni un capítulo
+    con otro. Sale con 2 sin escribir el briefing."""
+    ws = _nueva(tmp_path)
+    arquitecto = fabrica.cli(tmp_path, "briefing", ws.slug, "1", "arquitecto", run=ARRANQUE)
+    assert arquitecto.exit_code == 0, arquitecto.output
+    fabrica.escribir(ws.raiz, fabrica.canon(fabrica.HUERFANA) | fabrica.plan(fabrica.HUERFANA))
+    assert fabrica.cli(tmp_path, "briefing", ws.slug, "1", "escritor", run=ARRANQUE).exit_code == 2
+    assert not (ws.raiz / "runs" / ARRANQUE / "briefings" / "01-escritor.md").exists()
+
+    demo = novelas("demo-24")  # el run del capítulo 2 ya tiene manifiesto
+    assert _briefing(demo, 8, "escritor", run_id=fabrica.run_id(2)).exit_code == 2
+    assert not _fichero(demo, 8, "escritor", run_id=fabrica.run_id(2)).exists()
 
 
 @given(misterio=estrategias.misterios())
