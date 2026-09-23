@@ -58,6 +58,28 @@ def test_informe_al_pasar(novelas: Novelas) -> None:
     assert "validar 08 -> 0" in log
 
 
+def test_sesion_en_el_log(novelas: Novelas) -> None:
+    """CA-12 (RF-21, F-44): con NOVELA_SESSION_ID válido la línea lleva sesion=<uuid> y conserva la
+    subcadena `validar NN -> <código>` que cuenta el procedimiento. Un valor que no es UUID no se
+    escribe y no cambia el código de salida: no acaba en una ruta."""
+    ws = novelas("demo-24")
+    fabrica.escribir(ws.raiz, {"capitulos/08.md": fabrica.capitulo(fabrica.DEMO, 8)})
+    log = ws.raiz / "runs" / RUN["NOVELA_RUN_ID"] / "harness.log"
+    uuid = "0f8fad5b-d9cb-469f-a165-70867728950e"
+
+    def ultima(**sesion: str) -> tuple[int, str]:
+        entorno = {"NOVELAS_DIR": str(ws.raiz.parent)} | RUN | sesion
+        codigo = fabrica.cli(ws.raiz.parent, "validar", ws.slug, "8", run="", entorno=entorno)
+        return codigo.exit_code, log.read_text(encoding="utf-8").splitlines()[-1]
+
+    codigo, linea = ultima(NOVELA_SESSION_ID=uuid)
+    assert codigo == 0
+    assert f"sesion={uuid}" in linea and "validar 08 -> 0" in linea
+    codigo, linea = ultima(NOVELA_SESSION_ID="no-es-un-uuid")
+    assert codigo == ultima()[0]
+    assert "sesion=" not in linea and "validar 08 -> 0" in linea
+
+
 def test_capitulo_ausente_es_hallazgo_no_crash(novelas: Novelas) -> None:
     ws = novelas("demo-24")
     assert _validar(ws, 8).exit_code == 1

@@ -91,9 +91,15 @@ def procedencia(
     return _sucio(raiz, git), hashes
 
 
+# Solo la forma canónica, y no uuid.UUID(), que acepta llaves y `urn:`: el valor acaba en una
+# línea de log que el procedimiento lee.
+_UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+
+
 @dataclass(frozen=True)
 class Run:
     dir: Path
+    sesion: str | None = None  # NOVELA_SESSION_ID: enlaza cada línea con su traza (RF-21)
 
     @property
     def id(self) -> str:
@@ -121,8 +127,10 @@ class Run:
             raise
         finally:
             marca = datetime.now().astimezone().isoformat(timespec="seconds")
+            # Tras la marca (D-5): la subcadena `<orden> NN -> <código>` que se cuenta no cambia.
+            sesion = f" sesion={self.sesion}" if self.sesion else ""
             detalle = f" · {'; '.join(causas)}" if causas else ""
-            self.registrar(f"{marca} {' '.join(orden)} -> {codigo}{detalle}")
+            self.registrar(f"{marca}{sesion} {' '.join(orden)} -> {codigo}{detalle}")
 
 
 def _de(ws: WorkspaceRepository, directorio: Path) -> tuple[int, Fase] | None:
@@ -162,8 +170,13 @@ def abrir(
     entorno: Mapping[str, str] = os.environ,
     ahora: datetime | None = None,
 ) -> Run:
-    """El run abierto del capítulo en esa fase, creándolo con su manifiesto si no lo hay."""
-    run = Run(ws.raiz / "runs" / _run_id(ws, capitulo, fase, entorno, ahora or datetime.now()))
+    """El run abierto del capítulo en esa fase, creándolo con su manifiesto si no lo hay. Un
+    NOVELA_SESSION_ID inválido se ignora: a diferencia de NOVELA_RUN_ID, no acaba en una ruta."""
+    sesion = entorno.get("NOVELA_SESSION_ID", "")
+    run = Run(
+        ws.raiz / "runs" / _run_id(ws, capitulo, fase, entorno, ahora or datetime.now()),
+        sesion if re.fullmatch(_UUID, sesion) else None,
+    )
     ruta = run.dir / "manifest.json"
     if not ruta.exists():
         sucio, hashes = procedencia()
