@@ -37,3 +37,14 @@ def test_breve_rendimiento(novelas: Novelas) -> None:
 def test_workspace_inexistente_sale_4(novelas: Novelas) -> None:
     novelas("demo-24")
     assert CliRunner().invoke(app, ["estado", "no-existe", "--breve"]).exit_code == 4
+
+
+def test_pendiente_codigos(novelas: Novelas) -> None:
+    """CA-07: 0 con capítulos restantes, 1 con la novela terminada, y stdout vacío en los dos."""
+    novelas("demo-24")
+    novelas("demo-terminado")
+    runner = CliRunner()
+    quedan = runner.invoke(app, ["pendiente", "demo-24"])
+    terminada = runner.invoke(app, ["pendiente", "demo-terminado"])
+    assert (quedan.exit_code, quedan.stdout) == (0, "")
+    assert (terminada.exit_code, terminada.stdout) == (1, "")

@@ -49,3 +49,12 @@ def estado(
     typer.echo(f"hilos abiertos ({len(abiertos)}): {_lista(abiertos)}")
     typer.echo(f"pistas por pagar ({len(por_pagar)}): {_lista(por_pagar)}")
     typer.echo(f"palabras: {m.palabras_totales} (desviación {m.desviacion_vs_plan:+.3f})")
+
+
+def pendiente(slug: str) -> None:
+    """Sale con 0 si quedan capítulos y con 1 si no. No imprime nada: lo consume un `while`."""
+    ws = WorkspaceRepository.resolver(slug).exigir()
+    punto = ws.ultimo_checkpoint()
+    cerrados = punto.capitulo if punto else 0
+    if cerrados >= ws.config().parametros_obra.num_capitulos:
+        raise typer.Exit(1)

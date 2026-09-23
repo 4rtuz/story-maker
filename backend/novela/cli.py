@@ -6,7 +6,7 @@ import sys
 import typer
 
 from novela.plataforma.salida import con_codigos
-from novela.slices.estado.cmd import estado
+from novela.slices.estado.cmd import estado, pendiente
 from novela.slices.nueva.cmd import nueva
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, pretty_exceptions_enable=False)
@@ -24,3 +24,4 @@ def novela() -> None:
 
 app.command()(con_codigos(nueva))
 app.command()(con_codigos(estado))
+app.command()(con_codigos(pendiente))
