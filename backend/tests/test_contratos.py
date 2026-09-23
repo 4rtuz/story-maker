@@ -1,9 +1,11 @@
 """Contratos transversales: esquemas, claves, clientes de modelo, OpenAPI."""
 
+import ast
 import json
 import os
 import shutil
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -77,3 +79,49 @@ def test_estado_json_valida_contra_el_esquema(
     assert resultado.exit_code == 0, resultado.output
     esquema = json.loads((SCHEMAS / "state.schema.json").read_text(encoding="utf-8"))
     jsonschema.validate(json.loads(resultado.stdout), esquema)
+
+
+# Clientes de proveedores de modelos y gateways: AGENTS.md, «Nunca».
+PROHIBIDOS = (
+    "anthropic",
+    "claude_agent_sdk",
+    "openai",
+    "google.generativeai",
+    "google.genai",
+    "mistralai",
+    "cohere",
+    "ollama",
+    "litellm",
+    "langchain",
+    "openrouter",
+)
+RAICES = ("novela",)
+
+
+def _prohibido(modulo: str) -> bool:
+    return any(modulo == p or modulo.startswith(p + ".") for p in PROHIBIDOS)
+
+
+def test_sin_clientes_de_modelo() -> None:
+    """CA-28: ni un import directo (también los perezosos, dentro de funciones) ni uno transitivo
+    de ningún cliente de modelo en el CLI ni en la API."""
+    backend = RAIZ_REPO / "backend"
+    directos = []
+    for raiz in RAICES:
+        for fichero in (backend / raiz).rglob("*.py"):
+            for nodo in ast.walk(ast.parse(fichero.read_text(encoding="utf-8"))):
+                if isinstance(nodo, ast.Import):
+                    nombres = [a.name for a in nodo.names]
+                elif isinstance(nodo, ast.ImportFrom) and nodo.module:
+                    nombres = [nodo.module]
+                else:
+                    continue
+                directos += [f"{fichero.name}: {n}" for n in nombres if _prohibido(n)]
+    assert directos == []
+
+    # Proceso limpio: en el de pytest hay módulos que no son del backend.
+    codigo = "import sys, " + ", ".join(RAICES) + "; import novela.cli; print(*sys.modules)"
+    cargados = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", codigo], capture_output=True, text=True, check=True, cwd=backend
+    ).stdout.split()
+    assert [m for m in cargados if _prohibido(m)] == []
