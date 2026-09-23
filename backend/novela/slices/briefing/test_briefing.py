@@ -254,6 +254,18 @@ def test_run_fijado_de_otra_fase(tmp_path: Path, novelas: Novelas) -> None:
     assert not _fichero(demo, 8, "escritor", run_id=fabrica.run_id(2)).exists()
 
 
+def test_canon_invalido_en_el_log(tmp_path: Path) -> None:
+    """CA-18: la línea de log del canon inválido es contrato de /novela-nueva. El briefing del
+    trazador es el gate del arquitecto, y el procedimiento solo reintenta si la ve."""
+    ws = _nueva(tmp_path)
+    fabrica.escribir(ws.raiz, fabrica.canon(fabrica.HUERFANA) | fabrica.plan(fabrica.HUERFANA))
+    fabrica.escribir(ws.raiz, {"canon/premisa.md": "---\nlogline: 3\n---\nSin premisa.\n"})
+    resultado = fabrica.cli(tmp_path, "briefing", ws.slug, "1", "trazador", run=ARRANQUE)
+    assert resultado.exit_code == 4
+    log = (ws.raiz / "runs" / ARRANQUE / "harness.log").read_text(encoding="utf-8")
+    assert "briefing 01 trazador -> error · WorkspaceInvalido" in log.splitlines()[-1]
+
+
 @given(misterio=estrategias.misterios())
 def test_pista_permitida_dentro_del_secreto_no_lo_tapa(misterio: Misterio) -> None:
     """Contraejemplo que encontró Hypothesis: una pista permitida que es subcadena del secreto no

@@ -483,6 +483,7 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 | F-44 | El sufijo `sesion=` altera las líneas que cuenta el procedimiento | La cuenta de intentos se rompe sin dar error | CA-12 comprueba además que la subcadena `validar NN -> ` sigue intacta | T | activo (CA-12, RF-21) |
 | F-45 | `NOVELA_SESSION_ID` inválido, o heredado de la shell del bucle en una orden manual | Correlación traza ↔ paso perdida o falsa | Validación del formato (CA-12). La variable solo se exporta en la shell del bucle | T | activo en la validación del formato (CA-12); que la variable solo viva en la shell del bucle es disciplina |
 | F-46 | El OpenAPI queda desfasado tras cambiar `Manifest` | Se rompe el contrato con el frontend | `test_openapi_al_dia` | T | activo |
+| F-47 | Una causa con saltos de línea, como un `ValidationError` de Pydantic, parte la entrada de `harness.log` en varias líneas | La última línea ya no es la del subcomando: la regla de lectura 1 toma un gate por un fallo del CLI, y el gate del `arquitecto` no se reconoce | `Run.registro` escribe siempre una sola línea. Encontrado al escribir el test de CA-18 | T | activo (CA-18) |
 
 **Bucle y trazado**
 

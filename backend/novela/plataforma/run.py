@@ -130,7 +130,10 @@ class Run:
             # Tras la marca (D-5): la subcadena `<orden> NN -> <código>` que se cuenta no cambia.
             sesion = f" sesion={self.sesion}" if self.sesion else ""
             detalle = f" · {'; '.join(causas)}" if causas else ""
-            self.registrar(f"{marca}{sesion} {' '.join(orden)} -> {codigo}{detalle}")
+            # Una sola línea aunque la causa traiga saltos, como un ValidationError: el
+            # procedimiento decide leyendo la última línea del log (spec 0003 §5.4).
+            linea = f"{marca}{sesion} {' '.join(orden)} -> {codigo}{detalle}"
+            self.registrar(" ".join(linea.splitlines()))
 
 
 def _de(ws: WorkspaceRepository, directorio: Path) -> tuple[int, Fase] | None:
