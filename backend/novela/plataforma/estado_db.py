@@ -6,12 +6,14 @@ dentro de `BEGIN IMMEDIATE … COMMIT`: un corte a mitad deja la base en el punt
 """
 
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from importlib import resources
 from pathlib import Path
+from typing import Any
 
-from novela.dominio.base import SCHEMA_VERSION
+from novela.dominio.base import SCHEMA_VERSION, ColeccionAppendOnly
+from novela.dominio.estado import Estado
 
 
 class EstadoIlegible(Exception):
@@ -29,13 +31,18 @@ def _conectar(ruta: Path, modo: str) -> sqlite3.Connection:
     return conn
 
 
+def inicializar(conn: sqlite3.Connection) -> None:
+    """DDL y `meta.schema_version` sobre una conexión vacía. El estado inicial lo guarda quien
+    crea la base."""
+    conn.executescript(resources.files(__package__).joinpath("esquema.sql").read_text())
+    conn.execute("INSERT INTO meta VALUES ('schema_version', ?)", (SCHEMA_VERSION,))
+
+
 def crear(ruta: Path) -> None:
-    """DDL y `meta.schema_version`. El cursor y las métricas iniciales los escribe quien crea."""
     conn = _conectar(ruta, "rwc")
     try:
         conn.execute("PRAGMA journal_mode = WAL")
-        conn.executescript(resources.files(__package__).joinpath("esquema.sql").read_text())
-        conn.execute("INSERT INTO meta VALUES ('schema_version', ?)", (SCHEMA_VERSION,))
+        inicializar(conn)
     finally:
         conn.close()
 
@@ -66,3 +73,87 @@ def transaccion(conn: sqlite3.Connection) -> Iterator[None]:
         conn.execute("ROLLBACK")
         raise
     conn.execute("COMMIT")
+
+
+class HistoriaReescrita(ValueError):
+    """Una colección append-only del estado nuevo no empieza por la del estado guardado."""
+
+
+_APPEND_ONLY = ("linea_temporal", "libro_de_hechos", "conocimiento_lector")
+_MUTABLES = ("relaciones", "objetos", "hilos")
+
+
+def _filas(conn: sqlite3.Connection, tabla: str) -> list[dict[str, Any]]:
+    # Todo en orden de inserción: las append-only lo exigen y las mutables se reescriben enteras
+    # en el orden de la lista, así que leer devuelve lo que se guardó.
+    cursor = conn.execute(f"SELECT * FROM {tabla} ORDER BY rowid")  # noqa: S608
+    columnas = [c[0] for c in cursor.description]
+    return [dict(zip(columnas, fila, strict=True)) for fila in cursor]
+
+
+def leer(conn: sqlite3.Connection) -> Estado:
+    """La vista serializada de architecture.md §7.1, desde las tablas."""
+    cursores, metricas_ = _filas(conn, "cursor"), _filas(conn, "metricas")
+    if len(cursores) != 1 or len(metricas_) != 1:
+        raise EstadoIlegible("estado.db sin cursor o sin métricas")
+    cursor, metricas = cursores[0], metricas_[0]
+    conocimiento: dict[str, list[dict[str, Any]]] = {}
+    for fila in _filas(conn, "conocimiento"):
+        conocimiento.setdefault(fila.pop("personaje"), []).append(fila)
+    datos: dict[str, Any] = {
+        "cursor": {k: v for k, v in cursor.items() if k != "id"},
+        "personajes": {f.pop("id"): f for f in _filas(conn, "personajes")},
+        "conocimiento": conocimiento,
+        "pistas": {f.pop("id"): f for f in _filas(conn, "pistas")},
+        "tension_real": [f["valor"] for f in _filas(conn, "tension_real")],
+        "metricas": {k: v for k, v in metricas.items() if k != "id"},
+    }
+    datos |= {tabla: _filas(conn, tabla) for tabla in (*_APPEND_ONLY, *_MUTABLES)}
+    return Estado.model_validate(datos)
+
+
+def _insertar(conn: sqlite3.Connection, tabla: str, filas: Iterable[dict[str, Any]]) -> None:
+    for fila in filas:
+        columnas = ", ".join(fila)
+        marcas = ", ".join("?" * len(fila))
+        conn.execute(f"INSERT INTO {tabla} ({columnas}) VALUES ({marcas})", tuple(fila.values()))  # noqa: S608
+
+
+def _cola[T](tabla: str, antes: tuple[T, ...], despues: tuple[T, ...]) -> tuple[T, ...]:
+    if despues[: len(antes)] != antes:
+        raise HistoriaReescrita(f"{tabla} es append-only: el estado nuevo reescribe entradas")
+    return despues[len(antes) :]
+
+
+def guardar(conn: sqlite3.Connection, nuevo: Estado) -> None:
+    """Escribe `nuevo` sobre lo que haya. Las mutables y derivadas se reescriben; de las
+    append-only solo se insertan las entradas nuevas, y si el estado nuevo no empieza por el
+    guardado se aborta: los triggers impedirían el UPDATE igualmente. Va dentro de la
+    transacción de quien llama."""
+    hay_cursor = conn.execute("SELECT 1 FROM cursor").fetchone() is not None
+    antes = leer(conn) if hay_cursor else Estado(cursor=nuevo.cursor)
+    for tabla in _APPEND_ONLY:
+        viejas, nuevas = getattr(antes, tabla).entradas, getattr(nuevo, tabla).entradas
+        _insertar(conn, tabla, (e.model_dump() for e in _cola(tabla, viejas, nuevas)))
+    for personaje, entradas in nuevo.conocimiento.items():
+        viejas = antes.conocimiento.get(personaje, ColeccionAppendOnly()).entradas
+        cola = _cola("conocimiento", viejas, entradas.entradas)
+        _insertar(conn, "conocimiento", ({"personaje": personaje} | e.model_dump() for e in cola))
+    if set(antes.conocimiento) - set(nuevo.conocimiento):
+        raise HistoriaReescrita("conocimiento es append-only: el estado nuevo pierde personajes")
+    cola_tension = _cola("tension_real", antes.tension_real.entradas, nuevo.tension_real.entradas)
+    primero = len(antes.tension_real) + 1
+    _insertar(
+        conn,
+        "tension_real",
+        ({"capitulo": primero + i, "valor": v} for i, v in enumerate(cola_tension)),
+    )
+
+    for tabla in ("cursor", "metricas", "personajes", "pistas", *_MUTABLES):
+        conn.execute(f"DELETE FROM {tabla}")  # noqa: S608
+    _insertar(conn, "cursor", [{"id": 1} | nuevo.cursor.model_dump()])
+    _insertar(conn, "metricas", [{"id": 1} | nuevo.metricas.model_dump()])
+    _insertar(conn, "personajes", ({"id": k} | v.model_dump() for k, v in nuevo.personajes.items()))
+    _insertar(conn, "pistas", ({"id": k} | v.model_dump() for k, v in nuevo.pistas.items()))
+    for tabla in _MUTABLES:
+        _insertar(conn, tabla, (e.model_dump() for e in getattr(nuevo, tabla)))

@@ -219,7 +219,7 @@ estados = st.builds(
     hilos=st.lists(hilos(), max_size=3, unique_by=lambda h: h.id),
     pistas=st.dictionaries(id_("pis"), estados_pista, max_size=3),
     conocimiento_lector=st.lists(entradas_conocimiento, max_size=3),
-    tension_real=st.lists(st.integers(1, 10), max_size=5),
+    tension_real=st.lists(st.none() | st.integers(1, 10), max_size=5),
     metricas=st.builds(
         Metricas,
         palabras_totales=st.integers(0, 10**6),

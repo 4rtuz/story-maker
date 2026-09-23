@@ -2,8 +2,11 @@ import sqlite3
 from pathlib import Path
 
 import pytest
+from hypothesis import given
 
+from novela.dominio.estado import Estado, Hecho
 from novela.plataforma import estado_db
+from tests import estrategias
 
 
 def test_conexion_ro_no_escribe(tmp_path: Path) -> None:
@@ -51,3 +54,34 @@ def test_trigger_dentro_del_with_no_es_estado_ilegible(tmp_path: Path) -> None:
         with estado_db.abrir(ruta) as conn:
             conn.execute("INSERT INTO tension_real VALUES (1, 5)")
             conn.execute("DELETE FROM tension_real")
+
+
+def _en_memoria() -> sqlite3.Connection:
+    conn = sqlite3.connect(":memory:", isolation_level=None)
+    estado_db.inicializar(conn)
+    return conn
+
+
+@given(estrategias.estados)
+def test_guardar_y_leer_es_identidad(estado: Estado) -> None:
+    conn = _en_memoria()
+    with estado_db.transaccion(conn):
+        estado_db.guardar(conn, estado)
+    assert estado_db.leer(conn) == estado
+    with estado_db.transaccion(conn):  # guardar lo mismo otra vez no añade nada
+        estado_db.guardar(conn, estado)
+    assert estado_db.leer(conn) == estado
+
+
+@given(estrategias.estados, estrategias.hechos)
+def test_guardar_no_reescribe_la_historia(estado: Estado, hecho: Hecho) -> None:
+    if hecho.id in {h.id for h in estado.libro_de_hechos}:
+        return
+    ampliado = estado.model_copy(update={"libro_de_hechos": estado.libro_de_hechos.añadir(hecho)})
+    conn = _en_memoria()
+    with estado_db.transaccion(conn):
+        estado_db.guardar(conn, ampliado)
+    with pytest.raises(estado_db.HistoriaReescrita, match="libro_de_hechos"):
+        with estado_db.transaccion(conn):
+            estado_db.guardar(conn, estado)
+    assert estado_db.leer(conn) == ampliado

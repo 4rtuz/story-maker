@@ -92,7 +92,7 @@ CREATE TABLE conocimiento_lector (
 
 CREATE TABLE tension_real (
     capitulo INTEGER PRIMARY KEY,
-    valor    INTEGER NOT NULL CHECK (valor BETWEEN 1 AND 10)
+    valor    INTEGER CHECK (valor BETWEEN 1 AND 10)  -- NULL: hueco, capítulo sin puntuar
 ) STRICT;
 
 -- Derivada, una sola fila.

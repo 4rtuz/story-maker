@@ -11,7 +11,7 @@ y `tension_real`— son `ColeccionAppendOnly`: el tipo evita escribir el bug y e
 
 from typing import Literal, Self, get_args
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from novela.dominio.base import (
     SCHEMA_VERSION,
@@ -150,6 +150,15 @@ class Estado(Modelo):
     hilos: list[Hilo] = []
     pistas: dict[PistaId, EstadoPista] = {}
     conocimiento_lector: ColeccionAppendOnly[EntradaConocimiento] = ColeccionAppendOnly()
-    # El índice es el capítulo; no lleva número dentro. La escribe el lector-suspense.
-    tension_real: ColeccionAppendOnly[Tension] = ColeccionAppendOnly()
+    # El índice es el capítulo; no lleva número dentro. La puntúa el lector-suspense y la registra
+    # aplicar-delta, una entrada por capítulo; null es un hueco (sin puntuación), no se interpola.
+    tension_real: ColeccionAppendOnly[Tension | None] = ColeccionAppendOnly()
     metricas: Metricas = Metricas(palabras_totales=0, desviacion_vs_plan=0.0)
+
+    @field_validator("conocimiento")
+    @classmethod
+    def _sin_personajes_vacios(
+        cls, valor: dict[str, ColeccionAppendOnly[EntradaConocimiento]]
+    ) -> dict[str, ColeccionAppendOnly[EntradaConocimiento]]:
+        # Un personaje que no sabe nada no tiene filas: {per-a: []} y {} son el mismo estado.
+        return {personaje: c for personaje, c in valor.items() if len(c)}

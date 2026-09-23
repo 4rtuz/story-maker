@@ -238,7 +238,7 @@ Lo que ya ocurrió. Fuente única de verdad sobre el texto existente. Vive en `e
 **`conocimiento_lector`** — Lista plana de la misma entrada `{hecho, desde_capitulo, cita}` que `conocimiento`: qué sabe el lector en este punto, frente a lo que saben los personajes. La diferencia entre ambos es la ironía dramática, y es un parámetro que se dosifica, no un subproducto.
 `objeto` · **APPEND-ONLY** · cronista → lector de suspense
 
-**`tension_real[]`** — Puntuación efectiva por capítulo escrito, emitida por el lector de suspense. Se compara contra la curva objetivo del plan.
+**`tension_real[]`** — Puntuación efectiva por capítulo escrito, emitida por el lector de suspense en `qa/NN-suspense.json` y registrada por `novela aplicar-delta`, una entrada por capítulo: el índice es el capítulo. `null` es un hueco —capítulo sin puntuar— y no se interpola. Se compara contra la curva objetivo del plan.
 `lista` · **APPEND-ONLY** · lector de suspense → orquestador
 
 **`metricas`** — Palabras totales y desviación respecto al plan. `desviacion_vs_plan` es una fracción con signo, no un porcentaje. Alimenta la decisión de comprimir o expandir los capítulos restantes.
