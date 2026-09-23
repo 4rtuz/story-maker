@@ -181,7 +181,10 @@ Lo que debería ocurrir. Se genera una vez a partir del canon y puede revisarse,
 **`capitulos[].objetivo_dramatico`** — Qué ha cambiado cuando el capítulo termina. Si no cambia nada, el capítulo sobra.
 `string` · **VERSIONADO** · trazador → escritor
 
-**`capitulos[].escenas[]`** — `{id, lugar, tiempo_diegético, personajes, beat, conflicto}`. La unidad mínima de planificación; el escritor recibe escenas, no resúmenes de capítulo.
+**`capitulos[].pov`** — Personaje desde cuyo punto de vista se narra el capítulo.
+`ref` · **VERSIONADO** · trazador → escritor
+
+**`capitulos[].escenas[]`** — `{id, lugar, tiempo_diegetico, personajes, dialogo, beat, conflicto}`. La unidad mínima de planificación; el escritor recibe escenas, no resúmenes de capítulo. `dialogo` son los personajes presentes que hablan: el briefing lo usa para reducir la lista de personajes cuando no cabe (paso 3 de `architecture.md` §6.5). El id de escena lleva el número de su capítulo.
 `lista` · **VERSIONADO** · trazador → escritor
 
 **`capitulos[].pistas_a_plantar[]` / `pistas_a_pagar[]`** — Referencias a `canon.misterio.pistas`. Es el mecanismo de aislamiento: el escritor recibe el contenido de estas pistas concretas y nada más del misterio.
@@ -190,8 +193,11 @@ Lo que debería ocurrir. Se genera una vez a partir del canon y puede revisarse,
 **`capitulos[].hilos_que_abre[]` / `hilos_que_cierra[]`** — Contrato de subtramas del capítulo. Alimenta el balance de hilos abiertos del estado.
 `refs` · **VERSIONADO** · trazador → cronista
 
-**`capitulos[].gancho_final`** — Tipo de cliffhanger y su función. Se especifica el tipo, no el texto, para no encorsetar al escritor.
+**`capitulos[].gancho_final`** — Tipo de cliffhanger: `pregunta_abierta | revelacion | amenaza | decision_pendiente | giro | calma_inquietante`. Se especifica el tipo, no el texto, para no encorsetar al escritor.
 `enum` · **VERSIONADO** · trazador → escritor
+
+**`capitulos[].restriccion_de_apertura`** — Con qué tipo de frase empieza el capítulo y qué registro domina la primera escena, distinta en cada ficha. Sin temperatura, es la mitigación contra capítulos que abren igual (`architecture.md` §2.2); el briefing la entrega como capa `variacion`.
+`string` · **VERSIONADO** · trazador → escritor
 
 **`capitulos[].dependencias`** — Capítulos que deben estar escritos antes. Permite detectar si la planificación admite paralelismo o es estrictamente secuencial.
 `refs` · **VERSIONADO** · trazador → orquestador

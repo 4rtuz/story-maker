@@ -57,9 +57,7 @@ class ColeccionAppendOnly[T]:
         return f"ColeccionAppendOnly({list(self._entradas)!r})"
 
     @classmethod
-    def __get_pydantic_core_schema__(
-        cls, fuente: Any, handler: GetCoreSchemaHandler
-    ) -> CoreSchema:
+    def __get_pydantic_core_schema__(cls, fuente: Any, handler: GetCoreSchemaHandler) -> CoreSchema:
         # En disco y en JSON es una lista; en memoria, esta clase.
         (item,) = get_args(fuente) or (Any,)
         lista = handler.generate_schema(GenericAlias(list, (item,)))
