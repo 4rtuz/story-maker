@@ -73,6 +73,10 @@ class Manifest(Modelo):
     version_recetas: Sha256
     version_canon: Sha256
     version_plan: Sha256
+    # El sha no basta si el árbol estaba sucio: un prompt sin commitear daría dos ejecuciones
+    # con el mismo sha y prompts distintos (RF-12).
+    sucio: bool = False
+    hashes_claude: dict[str, Sha256] = {}
 
 
 class Memoria(Resumen):

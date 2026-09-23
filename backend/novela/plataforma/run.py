@@ -46,6 +46,51 @@ def _sha_commit() -> str:
     return r.stdout.strip() if r.returncode == 0 else "desconocido"
 
 
+# El sha solo identifica el prompt con el árbol limpio (validators.md §4.7). CLAUDE.md y AGENTS.md
+# se cargan en cada subagente y cambian su conducta igual que su prompt (F-05).
+RAIZ_REPO = CONFIG_DIR.parent.parent
+_VIGILADO = (".claude", "backend/config", "backend/novela", "CLAUDE.md", "AGENTS.md")
+_HASHEADO = (
+    ".claude/agents/*.md",
+    ".claude/commands/*.md",
+    ".claude/hooks/*",
+    ".claude/settings.json",
+    "CLAUDE.md",
+    "AGENTS.md",
+)
+
+
+def _sucio(raiz: Path, git: str | None) -> bool:
+    """Sin git, o si falla, sucio (D-6): un manifiesto que no puede probar que el árbol estaba
+    limpio no lo afirma. Sin @cache, a diferencia de _sha_commit: se llama una vez por run."""
+    if git is None:
+        return True
+    try:
+        r = subprocess.run(  # noqa: S603
+            [git, "-C", str(raiz), "status", "--porcelain", "--", *_VIGILADO],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return True
+    return r.returncode != 0 or bool(r.stdout.strip())
+
+
+def procedencia(
+    raiz: Path = RAIZ_REPO, git: str | None = shutil.which("git")
+) -> tuple[bool, dict[str, str]]:
+    """`sucio` y el sha256 de cada fichero de .claude/ que cambia la conducta de un agente."""
+    hashes = {
+        p.relative_to(raiz).as_posix(): sha256(p)
+        for patron in _HASHEADO
+        for p in sorted(raiz.glob(patron))
+        if p.is_file()
+    }
+    return _sucio(raiz, git), hashes
+
+
 @dataclass(frozen=True)
 class Run:
     dir: Path
@@ -121,10 +166,13 @@ def abrir(
     run = Run(ws.raiz / "runs" / _run_id(ws, capitulo, fase, entorno, ahora or datetime.now()))
     ruta = run.dir / "manifest.json"
     if not ruta.exists():
+        sucio, hashes = procedencia()
         manifiesto = Manifest(
             run_id=run.id,
             capitulo=capitulo,
             fase=fase,
+            sucio=sucio,
+            hashes_claude=hashes,
             creado=datetime.now().astimezone().isoformat(timespec="seconds"),
             sha_commit=_sha_commit(),
             version_recetas=sha256(CONFIG_DIR / "recipes.yaml"),

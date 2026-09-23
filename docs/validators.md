@@ -426,8 +426,8 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 | F-01 | El frontmatter deriva: `tools`, `model` o `name` distintos de la tabla, o YAML inválido | Un agente con `Bash` o `Glob`, o uno que Claude Code no carga | Test de contrato sobre `.claude/agents/*.md` | T | activo (CA-01) |
 | F-02 | El cuerpo no nombra una de sus salidas | El agente escribe donde cree, el hook lo para y se pierde un reintento | Cada salida aparece como subcadena del cuerpo | T | activo (CA-02) |
 | F-03 | Se renombra o desaparece el esquema de `backend/schemas/` que nombra el cuerpo | El agente adivina la forma y el primer capítulo falla `validar` | Toda ruta `backend/schemas/*.json` citada en un cuerpo existe. Es una aserción más en el test de CA-02 | T | activo (CA-02, RF-24) |
-| F-04 | Se cambia un prompt sin commitear | Dos ejecuciones con el mismo sha y prompts distintos | `sucio` y `hashes_claude` en el manifiesto (§4.7) | A + T | 0003, CA-08 |
-| F-05 | `CLAUDE.md` o `AGENTS.md` cambian entre dos ejecuciones | Se cargan en cada subagente y cambian su conducta, pero no entran en `hashes_claude` ni en las rutas que vigila `sucio` | Añadir los dos ficheros a `hashes_claude` y a las rutas de `sucio` | A + T | 0003, CA-08 (RF-12) |
+| F-04 | Se cambia un prompt sin commitear | Dos ejecuciones con el mismo sha y prompts distintos | `sucio` y `hashes_claude` en el manifiesto (§4.7) | A + T | activo (CA-08) |
+| F-05 | `CLAUDE.md` o `AGENTS.md` cambian entre dos ejecuciones | Se cargan en cada subagente y cambian su conducta, pero no entran en `hashes_claude` ni en las rutas que vigila `sucio` | Añadir los dos ficheros a `hashes_claude` y a las rutas de `sucio` | A + T | activo (CA-08, RF-12) |
 | F-06 | Un informe de QA malformado, o sin `veredicto` | El orquestador lee basura en el gate y puede aprobar | El procedimiento cuenta un `veredicto` ausente o ilegible como rechazo. Después, `novela gate` lo valida contra el modelo | D; A | 0003, CA-18 (RF-29); 0002 |
 | F-07 | Un revisor lee `capitulos/NN.md` del disco en vez del texto incrustado, mientras el `editor-estilo` lo reescribe en el mismo turno | Veredicto sobre una versión intermedia que la custodia no ve, porque su briefing lleva el hash correcto | El cuerpo del agente manda juzgar lo incrustado. No hay verificador mecánico | I | U (§5.15) |
 | F-08 | Un retorno de más de tres líneas | Consume el contexto del orquestador | Auditoría de trayectoria (§4.16) | A | 0002 |
@@ -479,7 +479,7 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 | F-40 | El run de arranque se reutiliza como run del capítulo 1, o al revés | El capítulo 1 queda atribuido a un canon vacío | Tests del run de arranque | T | activo (CA-07) |
 | F-41 | Un `NOVELA_RUN_ID` fijado mezcla arranque y capítulo | Lo mismo que F-40, por otra vía | `run.abrir` rechaza un run fijado cuyo manifiesto sea de otra fase o de otro capítulo | T | activo (CA-16, RF-27) |
 | F-42 | El arranque y el capítulo 1 caen en el mismo minuto | `RunInvalido` con salida 2, y el procedimiento para | Test de la colisión. La salida 2 para sin reintentar | T | activo (test_run_de_arranque) |
-| F-43 | `git` ausente o lento | `sucio` sin dato | `true` por defecto | T | 0003 (plan, D-6) |
+| F-43 | `git` ausente o lento | `sucio` sin dato | `true` por defecto | T | activo (plan, D-6) |
 | F-44 | El sufijo `sesion=` altera las líneas que cuenta el procedimiento | La cuenta de intentos se rompe sin dar error | CA-12 comprueba además que la subcadena `validar NN -> ` sigue intacta | T | 0003, CA-12 (RF-21) |
 | F-45 | `NOVELA_SESSION_ID` inválido, o heredado de la shell del bucle en una orden manual | Correlación traza ↔ paso perdida o falsa | Validación del formato (CA-12). La variable solo se exporta en la shell del bucle | T | 0003 |
 | F-46 | El OpenAPI queda desfasado tras cambiar `Manifest` | Se rompe el contrato con el frontend | `test_openapi_al_dia` | T | activo |

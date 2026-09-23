@@ -861,6 +861,20 @@
             "type": "string",
             "pattern": "^[0-9a-f]{64}$",
             "title": "Version Plan"
+          },
+          "sucio": {
+            "type": "boolean",
+            "title": "Sucio",
+            "default": false
+          },
+          "hashes_claude": {
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "type": "object",
+            "title": "Hashes Claude",
+            "default": {}
           }
         },
         "additionalProperties": false,

@@ -1,4 +1,6 @@
 import hashlib
+import shutil
+import subprocess
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -79,3 +81,53 @@ def test_run_de_arranque(tmp_path: Path) -> None:
     assert capitulo.id != arranque.id
     manifiesto = Manifest.model_validate_json((capitulo.dir / "manifest.json").read_bytes())
     assert manifiesto.fase == "capitulo"
+
+
+GIT = shutil.which("git") or "git"
+
+
+def _git(repo: Path, *args: str) -> None:
+    identidad = ["-c", "user.email=test@example.invalid", "-c", "user.name=test"]
+    subprocess.run([GIT, "-C", str(repo), *identidad, *args], check=True, capture_output=True)  # noqa: S603
+
+
+def test_procedencia(tmp_path: Path) -> None:
+    """CA-08 (RF-12, F-04, F-05): un prompt sin commitear deja sucio el manifiesto y cambia su
+    hash. CLAUDE.md también, porque se carga en cada subagente. Sin git, sucio."""
+    ficheros = {
+        ".claude/agents/escritor.md": "Escribes.\n",
+        ".claude/commands/novela-nueva.md": "Arrancas.\n",
+        "CLAUDE.md": "Convenciones.\n",
+    }
+    for relativa, texto in ficheros.items():
+        (tmp_path / relativa).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / relativa).write_text(texto, encoding="utf-8")
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-qm", "limpio")
+
+    sucio, limpios = run.procedencia(tmp_path)
+    assert not sucio
+    assert set(limpios) == set(ficheros)
+
+    (tmp_path / ".claude/agents/escritor.md").write_text("Escribes mejor.\n", encoding="utf-8")
+    sucio, hashes = run.procedencia(tmp_path)
+    assert sucio and hashes[".claude/agents/escritor.md"] != limpios[".claude/agents/escritor.md"]
+
+    _git(tmp_path, "checkout", "-q", "--", ".")
+    (tmp_path / "CLAUDE.md").write_text("Otras convenciones.\n", encoding="utf-8")
+    sucio, hashes = run.procedencia(tmp_path)
+    assert sucio and hashes["CLAUDE.md"] != limpios["CLAUDE.md"]
+
+    assert run.procedencia(tmp_path, git=None)[0]  # D-6: sin git no se afirma que esté limpio
+
+
+def test_manifiesto_registra_los_prompts(novelas: Novelas) -> None:
+    """RF-12 sobre el repo real: el manifiesto lleva el hash de los siete agentes y de lo que se
+    carga en cada uno."""
+    abierto = run.abrir(novelas("demo-24"), 8, entorno={}, ahora=LAS_DIEZ)
+    manifiesto = Manifest.model_validate_json((abierto.dir / "manifest.json").read_bytes())
+    hashes = manifiesto.hashes_claude
+    agentes = {k for k in hashes if k.startswith(".claude/agents/")}
+    assert len(agentes) == 7
+    assert {"CLAUDE.md", "AGENTS.md", ".claude/settings.json"} <= set(hashes)

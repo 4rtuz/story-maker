@@ -472,6 +472,7 @@ Se rellena durante la implementación.
 | RNF-01 | — | `backend/tests/test_hook.py::test_rendimiento` | hecho |
 | RF-11 | CA-07 | `backend/novela/slices/briefing/test_briefing.py::test_arranque_no_contamina_el_capitulo_1`, `backend/novela/plataforma/test_run.py::test_run_de_arranque` | hecho |
 | RF-27 | CA-16 | `backend/novela/slices/briefing/test_briefing.py::test_run_fijado_de_otra_fase` | hecho |
+| RF-12 | CA-08 | `backend/novela/plataforma/test_run.py::test_procedencia`, `::test_manifiesto_registra_los_prompts` | hecho |
 
 ## 13. Verificación
 
