@@ -134,6 +134,7 @@ La lista de la spec §14, repartida. Cada línea va en el commit de su tarea.
 | `architecture.md` §2.3, §11.1 | Bucle nuevo y puesta en marcha | 6.2 |
 | `validators.md` §2 | Qué corre de verdad: se actualiza en cada fase que enciende un método | 1.3, 2.7, 5.4, 7.5 |
 | `validators.md` §3.8 | Tercer contrato, Harness ↔ Claude Code, ya en CI | 2.7 |
+| `validators.md` §4.17 | Cada fila F-NN marcada `0003` pasa a `activo` en el commit que la cierra. Las `propuesto` no se implementan sin enmendar antes la spec | la tarea de su CA |
 | `validators.md` §4.4 | Guardarraíl real: hook + `deny` | 2.7 |
 | `validators.md` §4.9 | Canario con `--agents` | 5.4 |
 | `CLAUDE.md` «Hooks» | Regla del hook con la excepción; trazado por plugin (`Stop` y `SessionEnd`) | 2.7, 5.1 |
