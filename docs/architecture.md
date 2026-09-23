@@ -38,7 +38,7 @@ Este documento describe **cómo se implementa** la ontología definida en `docs/
 | Tests | pytest + `jsonschema` | Contratos verificados sin consumir cuota |
 | Backend | Python 3.12 + FastAPI | API de solo lectura sobre el workspace; reutiliza los modelos Pydantic del CLI |
 | Frontend | Vite + TypeScript + Three.js | Consume la API del backend; sin lógica de negocio |
-| Export | `markdown` + `ebooklib` | Salida a `.md` único y `.epub` |
+| Export | `markdown-it-py` + `ebooklib` | Salida a `.md` único y `.epub` (markdown-it solo convierte a XHTML para el epub) |
 
 Fuera del stack, explícitamente: API de Anthropic, OpenRouter, Claude Agent SDK, LiteLLM o cualquier gateway de modelos. Nada de eso hace falta. FastAPI no es una excepción a esa regla: no llama a ningún modelo, solo sirve ficheros del workspace al frontend.
 

@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "CLI determinista y API de solo lectura del harness de novelas de suspense"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "ebooklib>=0.20",
     "filelock>=3.13",
+    "markdown-it-py>=4.2.0",
     "pydantic>=2.7",
     "pyyaml>=6.0",
     "typer>=0.12",
@@ -48,6 +50,11 @@ select = ["E", "F", "I", "B", "UP", "S"]
 [tool.mypy]
 strict = true
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+# ebooklib no publica tipos.
+module = ["ebooklib", "ebooklib.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["novela", "tests"]
