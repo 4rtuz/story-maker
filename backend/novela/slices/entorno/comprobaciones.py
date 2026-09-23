@@ -7,6 +7,7 @@ que la sesión cargaría permisos que CI no ve.
 
 import json
 import re
+from collections.abc import Mapping
 
 HOOK = ".claude/hooks/denegar-escritura-estado.py"
 
@@ -25,9 +26,12 @@ def entorno(
     python: str | None,
     sucio: bool,
     limpio: bool,
+    env_ignorado: bool | None,
+    scores: Mapping[str, str],
 ) -> list[str]:
     """Un hallazgo por condición. `settings` y `local` son el texto del fichero o None si no
-    existe; `python` es lo que resuelve `which`."""
+    existe; `python` es lo que resuelve `which`; `env_ignorado`, None si no hay `.env`; `scores`,
+    lo que verá el emisor de `checkpoint`. Los hallazgos nombran variables, nunca valores."""
     hallazgos = []
     if settings is None:
         hallazgos.append("falta .claude/settings.json")
@@ -53,4 +57,15 @@ def entorno(
         hallazgos.append("python es el alias de la Microsoft Store: el hook fallaría abierto")
     if limpio and sucio:
         hallazgos.append("cambios sin commitear en lo que atribuye el manifiesto")
+    if env_ignorado is False:
+        hallazgos.append(".env no está ignorado por git: las claves se versionarían")
+    # Sin esto, el sink se queda en no-op sin avisar y el capítulo cierra sin scores (F-54).
+    if scores.get("TRACE_TO_LANGFUSE") == "true":
+        hallazgos += [
+            f"TRACE_TO_LANGFUSE=true sin {k}"
+            for k in ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY")
+            if not scores.get(k)
+        ]
+        if not (scores.get("LANGFUSE_BASE_URL") or scores.get("LANGFUSE_HOST")):
+            hallazgos.append("TRACE_TO_LANGFUSE=true sin LANGFUSE_BASE_URL ni LANGFUSE_HOST")
     return hallazgos

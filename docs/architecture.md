@@ -225,7 +225,7 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │   ├── delta/            # cmd.py · apply.py · violaciones.py · test_delta.py
 │   │   │   ├── checkpoint/
 │   │   │   ├── auditoria/        # pistas huérfanas, hilos abiertos
-│   │   │   ├── entorno/          # comprobar-entorno: hook, python, settings.local.json
+│   │   │   ├── entorno/          # comprobar-entorno: hook, python, settings.local.json, .env
 │   │   │   ├── presupuesto/      # ventana de uso y degradación
 │   │   │   └── export/           # cmd.py · markdown.py · epub.py
 │   │   │
@@ -734,7 +734,7 @@ novela checkpoint <slug> <cap>
 novela pendiente <slug>            # código de salida: 0 si quedan capítulos
 novela auditar <slug>              # pistas huérfanas, hilos sin cerrar, fair play
 novela exportar <slug> --formato epub
-novela comprobar-entorno [--limpio]   # hook, python y settings.local.json antes de lanzar
+novela comprobar-entorno [--limpio]   # hook, python, settings.local.json y .env antes de lanzar
 ```
 
 **Reanudación.** `/novela-continuar` empieza leyendo `checkpoints/latest.json` y repite el último paso no confirmado. Regla dura: el estado nunca se reconstruye desde una conversación previa, ni siquiera desde la sesión anterior de Claude Code.
@@ -847,7 +847,7 @@ Se arranca desde `backend/` con `uv run uvicorn api.main:app --reload`.
 | 3 | Abrir `claude` en la raíz del repo y aceptar el diálogo de confianza | `hasTrustDialogAccepted: true` para el proyecto en `~/.claude.json` | `claude -p` ignora el `allow` y el bucle no avanza |
 | — | `python` resuelve a un intérprete real, no al alias de la Microsoft Store | `python -c "import sys; print(sys.executable)"` | El hook falla abierto: sale con un código distinto de 2 y la escritura pasa |
 
-Si `python` no resuelve, se desactiva el alias en «Alias de ejecución de aplicaciones» o se pone Python 3.12 por delante en el PATH; el comando del hook no se cambia a una ruta absoluta. `novela comprobar-entorno` comprueba `python`, el script del hook y `settings.local.json` antes de cada bucle.
+Si `python` no resuelve, se desactiva el alias en «Alias de ejecución de aplicaciones» o se pone Python 3.12 por delante en el PATH; el comando del hook no se cambia a una ruta absoluta. `novela comprobar-entorno` comprueba `python`, el script del hook, `settings.local.json` y `.env` antes de cada bucle.
 
 ### 11.2 Frontend (`frontend/`)
 

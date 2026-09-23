@@ -80,7 +80,7 @@ novela checkpoint <slug> <cap>
 novela pendiente <slug>               salida 0 si quedan capítulos
 novela auditar <slug>                 pistas huérfanas, hilos sin cerrar
 novela exportar <slug> --formato epub
-novela comprobar-entorno [--limpio]   hook, python y settings.local.json antes de lanzar
+novela comprobar-entorno [--limpio]   hook, python, settings.local.json y .env antes de lanzar
 ```
 
 Ejecuta `novela validar` antes de invocar a ningún agente de revisión: detecta gratis lo que no merece una llamada a un modelo.
@@ -159,6 +159,8 @@ Una vez por máquina, para poder lanzar el harness:
 1. `uv` en el PATH de usuario, de forma persistente: lo necesitan `uv tool` y el hook del plugin de Langfuse.
 2. `uv tool install --editable ./backend` desde la raíz: deja `novela` en `~/.local/bin`.
 3. Abrir `claude` una vez en la raíz del repo y aceptar el diálogo de confianza: sin ella, `claude -p` ignora el `allow` del proyecto.
+
+Las claves de los scores, si se quieren, van en `.env` en la raíz, que git ignora.
 
 **Desarrollo**
 

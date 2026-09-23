@@ -496,7 +496,7 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 | F-52 | El plugin de Langfuse no carga, o falla | Sin trazas y sin aviso: el bucle sigue | Novela de humo (CA-10) y `~/.claude/state/langfuse_hook.log` | D | pendiente: novela de humo (CA-10); el plugin está habilitado en local, sin traza comprobada |
 | F-53 | Una sesión avanza el checkpoint pero ha hecho algo indebido | El freno no lo ve, porque solo mira si hubo avance | Auditoría de trayectoria | A | 0002 |
 | F-54 | Los scores de `novela checkpoint` necesitan `TRACE_TO_LANGFUSE=true` y las claves en el entorno del proceso, y `comprobar-entorno` prohíbe `env` en `settings.local.json` | Sin las variables en el entorno de usuario, el bucle cierra capítulos sin emitir scores: el sink es no-op y no avisa. El baseline de CA-10 se queda sin sus seis scores | `checkpoint` toma también `TRACE_TO_LANGFUSE` y `LANGFUSE_*` de `.env` en la raíz del repo, sin tocar `os.environ`; manda el entorno (RF-32) | T | activo (CA-20) |
-| F-55 | Las claves de los scores están en un `.env` en la raíz del repo que `.gitignore` no ignora | Un `git add .` las versiona. El pre-commit de 0001 CA-32 es la última capa | `.env` en `.gitignore`, y `novela comprobar-entorno` avisa si no está ignorado (spec 0003 v0.4, RF-33) | T | propuesto |
+| F-55 | Las claves de los scores están en un `.env` en la raíz del repo que `.gitignore` no ignora | Un `git add .` las versiona. El pre-commit de 0001 CA-32 es la última capa | `.env` en `.gitignore`, y `novela comprobar-entorno` avisa si no está ignorado (spec 0003 v0.4, RF-33) | T | activo (CA-21) |
 
 **Canario**
 
@@ -571,7 +571,7 @@ Cada uno con su condición de revisión: un riesgo aceptado sin criterio para re
 |---|---|---|---|
 | Pre-commit | Type checking, SAST, tests unitarios | A, T | segundos |
 | Cada escritura o `Bash` de Claude Code | hook `PreToolUse`: `estado/`, salidas por rol, misterio y `estado.db` en órdenes (spec 0003) | A | < 300 ms |
-| Antes del bucle desatendido y del canario | `novela comprobar-entorno`: `novela` en el PATH, `python` real, hook presente, `settings.local.json` solo con `enabledPlugins`; con `--limpio` en el canario (spec 0003) | A | gratis |
+| Antes del bucle desatendido y del canario | `novela comprobar-entorno`: `novela` en el PATH, `python` real, hook presente, `settings.local.json` solo con `enabledPlugins`, `.env` ignorado y, con el trazado de scores pedido, sus claves; con `--limpio` en el canario (spec 0003) | A | gratis |
 | Tras cada sesión del bucle | freno: sin avance de `checkpoints/latest.json`, el bucle para (spec 0003) | A | gratis |
 | CI del harness | + mutación sobre gates, contrato API, contrato de `.claude/`, model checking | T, A | minutos |
 | Tras el `trazador`, una vez | `novela validar-plan`: fair play del plan, ids, orden de pistas, forma de la curva de tensión, secreto por capítulo en las fichas | A | gratis |

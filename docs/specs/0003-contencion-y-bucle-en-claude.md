@@ -502,7 +502,7 @@ No aplica: no hay novelas empezadas y los cambios en `manifest.json` y `harness.
   Sin ningún caso, sale con 0. Se prueba sobre un directorio temporal, sin tocar el repo
 - [x] **CA-18** (RF-29) Revisión en el commit: `novela-nueva.md` y `novela-continuar.md` contienen las tres reglas de lectura y la tabla de códigos de §5.4, y `novela-nueva.md` contiene la excepción del paso 3. Un test de `test_briefing.py` fija la línea de esa excepción: con un canon inválido, `novela briefing <slug> 1 trazador` sale con 4 y la última línea de `harness.log` contiene `briefing 01 trazador -> error · WorkspaceInvalido`
 - [ ] **CA-19** (RF-31) En la novela de humo: la sesión del ensayo de intervención termina sin crear ningún run ni briefing, y el resultado de `/memory` consta en §13
-- [ ] **CA-20** (RF-32, RF-28) Unit, con `RAIZ_REPO` en un directorio temporal y el sink sustituido por uno que registra:
+- [x] **CA-20** (RF-32, RF-28) Unit, con `RAIZ_REPO` en un directorio temporal y el sink sustituido por uno que registra:
   - con `TRACE_TO_LANGFUSE=true` y las tres claves solo en `.env`, `checkpoint` entrega los seis scores al sink;
   - con la misma variable también en el entorno y otro valor, manda el entorno;
   - una clave ajena a `TRACE_TO_LANGFUSE` y `LANGFUSE_*` en `.env` no llega al sink;
@@ -511,7 +511,7 @@ No aplica: no hay novelas empezadas y los cambios en `manifest.json` y `harness.
   - `comprobar-entorno` sale con 1 si `.env` pide `TRACE_TO_LANGFUSE=true` sin `LANGFUSE_SECRET_KEY`, y el hallazgo nombra la variable sin ningún valor.
 
   Todos los valores son dummy (`sk-lf-dummy…`).
-- [ ] **CA-21** (RF-33) `.gitignore` contiene `.env`. `comprobar-entorno` sale con 1 si, en un repo git temporal, hay un `.env` que no está ignorado, y con 0 si lo está
+- [x] **CA-21** (RF-33) `.gitignore` contiene `.env`. `comprobar-entorno` sale con 1 si, en un repo git temporal, hay un `.env` que no está ignorado, y con 0 si lo está
 - [ ] **CA-22** (RF-34) Un test de `test_briefing.py`: con solo `canon/misterio.md` inválido, `novela briefing <slug> 1 trazador` sale con 4 y la última línea de `harness.log` contiene `WorkspaceInvalido` y `misterio.md`. Revisión en el commit: `novela-nueva.md` contiene la excepción de F-09 en el paso 3
 - [ ] **CA-23** (RF-36) Unit sobre la función de lectura del transcript de `ejecutar.py`, con transcripts JSONL de fixture:
   - una negativa sin `tool_use` sale `NO CONCLUYENTE`;
@@ -547,8 +547,8 @@ Se rellena durante la implementación.
 | RF-22 | CA-10 | En seco (plan, tarea 6.3): con `claude` sustituido por una sesión que no avanza, el bucle hace una iteración y sale; con `settings.local.json` ampliado, sale antes de la primera | hecho en seco; con el bucle real, pendiente de CA-10 |
 | RF-13 a RF-17, RF-19, RF-22 | CA-10 | Novela de humo `humo-0003` (plan, fase 7). Sin ejecutar: necesita la confianza aceptada, las claves de Langfuse y el canario en verde | pendiente |
 | RF-31 | CA-19 | Ensayo de intervención y `/memory` en la novela de humo. Sin ejecutar | pendiente |
-| RF-32, RF-28 | CA-20 | `backend/novela/slices/checkpoint/test_checkpoint.py` y `backend/novela/slices/entorno/test_entorno.py` | pendiente |
-| RF-33 | CA-21 | `backend/novela/slices/entorno/test_entorno.py` y revisión de `.gitignore` | pendiente |
+| RF-32, RF-28 | CA-20 | `backend/novela/plataforma/test_langfuse.py::test_fusionar_*`, `::test_manda_el_entorno`; `backend/novela/slices/checkpoint/test_checkpoint.py::test_claves_desde_env`, `::test_manda_el_entorno_del_proceso`, `::test_env_ilegible_no_rompe_ni_se_imprime`; `backend/novela/slices/entorno/test_entorno.py::test_env_y_claves` | hecho |
+| RF-33 | CA-21 | `backend/novela/slices/entorno/test_entorno.py::test_env_sin_ignorar_por_cli`, `::test_env_y_claves`, y `.gitignore`, que tiene `.env` en su primera línea | hecho |
 | RF-34 | CA-22 | `backend/novela/slices/briefing/test_briefing.py` y revisión de `.claude/commands/novela-nueva.md` | pendiente |
 | RF-36 | CA-23 | `backend/tests/canario/test_veredicto.py` (sin modelo; lo recoge pytest) | pendiente |
 | RF-35, RF-36 | CA-09 | Ejecución real de `ejecutar.py` con los prompts nuevos | pendiente |
