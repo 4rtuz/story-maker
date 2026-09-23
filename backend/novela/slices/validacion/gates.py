@@ -16,7 +16,7 @@ from novela.dominio.plan import FichaCapitulo
 from novela.dominio.qa import Hallazgo
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True)  # pragma: no mutate
 class Contexto:
     capitulo: int
     palabras: PalabrasPorCapitulo

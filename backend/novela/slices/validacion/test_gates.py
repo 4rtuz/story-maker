@@ -137,3 +137,25 @@ def test_ids_citados_existen() -> None:
     )
     referencias = {h.referencia for h in hallazgos if h.tipo == "id_inexistente"}
     assert {"per-nadie", "esc-05-9", "pis-900"} <= referencias
+
+
+def test_casos_fijos_de_cada_gate() -> None:
+    """Casos deterministas: la propiedad de arriba es aleatoria y una ejecución de mutmut puede no
+    generar el ejemplo que mata a un mutante. Estos corren siempre."""
+    meta, cuerpo, ctx = _caso()
+    assert gates.validar(meta, cuerpo, ctx) == []
+
+    sin_plantar = gates.validar({**meta, "pistas_plantadas": []}, cuerpo, ctx)
+    assert [(h.tipo, h.referencia) for h in sin_plantar] == [("pista_ausente", "pis-001")]
+    sin_pagar = gates.validar({**meta, "pistas_pagadas": []}, cuerpo, ctx)
+    assert [(h.tipo, h.referencia) for h in sin_pagar] == [("pista_ausente", "pis-004")]
+
+    cierra_nuevo = gates.validar({**meta, "hilos_cerrados": ["hil-004"]}, cuerpo, ctx)
+    assert cierra_nuevo == []  # se abre y se cierra en el mismo capítulo
+    cierra_ajeno = gates.validar({**meta, "hilos_cerrados": ["hil-002"]}, cuerpo, ctx)
+    assert [(h.tipo, h.referencia) for h in cierra_ajeno] == [("hilo_cerrado_sin_abrir", "hil-002")]
+
+    pagada_ajena = gates.validar({**meta, "pistas_pagadas": ["pis-004", "pis-900"]}, cuerpo, ctx)
+    assert [(h.tipo, h.referencia) for h in pagada_ajena] == [("id_inexistente", "pis-900")]
+    escena_ajena = gates.validar({**meta, "escenas": ["esc-05-1", "esc-05-7"]}, cuerpo, ctx)
+    assert [(h.tipo, h.referencia) for h in escena_ajena] == [("id_inexistente", "esc-05-7")]
