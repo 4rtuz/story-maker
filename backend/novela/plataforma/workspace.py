@@ -16,6 +16,7 @@ from typing import Self
 import yaml
 from pydantic import BaseModel, ValidationError
 
+from novela.dominio.artefactos import Checkpoint
 from novela.dominio.config import Config
 from novela.dominio.ids import SLUG_PATRON, nn
 from novela.plataforma import atomic, lock
@@ -79,6 +80,15 @@ class WorkspaceRepository:
 
     def config(self) -> Config:
         return self.leer_yaml(self.config_yaml, Config)
+
+    def ultimo_checkpoint(self) -> Checkpoint | None:
+        ruta = self.raiz / "checkpoints" / "latest.json"
+        return self.leer_json(ruta, Checkpoint) if ruta.exists() else None
+
+    def exigir(self) -> Self:
+        if not self.existe():
+            raise WorkspaceInvalido(f"{self.raiz}: no hay workspace (falta config.yaml)")
+        return self
 
     def leer_yaml[M: BaseModel](self, ruta: Path, modelo: type[M]) -> M:
         try:

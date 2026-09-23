@@ -4,9 +4,15 @@ import json
 import os
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
+import jsonschema
+from typer.testing import CliRunner
+
+from novela.cli import app
 from novela.dominio import esquemas
+from novela.plataforma.workspace import WorkspaceRepository
 
 RAIZ_REPO = Path(__file__).resolve().parents[2]
 SCHEMAS = RAIZ_REPO / "backend" / "schemas"
@@ -60,3 +66,14 @@ def test_state_schema_al_dia() -> None:
     for nombre, esquema in generados.items():
         assert json.loads((SCHEMAS / nombre).read_text(encoding="utf-8")) == esquema, nombre
         assert "schema_version" in esquema["properties"], nombre
+
+
+def test_estado_json_valida_contra_el_esquema(
+    novelas: Callable[[str], WorkspaceRepository],
+) -> None:
+    """CA-06, la otra mitad: lo que emite `novela estado --json` valida contra el commiteado."""
+    novelas("demo-24")
+    resultado = CliRunner().invoke(app, ["estado", "demo-24", "--json"])
+    assert resultado.exit_code == 0, resultado.output
+    esquema = json.loads((SCHEMAS / "state.schema.json").read_text(encoding="utf-8"))
+    jsonschema.validate(json.loads(resultado.stdout), esquema)
