@@ -14,7 +14,20 @@ from collections.abc import Mapping
 from typing import Any
 
 MOTIVO = "denegar-escritura-estado:"  # prefijo de todo motivo; el canario lo busca en el transcript
-_DELTA = r"estado/deltas/\d{2,3}\.json"
+_NN = r"\d{2,3}"
+_DELTA = rf"estado/deltas/{_NN}\.json"
+# spec 0003 §5.1, relativas a novelas/<slug>/. test_hook comprueba que casa con CONTRATO de
+# test_contratos (D-2): el hook no puede importar backend/, así que es una copia vigilada.
+SALIDAS = {
+    "arquitecto": [r"canon/(premisa|mundo|estilo|misterio)\.md", r"canon/personajes/[^/]+\.md"],
+    "trazador": [r"plan/escaleta\.md", rf"plan/capitulos/{_NN}\.md"],
+    "escritor": [rf"capitulos/{_NN}\.md"],
+    "continuista": [rf"qa/{_NN}-continuidad\.json"],
+    "editor-estilo": [rf"capitulos/{_NN}\.md", rf"qa/{_NN}-estilo\.json"],
+    "lector-suspense": [rf"qa/{_NN}-suspense\.json"],
+    "cronista": [_DELTA],
+}
+ROLES = frozenset(SALIDAS)
 _PREFIJO_WIN32 = re.compile(r"^(\\\\|//)[?.][\\/]")  # \\?\  \\.\
 
 
@@ -78,6 +91,11 @@ def decidir(entrada: dict[str, Any], entorno: Mapping[str, str]) -> str | None:
     # Regla 1, para todos.
     if any(r.split("/")[0] == "estado" and not re.fullmatch(_DELTA, r) for r in relativas):
         return f"escritura bajo estado/ denegada: {valor}"
+    # Regla 2: un rol de los siete, solo en sus salidas. Los agentes de desarrollo no son roles.
+    # ponytail: no sabe qué capítulo está en curso; reescribir uno cerrado lo para el sello.
+    rol = entrada.get("agent_type")
+    if rol in ROLES and not any(re.fullmatch(p, r) for p in SALIDAS[rol] for r in relativas):
+        return f"{rol} solo escribe en sus salidas: {valor}"
     return None
 
 

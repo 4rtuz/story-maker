@@ -1,6 +1,7 @@
 """El hook PreToolUse de .claude/hooks/ (spec 0003 §5.2), ejecutado como subproceso, igual que lo
 ejecuta Claude Code (spec §13). No se importa salvo para comparar su tabla de salidas."""
 
+import importlib.util
 import json
 import os
 import re
@@ -12,6 +13,8 @@ from typing import Any
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
+
+from tests.test_contratos import CONTRATO
 
 RAIZ_REPO = Path(__file__).resolve().parents[2]
 HOOK = RAIZ_REPO / ".claude" / "hooks" / "denegar-escritura-estado.py"
@@ -123,3 +126,57 @@ def test_estado_rutas_no_normalizables(tmp_path: Path) -> None:
     ):
         assert _hook(_escritura(ruta, tmp_path), tmp_path).returncode == 2, ruta
     assert _hook(_escritura("novelas/x/capitulos/01.md", tmp_path), tmp_path).returncode == 0
+
+
+# --- Regla 2: cada rol, solo en sus salidas --------------------------------------------------
+
+FUERA = [".claude/agents/escritor.md", "backend/x.py", "README.md"]
+
+
+def _instancia(patron: str) -> st.SearchStrategy[str]:
+    """Una ruta concreta de un patrón de CONTRATO: NN de 2 o 3 dígitos, `*` un nombre."""
+    nn = st.from_regex(r"\d{2,3}", fullmatch=True)
+    nombre = st.from_regex(r"per-[a-z]{1,8}", fullmatch=True)
+    return st.tuples(nn, nombre).map(lambda t: patron.replace("NN", t[0]).replace("*", t[1]))
+
+
+@settings(max_examples=60, deadline=None)
+@given(rol=st.sampled_from(sorted(CONTRATO)), datos=st.data())
+def test_salidas_por_rol(rol: str, datos: st.DataObject) -> None:
+    """CA-05 (RF-07): un rol escribe en sus salidas y en nada más. capitulos/NN.md es de escritor
+    y de editor-estilo: no es «de otra fila» para ninguno de los dos."""
+    cwd = Path(tempfile.gettempdir())
+    propias = CONTRATO[rol][2]
+    ajenas = sorted({p for _, _, ps in CONTRATO.values() for p in ps} - set(propias))
+    suya = datos.draw(st.sampled_from(propias).flatmap(_instancia))
+    ajena = datos.draw(st.sampled_from(ajenas).flatmap(_instancia))
+    for ruta, esperado in (
+        (f"novelas/demo/{suya}", 0),
+        (f"novelas/demo/{ajena}", 2),
+        (datos.draw(st.sampled_from(FUERA)), 2),
+    ):
+        resultado = _hook(_escritura(ruta, cwd, agente=rol), cwd)
+        assert resultado.returncode == esperado, (rol, ruta, resultado.stderr)
+
+
+def test_sin_rol_fuera_del_workspace(tmp_path: Path) -> None:
+    """CA-05, la otra mitad: los agentes de desarrollo y la sesión principal escriben en el repo."""
+    for agente in ("Explore", None):
+        for ruta in FUERA:
+            assert _hook(_escritura(ruta, tmp_path, agente), tmp_path).returncode == 0
+
+
+def test_salidas_casan_el_contrato() -> None:
+    """D-2 (F-16): la tabla del hook es una copia vigilada de CONTRATO. El hook no puede importar
+    backend/, así que el que compara es este test."""
+    spec = importlib.util.spec_from_file_location("hook", HOOK)
+    assert spec is not None and spec.loader is not None
+    hook = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(hook)
+    assert set(hook.ROLES) == set(CONTRATO) == set(hook.SALIDAS)
+    for rol, (_, _, salidas) in CONTRATO.items():
+        rutas = [p.replace("NN", "07").replace("*", "x") for p in salidas]
+        for ruta in rutas:  # cada salida del contrato la permite algún patrón del hook
+            assert any(re.fullmatch(r, ruta) for r in hook.SALIDAS[rol]), (rol, ruta)
+        for r in hook.SALIDAS[rol]:  # y ningún patrón del hook sobra
+            assert any(re.fullmatch(r, ruta) for ruta in rutas), (rol, r)
