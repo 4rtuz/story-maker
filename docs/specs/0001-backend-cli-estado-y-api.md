@@ -1,7 +1,7 @@
 ---
 spec: 0001
 titulo: "El backend: CLI `novela`, dominio, estado en SQLite y API de lectura"
-estado: aceptada
+estado: implementada
 autor: "arturo.soto"
 fecha: 2026-09-22
 version: 0.3
@@ -9,7 +9,7 @@ afecta: [backend, esquemas, docs]
 depende_de: []
 sustituye: []
 adr: [0001]
-commit: null
+commit: 9ed5f0bb3a058a4af11a564cf103e169faeb3403
 ---
 
 # 0001 — El backend: CLI `novela`, dominio, estado en SQLite y API de lectura
@@ -305,93 +305,93 @@ No aplica: no existe ninguna novela empezada ni ningún `estado.db` previo. Es l
 
 ## 11. Criterios de aceptación
 
-- [ ] **CA-01** (RF-01) `novela nueva demo --idea "x" --capitulos 3 --palabras 9000` crea el árbol de §4 y un `estado.db` con `meta.schema_version`; repetido sobre `demo`, sale con 1 y no modifica ningún fichero
-- [ ] **CA-02** (RF-02) `UPDATE` y `DELETE` sobre cada una de las cinco tablas append-only abortan con el mensaje del trigger
-- [ ] **CA-03** (RF-03) con el lock tomado por otro proceso, `novela aplicar-delta` sale con 3 y `estado.db` no cambia
-- [ ] **CA-04** (RF-04) una excepción inyectada entre escritura y `replace` deja el fichero anterior íntegro; una excepción dentro de la transacción del delta deja `estado.db` en el punto anterior
-- [ ] **CA-05** (RF-05) sobre el fixture de 24 capítulos, `--breve` imprime ≤ 12 líneas e incluye cursor, hilos abiertos y palabras
-- [ ] **CA-06** (RF-06, RF-26) `--json` valida contra `state.schema.json`, y el esquema commiteado coincide con el generado desde Pydantic
-- [ ] **CA-07** (RF-07) `pendiente` sale 0 con capítulos restantes y 1 sobre el fixture terminado, sin stdout
-- [ ] **CA-08** (RF-08) el briefing del `escritor` sobre el fixture coincide byte a byte con el esperado (golden dataset, `validators.md` §4.2)
-- [ ] **CA-09** (RF-09) property-based sobre canons generados: `misterio.md ⊄ briefing(escritor|editor-estilo, *)`, y el comando sale != 0 sin dejar fichero
-- [ ] **CA-10** (RF-10) el briefing del `continuista` contiene literalmente el texto de `canon/misterio.md`
-- [ ] **CA-11** (RF-11) un fixture cuyo ensamblado excede el presupuesto hace salir a `briefing` != 0, y `runs/…/briefings/` queda sin el fichero
-- [ ] **CA-12** (RF-12) con presupuesto ajustado, el briefing degrada en el orden de §6.5 y conserva íntegras las capas de `canon/` y de estado filtrado
-- [ ] **CA-13** (RF-13, RF-27) el primer subcomando de un capítulo crea `manifest.json` con sha y versión de recetas, y `harness.log` contiene ya su línea antes de que el proceso termine
-- [ ] **CA-14** (RF-14) property-based: un capítulo con una pista del plan ausente, con un hilo cerrado sin abrir, o con palabras fuera de rango, nunca pasa `validar`
-- [ ] **CA-15** (RF-14) `mutmut` sobre `gates.py` no deja mutantes vivos en las comparaciones de rango
-- [ ] **CA-16** (RF-15) tras un fallo, `qa/NN-validacion.json` valida contra `qa-informe.schema.json`
-- [ ] **CA-17** (RF-16) un delta que intenta un `UPDATE` sobre `libro_de_hechos` deja `estado.db` byte a byte idéntico
-- [ ] **CA-18** (RF-17) property-based: ids duplicados entre colecciones y cursor decreciente se rechazan
-- [ ] **CA-19** (RF-18) `memoria/resumenes/NN.md` contiene las tres granularidades del delta aplicado
-- [ ] **CA-20** (RF-19) property-based: `aplicar(aplicar(e, d), d) == aplicar(e, d)`
-- [ ] **CA-21** (RF-20) property-based: `restore(checkpoint(e)) == e`
-- [ ] **CA-22** (RF-21) sin `TRACE_TO_LANGFUSE`, `checkpoint` no abre ninguna conexión de red y escribe igual; con `"true"`, el sink recibe los seis scores
-- [ ] **CA-23** (RF-22) sobre un fixture con una pista plantada y no pagada, `auditar` la reporta y sale con 1
-- [ ] **CA-24** (RF-23) `exportar --formato epub` produce un `.epub` que `ebooklib` reabre con el número de capítulos del fixture
-- [ ] **CA-25** (RF-24) `TestClient` recorre los cinco `GET` sobre el fixture con el workspace montado en solo lectura y la suite entera pasa
-- [ ] **CA-26** (RF-25) `GET /novelas/..%2F..%2Fetc/estado` devuelve 422 y no toca el disco
-- [ ] **CA-27** (RNF-01) `validar` sobre un capítulo de 4.000 palabras termina en < 2 s
-- [ ] **CA-28** (RNF-03) un test recorre el árbol de imports del CLI y de la API y falla si aparece cualquier cliente de modelo
-- [ ] **CA-29** (RNF-05) el OpenAPI commiteado coincide con el generado; CI falla si no
-- [ ] **CA-30** (RF-28) property-based sobre canons generados: ningún método público de las seis colecciones append-only del canon reduce su longitud ni altera una entrada existente
-- [ ] **CA-31** (RNF-01) `novela estado --breve` sobre el fixture de 24 capítulos termina en < 500 ms
-- [ ] **CA-32** (RNF-07) un fichero versionado que contenga `LANGFUSE_SECRET_KEY` o equivalente hace fallar el pre-commit
-- [ ] **CA-33** (RF-29) con `NOVELA_RUN_ID` definida, el briefing se escribe bajo ese run; con un valor que no casa el formato, el comando aborta sin crear directorio
-- [ ] **CA-34** (RF-30) el briefing del `continuista` sobre el fixture lleva en su frontmatter el sha256 de `capitulos/NN.md`; el del `escritor`, que no incrusta el capítulo, no lo lleva
-- [ ] **CA-35** (RF-31) `validar` sobre un capítulo válido sale con 0 y deja un `qa/NN-validacion.json` que valida contra `qa-informe.schema.json`, con `veredicto: aprobado`, `hallazgos: []` y el hash del fichero
-- [ ] **CA-36** (RF-32) property-based: con la cadena íntegra el delta aplica. Cambiar cualquier byte de `capitulos/NN.md` después del briefing del `cronista`, o dejar un briefing de revisión con otro hash, hace salir a `aplicar-delta` con 1 y deja `estado.db` byte a byte idéntico
-- [ ] **CA-37** (RF-33) property-based: una cita presente que no es subcadena del cuerpo se rechaza; una que solo difiere en espacios en blanco o en forma de normalización Unicode se acepta; un delta sin citas opcionales aplica
-- [ ] **CA-38** (RF-34) un delta que cierra un hilo que el frontmatter no cierra, o al revés, se rechaza sin escribir nada
-- [ ] **CA-39** (RF-35) tras el `checkpoint` del capítulo N, cambiar un byte de un capítulo M ≤ N hace salir al `briefing` de N+1 con 4 sin escribir el fichero; sin cambios, el briefing se escribe
-- [ ] **CA-40** (RF-36) una ficha fixture se parsea con `secreto` y `coartada_y_cronologia_privada` como campos, y hace round-trip; una ficha con un campo desconocido en el frontmatter se rechaza
+- [x] **CA-01** (RF-01) `novela nueva demo --idea "x" --capitulos 3 --palabras 9000` crea el árbol de §4 y un `estado.db` con `meta.schema_version`; repetido sobre `demo`, sale con 1 y no modifica ningún fichero
+- [x] **CA-02** (RF-02) `UPDATE` y `DELETE` sobre cada una de las cinco tablas append-only abortan con el mensaje del trigger
+- [x] **CA-03** (RF-03) con el lock tomado por otro proceso, `novela aplicar-delta` sale con 3 y `estado.db` no cambia
+- [x] **CA-04** (RF-04) una excepción inyectada entre escritura y `replace` deja el fichero anterior íntegro; una excepción dentro de la transacción del delta deja `estado.db` en el punto anterior
+- [x] **CA-05** (RF-05) sobre el fixture de 24 capítulos, `--breve` imprime ≤ 12 líneas e incluye cursor, hilos abiertos y palabras
+- [x] **CA-06** (RF-06, RF-26) `--json` valida contra `state.schema.json`, y el esquema commiteado coincide con el generado desde Pydantic
+- [x] **CA-07** (RF-07) `pendiente` sale 0 con capítulos restantes y 1 sobre el fixture terminado, sin stdout
+- [x] **CA-08** (RF-08) el briefing del `escritor` sobre el fixture coincide byte a byte con el esperado (golden dataset, `validators.md` §4.2)
+- [x] **CA-09** (RF-09) property-based sobre canons generados: `misterio.md ⊄ briefing(escritor|editor-estilo, *)`, y el comando sale != 0 sin dejar fichero
+- [x] **CA-10** (RF-10) el briefing del `continuista` contiene literalmente el texto de `canon/misterio.md`
+- [x] **CA-11** (RF-11) un fixture cuyo ensamblado excede el presupuesto hace salir a `briefing` != 0, y `runs/…/briefings/` queda sin el fichero
+- [x] **CA-12** (RF-12) con presupuesto ajustado, el briefing degrada en el orden de §6.5 y conserva íntegras las capas de `canon/` y de estado filtrado
+- [x] **CA-13** (RF-13, RF-27) el primer subcomando de un capítulo crea `manifest.json` con sha y versión de recetas, y `harness.log` contiene ya su línea antes de que el proceso termine
+- [x] **CA-14** (RF-14) property-based: un capítulo con una pista del plan ausente, con un hilo cerrado sin abrir, o con palabras fuera de rango, nunca pasa `validar`
+- [x] **CA-15** (RF-14) `mutmut` sobre `gates.py` no deja mutantes vivos en las comparaciones de rango
+- [x] **CA-16** (RF-15) tras un fallo, `qa/NN-validacion.json` valida contra `qa-informe.schema.json`
+- [x] **CA-17** (RF-16) un delta que intenta un `UPDATE` sobre `libro_de_hechos` deja `estado.db` byte a byte idéntico
+- [x] **CA-18** (RF-17) property-based: ids duplicados entre colecciones y cursor decreciente se rechazan
+- [x] **CA-19** (RF-18) `memoria/resumenes/NN.md` contiene las tres granularidades del delta aplicado
+- [x] **CA-20** (RF-19) property-based: `aplicar(aplicar(e, d), d) == aplicar(e, d)`
+- [x] **CA-21** (RF-20) property-based: `restore(checkpoint(e)) == e`
+- [x] **CA-22** (RF-21) sin `TRACE_TO_LANGFUSE`, `checkpoint` no abre ninguna conexión de red y escribe igual; con `"true"`, el sink recibe los seis scores
+- [x] **CA-23** (RF-22) sobre un fixture con una pista plantada y no pagada, `auditar` la reporta y sale con 1
+- [x] **CA-24** (RF-23) `exportar --formato epub` produce un `.epub` que `ebooklib` reabre con el número de capítulos del fixture
+- [x] **CA-25** (RF-24) `TestClient` recorre los cinco `GET` sobre el fixture con el workspace montado en solo lectura y la suite entera pasa
+- [x] **CA-26** (RF-25) `GET /novelas/..%2F..%2Fetc/estado` devuelve 422 y no toca el disco
+- [x] **CA-27** (RNF-01) `validar` sobre un capítulo de 4.000 palabras termina en < 2 s
+- [x] **CA-28** (RNF-03) un test recorre el árbol de imports del CLI y de la API y falla si aparece cualquier cliente de modelo
+- [x] **CA-29** (RNF-05) el OpenAPI commiteado coincide con el generado; CI falla si no
+- [x] **CA-30** (RF-28) property-based sobre canons generados: ningún método público de las seis colecciones append-only del canon reduce su longitud ni altera una entrada existente
+- [x] **CA-31** (RNF-01) `novela estado --breve` sobre el fixture de 24 capítulos termina en < 500 ms
+- [x] **CA-32** (RNF-07) un fichero versionado que contenga `LANGFUSE_SECRET_KEY` o equivalente hace fallar el pre-commit
+- [x] **CA-33** (RF-29) con `NOVELA_RUN_ID` definida, el briefing se escribe bajo ese run; con un valor que no casa el formato, el comando aborta sin crear directorio
+- [x] **CA-34** (RF-30) el briefing del `continuista` sobre el fixture lleva en su frontmatter el sha256 de `capitulos/NN.md`; el del `escritor`, que no incrusta el capítulo, no lo lleva
+- [x] **CA-35** (RF-31) `validar` sobre un capítulo válido sale con 0 y deja un `qa/NN-validacion.json` que valida contra `qa-informe.schema.json`, con `veredicto: aprobado`, `hallazgos: []` y el hash del fichero
+- [x] **CA-36** (RF-32) property-based: con la cadena íntegra el delta aplica. Cambiar cualquier byte de `capitulos/NN.md` después del briefing del `cronista`, o dejar un briefing de revisión con otro hash, hace salir a `aplicar-delta` con 1 y deja `estado.db` byte a byte idéntico
+- [x] **CA-37** (RF-33) property-based: una cita presente que no es subcadena del cuerpo se rechaza; una que solo difiere en espacios en blanco o en forma de normalización Unicode se acepta; un delta sin citas opcionales aplica
+- [x] **CA-38** (RF-34) un delta que cierra un hilo que el frontmatter no cierra, o al revés, se rechaza sin escribir nada
+- [x] **CA-39** (RF-35) tras el `checkpoint` del capítulo N, cambiar un byte de un capítulo M ≤ N hace salir al `briefing` de N+1 con 4 sin escribir el fichero; sin cambios, el briefing se escribe
+- [x] **CA-40** (RF-36) una ficha fixture se parsea con `secreto` y `coartada_y_cronologia_privada` como campos, y hace round-trip; una ficha con un campo desconocido en el frontmatter se rechaza
 
 ## 12. Trazabilidad
 
 | Requisito | Criterio | Test | Estado |
 |---|---|---|---|
-| RF-01 | CA-01 | `novela/slices/nueva/test_nueva.py::test_crea_arbol_y_base` | pendiente |
-| RF-02 | CA-02 | `novela/plataforma/test_esquema.py::test_append_only_por_trigger` | pendiente |
-| RF-03 | CA-03 | `novela/plataforma/test_lock.py::test_lock_ocupado_sale_3` | pendiente |
-| RF-04 | CA-04 | `novela/plataforma/test_atomic.py::test_corte_deja_fichero_anterior` | pendiente |
-| RF-05 | CA-05 | `novela/slices/estado/test_estado.py::test_breve_acotado` | pendiente |
-| RF-06, RF-26 | CA-06 | `tests/test_contratos.py::test_state_schema_al_dia` | pendiente |
-| RF-07 | CA-07 | `novela/slices/estado/test_estado.py::test_pendiente_codigos` | pendiente |
-| RF-08 | CA-08 | `novela/slices/briefing/test_briefing.py::test_golden_escritor` | pendiente |
-| RF-09 | CA-09 | `novela/slices/briefing/test_briefing.py::test_misterio_nunca_en_briefing` | pendiente |
-| RF-10 | CA-10 | `novela/slices/briefing/test_briefing.py::test_misterio_incrustado` | pendiente |
-| RF-11 | CA-11 | `novela/slices/briefing/test_briefing.py::test_presupuesto_excedido_falla` | pendiente |
-| RF-12 | CA-12 | `novela/slices/briefing/test_assemble.py::test_orden_de_degradacion` | pendiente |
-| RF-13, RF-27 | CA-13 | `novela/plataforma/test_run.py::test_manifiesto_y_log` | pendiente |
-| RF-14 | CA-14, CA-15 | `novela/slices/validacion/test_gates.py::test_gates_property` | pendiente |
-| RF-15 | CA-16 | `novela/slices/validacion/test_validacion.py::test_informe_valida` | pendiente |
-| RF-16 | CA-17 | `novela/slices/delta/test_delta.py::test_transaccion_todo_o_nada` | pendiente |
-| RF-17 | CA-18 | `novela/slices/delta/test_violaciones.py::test_ids_y_cursor_property` | pendiente |
-| RF-18 | CA-19 | `novela/slices/delta/test_delta.py::test_renderiza_memoria` | pendiente |
-| RF-19 | CA-20 | `novela/slices/delta/test_apply.py::test_idempotencia_property` | pendiente |
-| RF-20 | CA-21 | `novela/slices/checkpoint/test_checkpoint.py::test_roundtrip_property` | pendiente |
-| RF-21 | CA-22 | `novela/plataforma/test_langfuse.py::test_sink_noop_y_scores` | pendiente |
-| RF-22 | CA-23 | `novela/slices/auditoria/test_auditoria.py::test_pista_huerfana` | pendiente |
-| RF-23 | CA-24 | `novela/slices/export/test_export.py::test_epub_reabrible` | pendiente |
-| RF-24 | CA-25 | `tests/test_api.py::test_cinco_get_en_solo_lectura` | pendiente |
-| RF-25 | CA-26 | `tests/test_api.py::test_path_traversal` | pendiente |
-| RNF-01 | CA-27 | `novela/slices/validacion/test_validacion.py::test_rendimiento` | pendiente |
-| RNF-03 | CA-28 | `tests/test_contratos.py::test_sin_clientes_de_modelo` | pendiente |
-| RNF-05 | CA-29 | `tests/test_contratos.py::test_openapi_al_dia` | pendiente |
-| RF-28 | CA-30 | `novela/dominio/test_canon.py::test_append_only_sin_trigger` | pendiente |
-| RF-29 | CA-33 | `novela/plataforma/test_run.py::test_run_id_de_entorno` | pendiente |
-| RF-30 | CA-34 | `novela/slices/briefing/test_briefing.py::test_hash_del_capitulo_incrustado` | pendiente |
-| RF-31 | CA-35 | `novela/slices/validacion/test_validacion.py::test_informe_al_pasar` | pendiente |
-| RF-32 | CA-36 | `novela/slices/delta/test_custodia.py::test_cadena_property` | pendiente |
-| RF-33 | CA-37 | `novela/slices/delta/test_violaciones.py::test_citas_property` | pendiente |
-| RF-34 | CA-38 | `novela/slices/delta/test_violaciones.py::test_hilos_contra_frontmatter` | pendiente |
-| RF-35 | CA-39 | `novela/slices/briefing/test_briefing.py::test_sello_capitulos_cerrados` | pendiente |
-| RF-36 | CA-40 | `novela/dominio/test_canon.py::test_ficha_personaje_estructurada` | pendiente |
-| RNF-01 | CA-31 | `novela/slices/estado/test_estado.py::test_breve_rendimiento` | pendiente |
-| RNF-02 | CA-05, CA-11 | `novela/slices/estado/test_estado.py::test_breve_acotado`, `briefing/test_briefing.py::test_presupuesto_excedido_falla` | pendiente |
-| RNF-04 | CA-04, CA-17 | `novela/plataforma/test_atomic.py::test_corte_deja_fichero_anterior`, `slices/delta/test_delta.py::test_transaccion_todo_o_nada` | pendiente |
+| RF-01 | CA-01 | `novela/slices/nueva/test_nueva.py::test_crea_arbol_y_base` | verde |
+| RF-02 | CA-02 | `novela/plataforma/test_esquema.py::test_append_only_por_trigger` | verde |
+| RF-03 | CA-03 | `novela/plataforma/test_lock.py::test_lock_ocupado_sale_3` | verde |
+| RF-04 | CA-04 | `novela/plataforma/test_atomic.py::test_corte_deja_fichero_anterior` | verde |
+| RF-05 | CA-05 | `novela/slices/estado/test_estado.py::test_breve_acotado` | verde |
+| RF-06, RF-26 | CA-06 | `tests/test_contratos.py::test_state_schema_al_dia` | verde |
+| RF-07 | CA-07 | `novela/slices/estado/test_estado.py::test_pendiente_codigos` | verde |
+| RF-08 | CA-08 | `novela/slices/briefing/test_briefing.py::test_golden_escritor` | verde |
+| RF-09 | CA-09 | `novela/slices/briefing/test_briefing.py::test_misterio_nunca_en_briefing` | verde |
+| RF-10 | CA-10 | `novela/slices/briefing/test_briefing.py::test_misterio_incrustado` | verde |
+| RF-11 | CA-11 | `novela/slices/briefing/test_briefing.py::test_presupuesto_excedido_falla` | verde |
+| RF-12 | CA-12 | `novela/slices/briefing/test_assemble.py::test_orden_de_degradacion` | verde |
+| RF-13, RF-27 | CA-13 | `novela/plataforma/test_run.py::test_manifiesto_y_log` | verde |
+| RF-14 | CA-14, CA-15 | `novela/slices/validacion/test_gates.py::test_gates_property` | verde |
+| RF-15 | CA-16 | `novela/slices/validacion/test_validacion.py::test_informe_valida` | verde |
+| RF-16 | CA-17 | `novela/slices/delta/test_delta.py::test_transaccion_todo_o_nada` | verde |
+| RF-17 | CA-18 | `novela/slices/delta/test_violaciones.py::test_ids_y_cursor_property` | verde |
+| RF-18 | CA-19 | `novela/slices/delta/test_delta.py::test_renderiza_memoria` | verde |
+| RF-19 | CA-20 | `novela/slices/delta/test_apply.py::test_idempotencia_property` | verde |
+| RF-20 | CA-21 | `novela/slices/checkpoint/test_checkpoint.py::test_roundtrip_property` | verde |
+| RF-21 | CA-22 | `novela/plataforma/test_langfuse.py::test_sink_noop_y_scores` | verde |
+| RF-22 | CA-23 | `novela/slices/auditoria/test_auditoria.py::test_pista_huerfana` | verde |
+| RF-23 | CA-24 | `novela/slices/export/test_export.py::test_epub_reabrible` | verde |
+| RF-24 | CA-25 | `tests/test_api.py::test_cinco_get_en_solo_lectura` | verde |
+| RF-25 | CA-26 | `tests/test_api.py::test_path_traversal` | verde |
+| RNF-01 | CA-27 | `novela/slices/validacion/test_validacion.py::test_rendimiento` | verde |
+| RNF-03 | CA-28 | `tests/test_contratos.py::test_sin_clientes_de_modelo` | verde |
+| RNF-05 | CA-29 | `tests/test_contratos.py::test_openapi_al_dia` | verde |
+| RF-28 | CA-30 | `novela/dominio/test_canon.py::test_append_only_sin_trigger` | verde |
+| RF-29 | CA-33 | `novela/plataforma/test_run.py::test_run_id_de_entorno` | verde |
+| RF-30 | CA-34 | `novela/slices/briefing/test_briefing.py::test_hash_del_capitulo_incrustado` | verde |
+| RF-31 | CA-35 | `novela/slices/validacion/test_validacion.py::test_informe_al_pasar` | verde |
+| RF-32 | CA-36 | `novela/slices/delta/test_custodia.py::test_cadena_property` | verde |
+| RF-33 | CA-37 | `novela/slices/delta/test_violaciones.py::test_citas_property` | verde |
+| RF-34 | CA-38 | `novela/slices/delta/test_violaciones.py::test_hilos_contra_frontmatter` | verde |
+| RF-35 | CA-39 | `novela/slices/briefing/test_briefing.py::test_sello_capitulos_cerrados` | verde |
+| RF-36 | CA-40 | `novela/dominio/test_canon.py::test_ficha_personaje_estructurada` | verde |
+| RNF-01 | CA-31 | `novela/slices/estado/test_estado.py::test_breve_rendimiento` | verde |
+| RNF-02 | CA-05, CA-11 | `novela/slices/estado/test_estado.py::test_breve_acotado`, `briefing/test_briefing.py::test_presupuesto_excedido_falla` | verde |
+| RNF-04 | CA-04, CA-17 | `novela/plataforma/test_atomic.py::test_corte_deja_fichero_anterior`, `slices/delta/test_delta.py::test_transaccion_todo_o_nada` | verde |
 | RNF-06 | — | No aplica: no hay ninguna novela empezada | cerrado |
-| RNF-07 | CA-26, CA-32 | `tests/test_api.py::test_path_traversal`, `tests/test_contratos.py::test_sin_claves_versionadas` | pendiente |
+| RNF-07 | CA-26, CA-32 | `tests/test_api.py::test_path_traversal`, `tests/test_contratos.py::test_sin_claves_versionadas` | verde |
 
 ## 13. Verificación
 
@@ -440,8 +440,8 @@ Métodos de `docs/validators.md` que cubren este cambio:
 ## 16. Preguntas abiertas
 
 Ninguna. Las cinco que esta spec tuvo en `borrador` se cerraron al pasar a `aceptada`; el
-razonamiento de cada una está en `docs/implementation-plans/0001-backend/decisiones-abiertas.md`
-hasta que la spec se implemente.
+razonamiento de cada una estaba en `docs/implementation-plans/0001-backend/decisiones-abiertas.md`,
+que se borró con el plan al implementarse la spec: sigue en el historial, en el commit `9ed5f0b`.
 
 | Pregunta | Decisión |
 |---|---|
