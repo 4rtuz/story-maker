@@ -190,7 +190,7 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │
 ├── .claude/                      # compartido; vive en la raíz del monorepo
 │   ├── settings.json             # permisos y registro del hook; ni claves ni plugins, ver §7.1
-│   ├── settings.local.json       # claves de Langfuse — en .gitignore
+│   ├── settings.local.json       # solo enabledPlugins, el de Langfuse — en .gitignore
 │   ├── agents/                   # un fichero por subagente
 │   │   ├── arquitecto.md
 │   │   ├── trazador.md
@@ -774,9 +774,9 @@ claude plugin marketplace add langfuse/Claude-Observability-Plugin
 claude plugin install langfuse-observability@langfuse-observability
 ```
 
-La alternativa manual es un script en `~/.claude/hooks/langfuse_hook.py` registrado como hook `Stop` en `~/.claude/settings.json`, con las claves en el `settings.json` del proyecto. El trazado es opt-in por proyecto mediante `TRACE_TO_LANGFUSE`, que debe ser exactamente la cadena `"true"`.
+El plugin está instalado en el ámbito de usuario y se habilita solo para el proyecto, en `.claude/settings.local.json` (`"enabledPlugins": {"langfuse-observability@langfuse-observability": true}`), que está en `.gitignore`: el opt-in es estar habilitado. Sus hooks son `Stop` y `SessionEnd`, y su log está en `~/.claude/state/langfuse_hook.log`. Necesita `uv` en el PATH, porque si no cae a `python3`, que en Windows puede ser el alias de la Microsoft Store. El bucle exporta `CC_LANGFUSE_TRACE_TAGS=<slug>`, que el plugin lee, para filtrar las trazas por novela. Que el plugin cargue con `--setting-sources project,local`, que deja fuera el ámbito de usuario donde está instalado, no se ha comprobado todavía: es la primera comprobación de la novela de humo (spec 0003, CA-10).
 
-El fichero con las claves va en `.gitignore`.
+`TRACE_TO_LANGFUSE` ya no habilita el trazado. Lo sigue leyendo el `ScoreSink` de `novela checkpoint` (§10.5), junto con las claves, del entorno del proceso: tienen que estar en el entorno de usuario, porque `novela comprobar-entorno` no admite `env` en `settings.local.json` (`validators.md` §4.17, F-54). Ningún fichero versionado lleva claves.
 
 ### 10.2 Qué se traza realmente
 
@@ -795,7 +795,7 @@ Esto **no** coincide con el mapa ideal de la rama 9 de la ontología (`session` 
 - **Cada delegación a un subagente aparece como un span de herramienta `Task`** anidado bajo la generación que lo invocó. Es el equivalente práctico del «span por agente».
 - **Agrupación por novela** mediante etiquetas: el procedimiento añade `slug` y `run_id` al primer prompt del turno, de modo que la búsqueda a texto completo y los filtros reconstruyan la ejecución completa.
 
-Merece la pena verificar si tu instalación permite fijar el `session_id` desde el entorno; si es así, usar `<slug>-<run_id>` y recuperar el mapa original de la ontología sin más.
+El `session_id` se fija desde fuera: el bucle genera un UUID por sesión, lo pasa como `claude --session-id` y lo exporta como `NOVELA_SESSION_ID`, y `novela` lo escribe en cada línea de `harness.log` (`sesion=<uuid>`). Cada paso del log enlaza así con su traza.
 
 ### 10.3 Lo que el trazado no cubre
 

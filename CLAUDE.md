@@ -75,11 +75,11 @@ claude --session-id "$NOVELA_SESSION_ID" --setting-sources project,local --model
 ### Hooks
 
 - `PreToolUse` deniega cualquier escritura bajo `estado/` salvo `estado/deltas/NN.json`, a cada rol fuera de sus salidas, a la sesión principal en el workspace salvo `intervencion.md`, y en el bucle, cualquier subagente que no sea de los siete. Si salta, algún agente intentó escribir donde no debía: no lo silencies, corrige el contrato del agente.
-- El hook `Stop` envía las trazas a Langfuse. Si no aparecen, revisa `~/.claude/state/langfuse_hook.log` antes de tocar nada más.
+- El trazado a Langfuse lo hacen los hooks `Stop` y `SessionEnd` del plugin `langfuse-observability`. Si no aparecen trazas, revisa `~/.claude/state/langfuse_hook.log` antes de tocar nada más.
 
 ### Claves y trazado
 
-`TRACE_TO_LANGFUSE` y las claves viven en `.claude/settings.local.json`, que está en `.gitignore`. No las escribas en `.claude/settings.json`, ni en el código, ni en un briefing.
+El plugin se habilita solo en `.claude/settings.local.json` (`enabledPlugins`, nada más), que está en `.gitignore`; el opt-in es tenerlo habilitado, y sus claves las guarda él en el llavero del sistema. Los scores de `novela checkpoint` leen `TRACE_TO_LANGFUSE` y las claves del entorno de usuario. No las escribas en `.claude/settings.json`, ni en el código, ni en un briefing.
 
 El trazado no captura el contexto ensamblado, así que los ficheros de `runs/<run_id>/briefings/` son el único registro de qué vio cada agente. No los borres al limpiar.
 

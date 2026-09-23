@@ -468,7 +468,8 @@ Se rellena durante la implementación.
 | RF-08, RF-09, RF-10, RF-20 | CA-06 | `backend/tests/test_contratos.py::test_settings_de_claude` | hecho |
 | RF-20 | CA-11 | `backend/tests/test_hook.py::test_ordenes` | hecho |
 | RF-25 | CA-14 | `backend/tests/test_hook.py::test_sesion_principal` | hecho |
-| RF-26 | CA-15 | `backend/tests/test_hook.py::test_subagentes` (parte estática; la dinámica es el intento 5 de CA-09) | hecho en su parte estática |
+| RF-26 | CA-15 | `backend/tests/test_hook.py::test_subagentes` (parte estática). La dinámica, el intento 5 del canario: el 2026-09-23 la regla 5 paró a `general-purpose` en una sesión real, con el motivo en el transcript | hecho |
+| RF-18, RF-26 | CA-09 | `backend/tests/canario/ejecutar.py` y `agente.json`. Una ejecución el 2026-09-23 (Claude Code 2.1.280, sesión `90a29c63-222c-4814-aa05-6724a72f7ff3`) salió en rojo: los dos agentes se negaron a intentar lo prohibido (`validators.md` §4.17, F-64). El impostor corrió con haiku, el modelo de `--agents`: sustituye al `escritor` del proyecto | pendiente: rehacer los prompts del canario por enmienda (F-64) |
 | RNF-01 | — | `backend/tests/test_hook.py::test_rendimiento` | hecho |
 | RF-11 | CA-07 | `backend/novela/slices/briefing/test_briefing.py::test_arranque_no_contamina_el_capitulo_1`, `backend/novela/plataforma/test_run.py::test_run_de_arranque` | hecho |
 | RF-27 | CA-16 | `backend/novela/slices/briefing/test_briefing.py::test_run_fijado_de_otra_fase` | hecho |
