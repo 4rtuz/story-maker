@@ -664,6 +664,7 @@ Slash commands, en `.claude/commands/`:
 Herramientas Bash, invocadas por los anteriores o por ti directamente:
 
 ```
+novela nueva <slug> --idea "..."   # árbol del workspace, config.yaml y estado.db
 novela estado <slug> --breve
 novela estado <slug> --json        # estado completo serializado, para inspección
 novela briefing <slug> <cap> <agente>

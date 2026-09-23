@@ -20,6 +20,9 @@ from novela.dominio.config import Config
 from novela.dominio.ids import SLUG_PATRON, nn
 from novela.plataforma import atomic, lock
 
+# backend/config/: default.yaml y recipes.yaml, del harness y no del workspace.
+CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
+
 
 class SlugInvalido(ValueError):
     """El slug no casa `^[a-z0-9-]+$`. Es una cadena de fuera que iba a convertirse en ruta."""
