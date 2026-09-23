@@ -6,7 +6,8 @@ que su briefing le da.
 """
 
 import math
-from collections.abc import Mapping
+import re
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from typing import Any
@@ -25,9 +26,19 @@ from novela.slices.briefing.recipes import Receta
 # architecture.md §6.5: 3,5 caracteres por token para español, tratado como cota superior.
 CARACTERES_POR_TOKEN = 3.5
 
+# ponytail: el guardarraíl compara texto, hoja a hoja y frase a frase, desde 20 caracteres. No ve
+# la paráfrasis (spec 0001 §13); eso es de las sondas ciegas de la spec 0002.
+MIN_FRAGMENTO = 20
+_ID = re.compile(r"[a-z]{1,3}-[a-z0-9-]+")
+_CORTE_DE_FRASE = re.compile(r"(?<=[.!?…])\s+|\n+")
+
 
 class FuenteAusente(Exception):
     """La receta nombra algo que el workspace no tiene."""
+
+
+class FugaDelSecreto(Exception):
+    """El briefing de un agente que excluye canon/misterio contiene texto de ese fichero."""
 
 
 @dataclass(frozen=True)
@@ -48,6 +59,10 @@ class Fuentes:
     capitulo_actual: str | None
     sha_actual: str | None  # sha256 de capitulos/NN.md en disco
     resumenes: Mapping[int, Memoria]  # capítulos anteriores
+    digitos: int = 2  # 3 si la novela pasa de 99 capítulos, en todo el workspace
+
+    def nn(self, capitulo: int) -> str:
+        return f"{capitulo:0{self.digitos}d}"
 
 
 @dataclass(frozen=True)
@@ -71,6 +86,9 @@ class _Ajuste:
 
 def estimar_tokens(texto: str) -> int:
     return math.ceil(len(texto) / CARACTERES_POR_TOKEN)
+
+
+# --- capas -----------------------------------------------------------------------------------
 
 
 def _md(ruta: str) -> str:
@@ -108,8 +126,7 @@ def _yaml(datos: Any) -> str:
 def _presentes(f: Fuentes) -> list[str]:
     if f.ficha is None:
         return sorted(f.personajes)
-    vistos = dict.fromkeys(p for e in f.ficha.escenas for p in e.personajes)
-    return list(vistos)
+    return list(dict.fromkeys(p for e in f.ficha.escenas for p in e.personajes))
 
 
 def _con_dialogo(f: Fuentes) -> set[str]:
@@ -117,14 +134,14 @@ def _con_dialogo(f: Fuentes) -> set[str]:
 
 
 def _estado(selector: str, f: Fuentes) -> Any:
-    e = f.estado.model_dump(mode="json")
-    if selector == "hilos_abiertos":
-        return [h for h in e["hilos"] if h["estado"] == "abierto"]
     if selector == "coartadas":
         return {
             id_: [m.model_dump(mode="json") for m in ficha.coartada_y_cronologia_privada]
             for id_, (ficha, _) in sorted(f.personajes.items())
         }
+    e = f.estado.model_dump(mode="json")
+    if selector == "hilos_abiertos":
+        return [h for h in e["hilos"] if h["estado"] == "abierto"]
     return e[selector]
 
 
@@ -146,8 +163,8 @@ def _resumenes(f: Fuentes, capitulos: range, granularidad: str) -> str:
     if faltan:
         raise FuenteAusente(f"faltan resúmenes de memoria/ de los capítulos {faltan}")
     if granularidad == "una_linea":
-        return "\n".join(f"- {c:02d}: {f.resumenes[c].linea}" for c in capitulos)
-    return "\n\n".join(f"### Capítulo {c:02d}\n\n{f.resumenes[c].parrafo}" for c in capitulos)
+        return "\n".join(f"- {f.nn(c)}: {f.resumenes[c].linea}" for c in capitulos)
+    return "\n\n".join(f"### Capítulo {f.nn(c)}\n\n{f.resumenes[c].parrafo}" for c in capitulos)
 
 
 def _capas(receta: Receta, f: Fuentes, ajuste: _Ajuste) -> list[str]:
@@ -173,10 +190,9 @@ def _capas(receta: Receta, f: Fuentes, ajuste: _Ajuste) -> list[str]:
             case recipes.Inmediata():
                 if n > 1:
                     if f.capitulo_anterior is None:
-                        raise FuenteAusente(f"falta capitulos/{n - 1:02d}.md")
-                    secciones.append(
-                        _seccion(f"inmediata · capítulo {n - 1:02d}", f.capitulo_anterior)
-                    )
+                        raise FuenteAusente(f"falta capitulos/{f.nn(n - 1)}.md")
+                    titulo = f"inmediata · capítulo {f.nn(n - 1)}"
+                    secciones.append(_seccion(titulo, f.capitulo_anterior))
             case recipes.Reciente(reciente=r):
                 capitulos = range(max(1, n - r.n), n)
                 gran = "una_linea" if ajuste.reciente_a_linea else r.granularidad
@@ -186,32 +202,97 @@ def _capas(receta: Receta, f: Fuentes, ajuste: _Ajuste) -> list[str]:
                 hasta = n - (reciente.n if reciente else 0)
                 capitulos = range(max(r.desde, 1) + ajuste.remotas_recortadas, max(1, hasta))
                 if capitulos:
-                    secciones.append(
-                        _seccion(
-                            f"remota · {r.granularidad}", _resumenes(f, capitulos, r.granularidad)
-                        )
-                    )
+                    texto = _resumenes(f, capitulos, r.granularidad)
+                    secciones.append(_seccion(f"remota · {r.granularidad}", texto))
             case recipes.Plan():
                 if f.ficha_texto is None:
-                    raise FuenteAusente(f"falta plan/capitulos/{n:02d}.md")
-                secciones.append(
-                    _seccion(f"plan · capítulo {n:02d}", f.ficha_texto + _pistas_del_capitulo(f))
-                )
+                    raise FuenteAusente(f"falta plan/capitulos/{f.nn(n)}.md")
+                texto = f.ficha_texto + _pistas_del_capitulo(f)
+                secciones.append(_seccion(f"plan · capítulo {f.nn(n)}", texto))
             case recipes.Variacion():
                 if f.ficha is None:
-                    raise FuenteAusente(f"falta plan/capitulos/{n:02d}.md")
-                secciones.append(
-                    _seccion("variacion · restricción de apertura", f.ficha.restriccion_de_apertura)
-                )
+                    raise FuenteAusente(f"falta plan/capitulos/{f.nn(n)}.md")
+                apertura = f.ficha.restriccion_de_apertura
+                secciones.append(_seccion("variacion · restricción de apertura", apertura))
             case recipes.Objetivo():
                 if f.capitulo_actual is None:
-                    raise FuenteAusente(f"falta capitulos/{n:02d}.md")
-                secciones.append(_seccion(f"objetivo · capítulo {n:02d}", f.capitulo_actual))
+                    raise FuenteAusente(f"falta capitulos/{f.nn(n)}.md")
+                secciones.append(_seccion(f"objetivo · capítulo {f.nn(n)}", f.capitulo_actual))
     return secciones
 
 
+# --- guardarraíl del secreto (invariante 3) --------------------------------------------------
+
+
+def _hojas(valor: object) -> Iterator[str]:
+    if isinstance(valor, str):
+        yield valor
+    elif isinstance(valor, dict):
+        for v in valor.values():
+            yield from _hojas(v)
+    elif isinstance(valor, list):
+        for v in valor:
+            yield from _hojas(v)
+
+
+def _permitidos(f: Fuentes, misterio: Misterio) -> set[str]:
+    """Lo del misterio que este capítulo puede tener delante: las pistas ya plantadas o que su
+    ficha manda plantar o pagar, y lo ya revelado. Todo eso está, o va a estar, en el texto."""
+    n, ficha = f.capitulo, f.ficha
+    de_la_ficha = set(ficha.pistas_a_plantar + ficha.pistas_a_pagar) if ficha else set()
+    permitidos = {
+        p.contenido for p in misterio.pistas if p.capitulo_plantado <= n or p.id in de_la_ficha
+    }
+    for rev in misterio.revelaciones:
+        if rev.capitulo_previsto < n:
+            permitidos.add(rev.contenido)
+    for giro in misterio.giros:
+        if giro.capitulo_previsto < n:
+            permitidos |= {giro.contenido, giro.que_creia_el_lector_antes}
+    return permitidos
+
+
+def _fragmentos(f: Fuentes, misterio: Misterio, permitidos: set[str]) -> set[str]:
+    cuerpo = frontmatter.partir(f.misterio_texto)[1] if f.misterio_texto else ""
+    fragmentos: set[str] = set()
+    for hoja in (*_hojas(misterio.model_dump(mode="json")), cuerpo):
+        if hoja in permitidos or _ID.fullmatch(hoja):
+            continue
+        for trozo in (hoja, *_CORTE_DE_FRASE.split(hoja)):
+            trozo = trozo.strip()
+            if len(trozo) >= MIN_FRAGMENTO and trozo not in permitidos:
+                fragmentos.add(trozo)
+    return fragmentos
+
+
+def _vigilar_el_secreto(receta: Receta, f: Fuentes, secciones: list[str]) -> None:
+    """Se mira el ensamblado completo, antes de degradar: una fuga en una capa que luego se
+    recorta sigue siendo una fuga del workspace."""
+    excluye = "canon/misterio" in {e.removesuffix(".md") for e in receta.excluir}
+    if not excluye or f.misterio is None:
+        return
+    permitidos = _permitidos(f, f.misterio)
+    fragmentos = _fragmentos(f, f.misterio, permitidos)
+    por_longitud = sorted(permitidos, key=len, reverse=True)
+    for seccion in secciones:
+        resto = seccion
+        for texto in por_longitud:
+            resto = resto.replace(texto, " ")
+        if any(fragmento in resto for fragmento in fragmentos):
+            # El mensaje llega al orquestador: nombra la capa, nunca el texto filtrado.
+            titulo = seccion.splitlines()[0].removeprefix("## ")
+            raise FugaDelSecreto(
+                f"el briefing de {f.agente} trae texto de canon/misterio.md en «{titulo}»"
+            )
+
+
+# --- ensamblado ------------------------------------------------------------------------------
+
+
 def ensamblar(receta: Receta, f: Fuentes) -> Briefing:
-    cuerpo = "\n".join(_capas(receta, f, _Ajuste()))
+    secciones = _capas(receta, f, _Ajuste())
+    _vigilar_el_secreto(receta, f, secciones)
+    cuerpo = "\n".join(secciones)
     incrusta_capitulo = any(isinstance(c, recipes.Objetivo) for c in receta.capas)
     meta = FrontmatterBriefing(
         agente=f.agente,
