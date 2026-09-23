@@ -535,7 +535,7 @@ Se rellena durante la implementación.
 | RF-20 | CA-11 | `backend/tests/test_hook.py::test_ordenes` | hecho |
 | RF-25 | CA-14 | `backend/tests/test_hook.py::test_sesion_principal` | hecho |
 | RF-26 | CA-15 | `backend/tests/test_hook.py::test_subagentes` (parte estática). La dinámica, el intento 5 del canario: el 2026-09-23 la regla 5 paró a `general-purpose` en una sesión real, con el motivo en el transcript | hecho |
-| RF-18, RF-26 | CA-09 | `backend/tests/canario/ejecutar.py` y `agente.json`. Una ejecución el 2026-09-23 (Claude Code 2.1.280, sesión `90a29c63-222c-4814-aa05-6724a72f7ff3`) salió en rojo: los dos agentes se negaron a intentar lo prohibido (`validators.md` §4.17, F-64). El impostor corrió con haiku, el modelo de `--agents`: sustituye al `escritor` del proyecto | pendiente: los prompts de la v0.4 (RF-35) y una ejecución concluyente |
+| RF-18, RF-26 | CA-09 | `backend/tests/canario/ejecutar.py` y `agente.json`. Una ejecución el 2026-09-23 (Claude Code 2.1.280, sesión `90a29c63-222c-4814-aa05-6724a72f7ff3`) salió en rojo: los dos agentes se negaron a intentar lo prohibido (`validators.md` §4.17, F-64). El impostor corrió con haiku, el modelo de `--agents`: sustituye al `escritor` del proyecto | pendiente: los prompts de la v0.4 (RF-35) y el veredicto por `tool_use` (RF-36) están commiteados; falta una ejecución concluyente |
 | RNF-01 | — | `backend/tests/test_hook.py::test_rendimiento` | hecho |
 | RF-11 | CA-07 | `backend/novela/slices/briefing/test_briefing.py::test_arranque_no_contamina_el_capitulo_1`, `backend/novela/plataforma/test_run.py::test_run_de_arranque` | hecho |
 | RF-27 | CA-16 | `backend/novela/slices/briefing/test_briefing.py::test_run_fijado_de_otra_fase` | hecho |
@@ -590,6 +590,15 @@ Lo que la implementación encontró y la spec no decía. Los fallos nuevos está
 - **Detección del workspace en el hook.** El hook mira todos los segmentos `novelas/<slug>/` de la ruta, no el primero, para que un antecesor llamado `novelas/` no esconda el estado. Tiene un techo: con el repo bajo un directorio `novelas/`, la regla 3 tomaría el repo entero por workspace. Deniega además los segmentos hechos solo de puntos y espacios, salvo `.` y `..`, porque Win32 convierte `.. ` en `..`.
 - **F-42 en la lectura en seco.** El arranque y el capítulo 1 cayeron en el mismo minuto, y `briefing 1 escritor` salió con 2, como prevé la spec. En una sesión real los separa lo que tardan el `arquitecto` y el `trazador`.
 - **`.claude/settings.json` ya existía sin versionar**, con plugins de desarrollo. Esos plugins pasan al ámbito de usuario (P-11) y el fichero queda con `permissions` y `hooks`.
+- **La suite leería el `.env` real** (v0.4). Con RF-32, `checkpoint` lee `RAIZ_REPO/.env`, y la plantilla de sesión de `conftest.py` cierra 27 capítulos con el CLI real. Con `TRACE_TO_LANGFUSE=true` en ese fichero, `pytest` emitiría scores con las claves del operador. Un fixture de sesión apunta `RAIZ_REPO` a un directorio vacío y quita `TRACE_TO_LANGFUSE` y `LANGFUSE_*` del entorno. Los tests que los necesitan fijan los suyos.
+- **F-27, propuesto.** La regla 4 del hook actúa también en las sesiones de desarrollo: denegó un `git commit` cuyo mensaje nombraba la ruta del misterio. Es un falso positivo que no debilita ninguna barrera. Se esquiva pasando el mensaje por fichero (`git commit -F`).
+- **Máquina sin preparar, el 2026-09-24.** En la máquina de esta sesión faltaban los tres pasos de §5.6 y el plugin:
+  - `uv` no estaba instalado; se instaló con `pip` en el `Scripts` de Python 3.12, que ya está en el PATH;
+  - `novela` no está en el PATH;
+  - `hasTrustDialogAccepted` vale `false` para el repo;
+  - no hay `settings.local.json`, y el plugin de Langfuse no está instalado.
+
+  `comprobar-entorno --limpio` sale con 0 igualmente, porque no mira la confianza ni el plugin. El canario y la novela de humo no se lanzaron: sin confianza, `claude -p` ignora el `allow`, y el canario fallaría por la razón equivocada.
 - **Riesgos del plan.** El 2 (el plugin con `--setting-sources project,local`) sigue sin comprobar. El 3 está resuelto: `--agents` sustituye al `escritor` del proyecto, porque el impostor corrió con haiku. El 4 también: el hook hereda el entorno de `claude`, porque la regla 5 paró a `general-purpose` en una sesión real. El 5 (la memoria de usuario con `--setting-sources`) sigue sin comprobar, a la espera de CA-19.
 
 ### Baseline

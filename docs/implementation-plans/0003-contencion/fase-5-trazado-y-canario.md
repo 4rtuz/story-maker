@@ -13,8 +13,8 @@ canario en verde anotada en la spec.
 **Cierra**: RF-17, RF-18, RF-35, RF-36. CA-09, CA-23, y la parte dinámica de CA-15. Parte de
 RNF-05.
 
-**Estado a 2026-09-23**: 5.1 y 5.2 hechas; 5.1 sin la traza comprobada. La primera ejecución
-(5.3) salió en rojo por F-64. La tarea 5.5, de la v0.4, va antes de repetir la 5.3.
+**Estado a 2026-09-24**: 5.1 y 5.2 hechas; 5.1 sin la traza comprobada. La primera ejecución
+(5.3) salió en rojo por F-64. 5.5.1 y 5.5.2 hechas; la 5.5.3 espera a la confianza aceptada.
 
 ---
 

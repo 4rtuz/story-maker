@@ -7,12 +7,12 @@ comprueba. Este plan dice **en qué orden**, qué test abre cada ciclo y dónde 
 **Si el plan y la spec se contradicen, manda la spec.** Este directorio es ruta de ejecución, no
 contrato. Cuando la spec pase a `implementada`, se borra entero, `decisiones-abiertas.md` incluido.
 
-**Estado a 2026-09-23.** Hechas las fases 1 a 4 y la 6, salvo el paso 3 de la 6.1 (la confianza,
-que acepta el operador), y el código de la 5. Quedan la comprobación de trazado de la 5.1, el
-canario en verde de la 5.3, que necesita antes la enmienda de F-64, y la fase 7. Los hallazgos
-están en la spec, §13. La spec v0.4, aceptada, añade RF-32 a RF-36 y CA-20 a CA-24 (F-09, F-54,
-F-55, F-64 y F-65). Sus tareas son la 3.5, la 3.6, la 4.6 y la 5.5, y van antes de repetir el
-canario y de la fase 7.
+**Estado a 2026-09-24.** Hechas las fases 1 a 4 y la 6, salvo el paso 3 de la 6.1 (la confianza,
+que acepta el operador), y el código de la 5. Hechas también las tareas de la v0.4 que no llaman a
+un modelo: la 3.5, la 3.6, la 4.6, la 5.5.1 y la 5.5.2. CA-20 a CA-24 están cerrados. Quedan las
+tres que sí lo llaman: la comprobación de trazado de la 5.1, el canario de la 5.5.3 y la fase 7.
+Las tres necesitan antes que el operador prepare la máquina (`informe-2026-09-24.md`). Los
+hallazgos están en la spec, §13.
 
 ## Los siete documentos
 
