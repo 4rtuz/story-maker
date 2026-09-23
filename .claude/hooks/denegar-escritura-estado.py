@@ -30,6 +30,7 @@ SALIDAS = {
 }
 ROLES = frozenset(SALIDAS)
 _PREFIJO_WIN32 = re.compile(r"^(\\\\|//)[?.][\\/]")  # \\?\  \\.\
+_ORDEN_PROHIBIDA = re.compile(r"canon[\\/].*misterio|estado\.db", re.IGNORECASE)
 
 
 class RutaNoNormalizable(ValueError):
@@ -84,6 +85,10 @@ def decidir(entrada: dict[str, Any], entorno: Mapping[str, str]) -> str | None:
     if not isinstance(valor, str) or not valor:
         raise ValueError(f"{_CAMPO[tool]} vacío o no es texto")
     if _CAMPO[tool] == "command":
+        # Regla 4. ponytail: texto sobre la orden, así que `cat canon/mis*` la esquiva; solo la
+        # sesión principal tiene órdenes, no es adversaria, y en el bucle el allow es `novela`.
+        if _ORDEN_PROHIBIDA.search(valor):
+            return f"orden sobre el misterio o estado.db: {valor}"
         return None
     try:
         relativas = _relativas(_normalizar(valor, entrada.get("cwd") or os.getcwd()))

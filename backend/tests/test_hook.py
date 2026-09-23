@@ -199,3 +199,22 @@ def test_sesion_principal(tmp_path: Path) -> None:
     ):
         resultado = _hook(_escritura(ruta, tmp_path, agente=None), tmp_path)
         assert resultado.returncode == esperado, (ruta, resultado.stderr)
+
+
+# --- Regla 4: órdenes Bash y PowerShell ------------------------------------------------------
+
+
+def test_ordenes(tmp_path: Path) -> None:
+    """CA-11 (RF-20): una regla de texto sobre la orden. La barra tras canon es la que deja pasar
+    un slug con «misterio»."""
+    for tool, orden, esperado in (
+        ("Bash", "cat novelas/x/canon/misterio.md", 2),
+        ("Bash", r"type novelas\x\CANON\Misterio.md", 2),
+        ("Bash", "sqlite3 novelas/x/estado/estado.db", 2),
+        ("PowerShell", r"Get-Content novelas\x\CANON\Misterio.md", 2),
+        ("PowerShell", "Remove-Item novelas/x/estado/estado.db", 2),
+        ("Bash", "novela estado el-misterio-del-faro --breve", 0),
+        ("Bash", "novela briefing el-misterio-del-faro 3 escritor", 0),
+    ):
+        entrada = {"tool_name": tool, "tool_input": {"command": orden}, "cwd": str(tmp_path)}
+        assert _hook(entrada, tmp_path).returncode == esperado, orden
