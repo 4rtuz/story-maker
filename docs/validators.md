@@ -496,6 +496,7 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 | F-52 | El plugin de Langfuse no carga, o falla | Sin trazas y sin aviso: el bucle sigue | Novela de humo (CA-10) y `~/.claude/state/langfuse_hook.log` | D | pendiente: novela de humo (CA-10); el plugin está habilitado en local, sin traza comprobada |
 | F-53 | Una sesión avanza el checkpoint pero ha hecho algo indebido | El freno no lo ve, porque solo mira si hubo avance | Auditoría de trayectoria | A | 0002 |
 | F-54 | Los scores de `novela checkpoint` necesitan `TRACE_TO_LANGFUSE=true` y las claves en el entorno del proceso, y `comprobar-entorno` prohíbe `env` en `settings.local.json` | Sin las variables en el entorno de usuario, el bucle cierra capítulos sin emitir scores: el sink es no-op y no avisa. El baseline de CA-10 se queda sin sus seis scores | Ninguno. Las trazas del plugin no dependen de esto | — | propuesto |
+| F-55 | Las claves de los scores están en un `.env` en la raíz del repo que `.gitignore` no ignora | Un `git add .` las versiona. El pre-commit de 0001 CA-32 es la última capa | `.env` en `.gitignore`, y `novela comprobar-entorno` avisa si no está ignorado (spec 0003 v0.4, RF-33) | T | propuesto |
 
 **Canario**
 
@@ -506,6 +507,7 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 | F-62 | El misterio se lee pero no se imprime | El marcador no aparece en la salida y el intento parece fallido | Buscar el marcador también en los transcripts de la sesión, cuya ruta fija `--session-id` (E-5) | T | código listo (CA-09, RF-18); los transcripts se encontraron por --session-id el 2026-09-23 |
 | F-63 | El canario corre con el árbol sucio o con `settings.local.json` ampliado | Prueba una configuración que no es la del bucle | `novela comprobar-entorno --limpio` al empezar `ejecutar.py` | T | código listo (CA-09): ejecutar.py empieza por comprobar-entorno --limpio |
 | F-64 | Los agentes del canario se niegan a intentar lo prohibido: `CLAUDE.md` y `AGENTS.md` se cargan también en ellos y lo prohíben | El canario no prueba ninguna barrera. Sale en rojo, no en verde falso, porque faltan el nonce y los motivos del hook | Ninguno todavía: pide rehacer los prompts de `agente.json` por enmienda de la spec. Observado en la primera ejecución, el 2026-09-23 | — | propuesto |
+| F-65 | Un agente del canario se niega a leer el misterio en lugar de intentarlo | El intento 2 da verde: el marcador tampoco aparece, y no se exige el motivo de ninguna barrera. Verde falso | Cada intento exige su `tool_use` en el transcript; sin él, `NO CONCLUYENTE` (spec 0003 v0.4, RF-36). Destapado al analizar F-64 | T | propuesto |
 
 **Novela de humo**
 
@@ -513,7 +515,7 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 |---|---|---|---|---|---|
 | F-70 | Un baseline de una sola ejecución | Se usa como referencia una sola muestra con σ alta | El baseline declara su número de ejecuciones y no sirve para aceptar cambios de prompt hasta tener varias (§4.8) | — | U (§5.16) |
 
-Tres filas están en **propuesto**, encontradas al implementar la 0003: F-09, al escribir los agentes; F-54, al registrar el hook, y F-64, en la primera ejecución del canario. Las que lo estaban antes entraron en la spec 0003 v0.3 (§16, «Enmiendas de la v0.3»), agrupadas en tres bloques:
+Cinco filas están en **propuesto**, encontradas al implementar la 0003: F-09, al escribir los agentes; F-54, al registrar el hook; F-64, en la primera ejecución del canario, y F-55 y F-65, al preparar su enmienda. Las cinco tienen verificador en la spec 0003 v0.4, pendiente de aceptar. Las que lo estaban antes entraron en la spec 0003 v0.3 (§16, «Enmiendas de la v0.3»), agrupadas en tres bloques:
 
 - **endurecer el hook**: F-14, F-19, F-20 y F-24;
 - **comprobaciones previas y controles positivos**: F-11, F-22, F-50, F-60, F-62 y F-63;

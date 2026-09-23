@@ -6,8 +6,8 @@ una novela.
 **Al terminar existe**: `.claude/commands/novela-nueva.md`, `novela-continuar.md` y
 `novela-auditar.md`.
 
-**Cierra**: RF-13 a RF-16, RF-29. CA-18 (revisión y un test). El resto se acepta con CA-10, en la
-fase 7.
+**Cierra**: RF-13 a RF-16, RF-29, RF-34. CA-18, CA-22 (revisión y un test cada uno) y CA-24
+(revisión). El resto se acepta con CA-10, en la fase 7.
 
 Requiere la fase 1 (los nombres de los agentes) y la 3 (sin el run de arranque, `/novela-nueva`
 deja el capítulo 1 atribuido a un canon vacío).
@@ -270,9 +270,45 @@ En el commit de la última tarea de la fase:
 
 ---
 
+## 4.6 — Enmienda v0.4: F-09 y la fila del 1
+
+**Estado de partida**: las tareas 4.1 a 4.5 están hechas. La tabla de códigos de los dos
+procedimientos ya dice que un 1 de `briefing` (y en `novela-continuar.md`, de `checkpoint`) no se
+reintenta. La v0.4 solo lo sube a la spec.
+
+1. **Test primero** (CA-22), en `novela/slices/briefing/test_briefing.py::test_misterio_invalido_en_el_log`:
+   con un canon válido salvo `canon/misterio.md`, `novela briefing <slug> 1 trazador` sale con 4, y
+   la última línea de `harness.log` contiene `WorkspaceInvalido` y `misterio.md`. Se ve en rojo
+   antes de dar nada por bueno. Si sale verde a la primera, porque `WorkspaceInvalido(f"{ruta}: …")`
+   ya pone la ruta, se rompe a propósito el formato de la causa para verlo fallar, y se restaura.
+   Si `misterio.md` no se valida al cargar el canon, el test lo destapa: para, y se anota en la
+   spec antes de seguir.
+
+   **Commit**: `test(briefing): la causa de un misterio inválido nombra el fichero`
+2. **`novela-nueva.md`, paso 3**: un punto tras la cuenta de intentos. Si la causa contiene
+   `misterio.md`, no hay reintento: `intervencion.md` en el run de arranque, con gate `arquitecto`
+   y la causa, y se para. Se busca `misterio.md` sin separador, porque en Windows la ruta va con `\`.
+   Una línea de motivo: el `arquitecto` no puede leer ese fichero, así que tampoco sobrescribirlo.
+3. **El cuerpo del `arquitecto`** sigue mandando fallar citando la causa si le toca reescribir un
+   fichero que no puede leer. No se toca: con la v0.4 ese caso ya no le llega, y si llegara, falla
+   bien.
+4. **Revisión** (CA-22, CA-24):
+   - la excepción de F-09 está en el paso 3, **antes** del reintento;
+   - la tabla de códigos de `novela-nueva.md` nombra el 1 de `briefing`;
+   - la de `novela-continuar.md` nombra el 1 de `briefing` y el de `checkpoint`.
+
+**Docs**, en el commit del paso 2: `validators.md` §4.17, F-09 pasa a `activo (CA-22)`.
+
+**Cierra**: RF-34, RF-29 en lo que añade la v0.4. CA-22, CA-24.
+
+**Commit**: `feat(comandos): /novela-nueva no reintenta un misterio inválido (F-09)`
+
+---
+
 ## Al terminar la fase
 
 - Lectura en seco: sobre un workspace de la fábrica (`uv run pytest` deja los de `conftest` en
   `tmp_path`; o `novela nueva prueba …` a mano), recorre `/novela-continuar` con el dedo, orden a
   orden, sin lanzar modelo. Cada orden existe, con los argumentos que el CLI acepta.
-- No hay filas de trazabilidad todavía: RF-13 a RF-16 se aceptan con CA-10 en la fase 7.
+- No hay filas de trazabilidad todavía: RF-13 a RF-16 se aceptan con CA-10 en la fase 7. Las de
+  CA-22 y CA-24 sí: pasan a `hecho` con la tarea 4.6.

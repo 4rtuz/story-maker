@@ -6,9 +6,11 @@ de Claude Code viene. Y que el entorno se compruebe antes de lanzar nada caro.
 
 **Al terminar existe**: `Manifest` con `fase`, `sucio` y `hashes_claude`; `run.abrir` que separa
 el arranque y rechaza un `NOVELA_RUN_ID` de otra fase; `sesion=<uuid>` en el log;
-`novela comprobar-entorno`; `api/openapi.json` regenerado.
+`novela comprobar-entorno`; `api/openapi.json` regenerado. Con la v0.4: `checkpoint` que toma las
+claves de los scores de `.env`, y `comprobar-entorno` que vigila ese `.env`.
 
-**Cierra**: RF-11, RF-12, RF-21, RF-27, RF-28. CA-07, CA-08, CA-12, CA-16, CA-17. RNF-06.
+**Cierra**: RF-11, RF-12, RF-21, RF-27, RF-28, RF-32, RF-33. CA-07, CA-08, CA-12, CA-16, CA-17,
+CA-20, CA-21. RNF-06, y la parte de claves de RNF-07.
 
 Es la única fase de código de backend, y la única con TDD de principio a fin. No requiere las
 fases 1 ni 2. Toca `novela/dominio/artefactos.py`, `novela/plataforma/run.py`,
@@ -232,10 +234,102 @@ Que `novela` esté en el PATH no se comprueba aquí: lo prueba que la orden arra
 
 ---
 
+## 3.5 — Claves de los scores desde `.env` (v0.4, F-54)
+
+**Estado de partida**: las tareas 3.1 a 3.4 están hechas y commiteadas. `checkpoint/cmd.py`, en la
+línea 115, construye el sink con `langfuse.desde_entorno(os.environ)`.
+
+**Rojo**, dos grupos de tests:
+
+1. `novela/plataforma/test_langfuse.py`, sobre una función pura nueva,
+   `langfuse.fusionar(entorno: Mapping[str, str], texto_env: str | None) -> dict[str, str]`:
+   - `CLAVE=v`, `export CLAVE=v`, `CLAVE="v"` y `CLAVE='v'` dan `v`;
+   - las líneas vacías, los comentarios `#` y las líneas sin `=` se ignoran sin error;
+   - solo pasan `TRACE_TO_LANGFUSE` y las que empiezan por `LANGFUSE_`: una `OTRA=x` no aparece;
+   - una clave presente en `entorno` no la pisa el `.env`;
+   - `texto_env=None` devuelve `dict(entorno)` tal cual.
+
+   Property-based con Hypothesis para la precedencia: para todo par de diccionarios, lo que ya está
+   en `entorno` sale igual. Los valores son dummy (`sk-lf-dummy…`). El test de 0001 CA-32 del
+   pre-commit busca `LANGFUSE_SECRET_KEY=sk-lf-` en ficheros versionados, así que la clave dummy se
+   construye por concatenación, como ya hace `test_contratos.py` en su línea 52.
+2. `novela/slices/checkpoint/test_checkpoint.py` (CA-20), con `monkeypatch` sobre
+   `run.RAIZ_REPO` apuntando a `tmp_path` y el sink sustituido por uno que registra:
+   - con `TRACE_TO_LANGFUSE=true` y las tres claves solo en `tmp_path/.env`, el sink recibe los
+     seis scores;
+   - con la variable en el entorno a otro valor, manda el entorno (sink nulo);
+   - `os.environ` es igual antes y después;
+   - un `.env` con líneas basura no hace fallar a `checkpoint`, y ninguna línea suya aparece en
+     `stdout` ni en `stderr`.
+
+**Verde**:
+
+- `fusionar` en `plataforma/langfuse.py`, junto a `desde_entorno`. Es el único consumidor. Si
+  mañana hay otro, se mueve.
+- En `checkpoint/cmd.py`: `langfuse.desde_entorno(langfuse.fusionar(os.environ, _texto(run.RAIZ_REPO / ".env")))`.
+  `_texto` devuelve `None` si el fichero no existe. Ni `os.environ.update`, ni `load_dotenv`.
+
+**Docs**, en este commit:
+
+- `architecture.md` §10.1, la frase de F-54: los scores leen `TRACE_TO_LANGFUSE` y las claves del
+  entorno del proceso o de `.env` en la raíz del repo, ignorado por git; el entorno manda.
+  §10.5, una línea con lo mismo.
+- `CLAUDE.md` «Claves y trazado»: «del entorno de usuario» pasa a «del entorno o de `.env` en la
+  raíz, que git ignora». Sustituye; no añade línea.
+- `validators.md` §4.17: F-54 pasa a `activo (CA-20)`.
+
+**Cierra**: RF-32. CA-20 en su parte de `checkpoint`.
+
+**Commit**: `feat(checkpoint): claves de los scores desde .env, sin tocar os.environ`
+
+---
+
+## 3.6 — `comprobar-entorno` vigila `.env` (v0.4, F-55)
+
+**Rojo**, en `novela/slices/entorno/test_entorno.py`, sobre la función pura, que gana dos
+entradas: `env_ignorado: bool | None` (`None` si no hay `.env`) y `scores: Mapping[str, str]` (el
+resultado de `fusionar`).
+
+| Entrada | Hallazgo |
+|---|---|
+| `env_ignorado=False` | `.env no está ignorado por git: las claves se versionarían` |
+| `scores` con `TRACE_TO_LANGFUSE=true` y sin `LANGFUSE_SECRET_KEY` | `TRACE_TO_LANGFUSE=true sin LANGFUSE_SECRET_KEY` |
+| lo mismo sin `LANGFUSE_PUBLIC_KEY`, o sin `LANGFUSE_BASE_URL` ni `LANGFUSE_HOST` | uno por variable, con el mismo formato |
+| `scores` sin `TRACE_TO_LANGFUSE` | ninguno, aunque falten claves |
+| `env_ignorado=None` | ninguno |
+
+Cada test comprueba además que ningún hallazgo contiene un valor de `scores`. Y uno de cáscara
+(CA-21), sobre un repo git temporal (`git init` en `tmp_path`): con un `.env` sin ignorar sale con
+1; tras añadir `.env` a su `.gitignore`, sale con 0.
+
+**Verde**:
+
+- La cáscara: si existe `RAIZ_REPO/.env`, ejecuta `git check-ignore -q .env` en la raíz. Salida 0
+  → `True`; cualquier otra, o sin git → `False`. El `scores` sale de
+  `langfuse.fusionar(os.environ, texto)`, el mismo de `checkpoint`.
+- `.gitignore` ya tiene `.env` en la primera línea, commiteado con la v0.4 de la spec. El test de
+  cáscara lo da por hecho y solo prueba la comprobación.
+
+**Docs**, en este commit:
+
+- `AGENTS.md` «CLI»: la descripción de `comprobar-entorno` pasa a «hook, python, settings.local.json
+  y .env antes de lanzar». `architecture.md` §8, igual.
+- `AGENTS.md` «Puesta en marcha»: una línea tras los tres pasos. Las claves de los scores, si se
+  quieren, van en `.env` en la raíz, que git ignora. No es un cuarto paso (spec §5.6).
+- `validators.md` §4.17: F-55 pasa a `activo (CA-21)`.
+
+**Cierra**: RF-33, RF-28 en lo que añade la v0.4. CA-21, y CA-20 en su parte de `comprobar-entorno`.
+
+**Commit**: `feat(entorno): comprobar-entorno vigila .env y las claves de los scores`
+
+---
+
 ## Al terminar la fase
 
 - `uv run pytest` completo, `mypy --strict`, `ruff`. Mutmut no aplica: no se ha tocado
   `gates.py` ni `apply.py`.
 - `test_openapi_al_dia` en verde sin `REGENERAR`.
-- Filas CA-07, CA-08, CA-12, CA-16 y CA-17 en la trazabilidad de la spec.
+- Filas CA-07, CA-08, CA-12, CA-16 y CA-17 en la trazabilidad de la spec. Con la v0.4, CA-20 y
+  CA-21 pasan a `hecho` y se marcan en §11.
 - `validators.md` §4.17: F-04, F-05 y F-40 a F-45 pasan a `activo`, y F-22 en su parte de código.
+  Con la v0.4, F-54 y F-55.

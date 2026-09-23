@@ -20,6 +20,9 @@ Requiere todas las fases. Es la única verificación de los procedimientos, que 
 - El canario de la fase 5 en verde **con este mismo sha** de `.claude/`. Si algo de `.claude/`
   cambió después, repite el canario.
 - `novela comprobar-entorno --limpio` sale con 0 en Git Bash, y `uv --version` responde.
+- Las claves de los scores en `.env`, con `TRACE_TO_LANGFUSE=true`, y las tareas 3.5 y 3.6
+  hechas. Con eso, `comprobar-entorno` en 0 garantiza que `.env` está ignorado y que no falta
+  ninguna clave. Sin ello, el baseline se queda sin sus seis scores (F-54).
 
 ---
 

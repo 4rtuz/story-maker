@@ -10,7 +10,9 @@ contrato. Cuando la spec pase a `implementada`, se borra entero, `decisiones-abi
 **Estado a 2026-09-23.** Hechas las fases 1 a 4 y la 6, salvo el paso 3 de la 6.1 (la confianza,
 que acepta el operador), y el código de la 5. Quedan la comprobación de trazado de la 5.1, el
 canario en verde de la 5.3, que necesita antes la enmienda de F-64, y la fase 7. Los hallazgos
-están en la spec, §13.
+están en la spec, §13. La spec v0.4, aceptada, añade RF-32 a RF-36 y CA-20 a CA-24 (F-09, F-54,
+F-55, F-64 y F-65). Sus tareas son la 3.5, la 3.6, la 4.6 y la 5.5, y van antes de repetir el
+canario y de la fase 7.
 
 ## Los siete documentos
 
@@ -45,7 +47,8 @@ Dependencias duras, las únicas que obligan a un orden:
 | 2 | 1 | La tabla de salidas del hook se contrasta con la de los agentes en el mismo test |
 | 4 | 1 y 3 | Los procedimientos nombran a los agentes, y sin el run de arranque `/novela-nueva` rompe la atribución del capítulo 1 |
 | 5 | 2 y 6 | El canario prueba las barreras, y necesita la máquina preparada |
-| 7 | todas | Es la aceptación de todo lo anterior |
+| 5.5.3 | 5.5.1 | Los prompts nuevos no se ejecutan con el veredicto viejo, que da verde ante una negativa (F-65) |
+| 7 | todas, 3.5 y 3.6 incluidas | Es la aceptación de todo lo anterior, y el baseline necesita sus scores (F-54) |
 
 La 3 es independiente de la 1 y la 2. Si hay dos personas, una hace 1→2 y la otra la 3.
 
@@ -57,7 +60,10 @@ La 3 es independiente de la 1 y la 2. Si hay dos personas, una hace 1→2 y la o
   tocan `novela/dominio/artefactos.py` (`Manifest`), `novela/plataforma/run.py`,
   `novela/slices/briefing/cmd.py`, `novela/cli.py` y `api/openapi.json`, que se regenera. Se crea
   un slice nuevo, `novela/slices/entorno/`.
-- La spec está en `aceptada` (v0.3). La v0.3 incorporó los 16 fallos de `validators.md` §4.17
+- La spec está en `aceptada` (v0.4). La v0.4 añade la lectura de `.env` para los scores, la
+  vigilancia de ese `.env`, la excepción de F-09 y el veredicto del canario por `tool_use`, con
+  sus prompts nuevos (su §16, «Enmiendas de la v0.4»).
+- Antes, la spec estaba en `aceptada` (v0.3). La v0.3 incorporó los 16 fallos de `validators.md` §4.17
   que no tenían spec (su §16, «Enmiendas de la v0.3»). Este plan ya los incluye.
 - `docs/definitions.md` no describe el manifiesto. La condición de la spec §14 («`definitions.md`
   §6 si describe el manifiesto») no se da, así que no se toca.
@@ -129,8 +135,13 @@ exportarlo antes de `uv` y antes de `git commit`, porque el pre-commit lo usa.
 | RF-29 | Tres reglas de lectura y tabla de códigos en los procedimientos | 4 | 4.2, 4.3 |
 | RF-30 | El bucle comprueba el entorno; las sesiones interactivas llevan `NOVELA_SESSION_ID` | 6 | 6.2 |
 | RF-31 | Ensayo de intervención y `/memory` en la novela de humo | 7 | 7.2, 7.3 |
+| RF-32 | `checkpoint` toma las claves de `.env`, manda el proceso, sin tocar `os.environ` | 3 | 3.5 |
+| RF-33 | `.env` en `.gitignore`; `comprobar-entorno` avisa si no está ignorado | 3 | 3.6 |
+| RF-34 | `/novela-nueva` no reintenta un canon inválido por el misterio | 4 | 4.6 |
+| RF-35 | Prompts del canario que presentan la prueba | 5 | 5.5.2 |
+| RF-36 | Un intento sin `tool_use` es no concluyente | 5 | 5.5.1 |
 
-Los 19 criterios de aceptación van nombrados en la tarea que los cierra.
+Los 24 criterios de aceptación van nombrados en la tarea que los cierra.
 
 ## Docs de referencia: qué tarea toca qué
 
@@ -158,6 +169,11 @@ La lista de la spec §14, repartida. Cada línea va en el commit de su tarea.
 | `CLAUDE.md` «Bucle por capítulo» | Segundo `validar` tras el editor; `cronista` después del gate | 4.5 |
 | `CLAUDE.md` y `AGENTS.md`, bucle desatendido | El de la spec §5.6 | 6.2 |
 | `AGENTS.md` «Puesta en marcha» | Los tres pasos | 6.2 |
+| `AGENTS.md` «Puesta en marcha» | Una línea: las claves de los scores, en `.env` (v0.4) | 3.6 |
+| `architecture.md` §10.1, §10.5 | Las claves de los scores salen del entorno o de `.env` (v0.4) | 3.5 |
+| `architecture.md` §8 y `AGENTS.md` «CLI» | `comprobar-entorno` también vigila `.env` (v0.4) | 3.6 |
+| `CLAUDE.md` «Claves y trazado» | «del entorno o de `.env`», en lugar de «del entorno de usuario» (v0.4) | 3.5 |
+| `validators.md` §4.9 | El veredicto exige el `tool_use` de cada intento (v0.4) | 5.4 |
 
 `CLAUDE.md` y `AGENTS.md` se cargan en cada sesión y en cada subagente. Cada edición **sustituye**
 texto; ninguna añade una sección nueva salvo los tres pasos de puesta en marcha, que la spec exige
