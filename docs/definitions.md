@@ -81,7 +81,7 @@ La verdad del mundo narrativo. No describe lo que ha pasado en el texto, sino lo
 **`escenarios[]`** — Lugares con identidad propia. Cada uno lleva `{id, nombre, descripción, detalle_sensorial, quién_tiene_acceso}`. El campo de acceso es material de trama: quién puede entrar a un sitio determina quién pudo hacer qué.
 `lista` · **VERSIONADO** · arquitecto → escritor, continuista
 
-**`epoca_y_tecnologia`** — Qué existe y qué no. En suspense define el espacio de soluciones: si hay cobertura móvil, cámaras o ADN, media trama se cae o se sostiene.
+**`epoca_y_tecnologia`** — `{epoca, existe, no_existe}`: qué existe y qué no. En suspense define el espacio de soluciones: si hay cobertura móvil, cámaras o ADN, media trama se cae o se sostiene.
 `objeto` · **INMUTABLE tras canon** · arquitecto → escritor, continuista
 
 **`reglas_del_mundo`** — Restricciones que no pueden violarse, realistas o no. El continuista las trata como axiomas verificables.
@@ -91,6 +91,8 @@ La verdad del mundo narrativo. No describe lo que ha pasado en el texto, sino lo
 `lista` · **VERSIONADO** · arquitecto → escritor
 
 ### 2.3 Personajes
+
+Una ficha por personaje en `canon/personajes/<id>.md`: todos los campos de abajo en el frontmatter YAML y prosa libre en el cuerpo. El modelo `Personaje` rechaza cualquier campo desconocido. `secreto` y `coartada_y_cronologia_privada` son campos propios, no prosa, para que puedan filtrarse del briefing del `escritor` (spec 0002).
 
 **`identidad`** — `{id, nombre, alias, edad, rol_narrativo}`. El `id` es la clave de unión con todo el estado narrativo; el nombre visible puede cambiar en la trama, el id no.
 `objeto` · **INMUTABLE** (el id) · arquitecto → todos
@@ -104,7 +106,7 @@ La verdad del mundo narrativo. No describe lo que ha pasado en el texto, sino lo
 **`psicologia`** — `{deseo, necesidad, miedo, herida}`. Deseo es lo que el personaje persigue; necesidad es lo que le falta y no sabe; el arco es el trayecto entre ambos.
 `objeto` · **VERSIONADO** · arquitecto → escritor
 
-**`secreto`** — Qué oculta el personaje y a quién. En suspense casi todos los personajes tienen uno, y no todos son el del misterio central.
+**`secreto`** — `{que_oculta, a_quien}`: qué oculta el personaje y a quién (ids de personaje o `lector`). En suspense casi todos los personajes tienen uno, y no todos son el del misterio central. Opcional.
 `objeto` · **VERSIONADO** · arquitecto → escritor con filtro, continuista
 
 **`arco_previsto`** — Estado inicial → estado final, con los capítulos donde se producen los cambios de escalón. Es plan, no estado: lo real vive en la rama 4.
@@ -113,7 +115,7 @@ La verdad del mundo narrativo. No describe lo que ha pasado en el texto, sino lo
 **`relaciones[]`** — `{con, tipo, tensión, historia compartida}`. Define el punto de partida; la evolución se registra en `estado.relaciones`.
 `lista` · **VERSIONADO** · arquitecto → escritor
 
-**`coartada_y_cronologia_privada`** — Dónde estuvo realmente cada personaje en cada momento crítico, se cuente o no. Es la estructura que hace verificable el misterio: sin ella, el culpable puede estar en dos sitios a la vez y nadie lo detecta.
+**`coartada_y_cronologia_privada`** — `[{momento, ubicacion, detalle}]`, con `momento` en texto como `linea_temporal.inicio` y `ubicacion` un id de escenario. Dónde estuvo realmente cada personaje en cada momento crítico, se cuente o no. Es la estructura que hace verificable el misterio: sin ella, el culpable puede estar en dos sitios a la vez y nadie lo detecta.
 `lista` · **INMUTABLE tras canon** · arquitecto → continuista
 
 ### 2.4 Misterio
