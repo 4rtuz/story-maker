@@ -35,6 +35,8 @@ class Novela:
     num_capitulos: int
     pistas: tuple[tuple[int, int | None], ...]  # (capítulo en que se planta, en que se paga)
     hilos: tuple[tuple[int, int], ...]  # (capítulo en que se abre, en que se cierra)
+    # (capítulo, escena, lugar, personajes): sustituye la escena por defecto de la ficha de plan.
+    escenas: tuple[tuple[int, int, str, tuple[str, ...]], ...] = ()
 
     def pistas_de(self, n: int) -> tuple[list[str], list[str]]:
         plantar = [f"pis-{i:03d}" for i, (p, _) in enumerate(self.pistas, 1) if p == n]
@@ -50,6 +52,9 @@ class Novela:
 DEMO = Novela(24, pistas=((2, 20), (3, 6), (5, 22), (8, 23)), hilos=((1, 10), (4, 24), (7, 15)))
 # Una pista plantada en el 1 que nadie paga: el hallazgo de CA-23.
 HUERFANA = Novela(3, pistas=((1, 3), (1, None)), hilos=((1, 3),))
+# La novela de regalo de la spec 0006: en el capítulo 2, la escena 2 ocurre en el archivo y solo
+# con Elena. Con el delta de la fábrica son 15 apariciones, 5 por capítulo.
+REGALO = Novela(3, pistas=((1, 3),), hilos=((1, 3),), escenas=((2, 2, ARCHIVO, (ELENA,)),))
 
 
 def _md(meta: dict[str, Any], cuerpo: str) -> str:
@@ -232,30 +237,34 @@ def plan(novela: Novela) -> dict[str, str]:
     for n in range(1, n_total + 1):
         plantar, pagar = novela.pistas_de(n)
         abre, cierra = novela.hilos_de(n)
+        escenas = [
+            {
+                "id": f"esc-{nn(n)}-1",
+                "lugar": FARO,
+                "tiempo_diegetico": f"dia {n}, 21:00",
+                "personajes": [ELENA, TOMAS],
+                "dialogo": [ELENA, TOMAS],
+                "beat": "Tomás aparece sin avisar",
+                "conflicto": "Elena no puede echarle",
+            },
+            {
+                "id": f"esc-{nn(n)}-2",
+                "lugar": PUERTO,
+                "tiempo_diegetico": f"dia {n}, 23:00",
+                "personajes": [ELENA, INES],
+                "dialogo": [INES],
+                "beat": "Inés habla de más",
+                "conflicto": "Elena duda de ella",
+            },
+        ]
+        for c, k, lugar, personajes in novela.escenas:
+            if c == n:
+                escenas[k - 1] |= {"lugar": lugar, "personajes": list(personajes), "dialogo": []}
         ficha = {
             "capitulo": n,
             "pov": ELENA,
             "objetivo_dramatico": f"Al final del capítulo {n} Elena sabe algo que no sabía.",
-            "escenas": [
-                {
-                    "id": f"esc-{nn(n)}-1",
-                    "lugar": FARO,
-                    "tiempo_diegetico": f"dia {n}, 21:00",
-                    "personajes": [ELENA, TOMAS],
-                    "dialogo": [ELENA, TOMAS],
-                    "beat": "Tomás aparece sin avisar",
-                    "conflicto": "Elena no puede echarle",
-                },
-                {
-                    "id": f"esc-{nn(n)}-2",
-                    "lugar": PUERTO,
-                    "tiempo_diegetico": f"dia {n}, 23:00",
-                    "personajes": [ELENA, INES],
-                    "dialogo": [INES],
-                    "beat": "Inés habla de más",
-                    "conflicto": "Elena duda de ella",
-                },
-            ],
+            "escenas": escenas,
             "pistas_a_plantar": plantar,
             "pistas_a_pagar": pagar,
             "hilos_que_abre": abre,

@@ -180,3 +180,17 @@ def test_fallo_al_registrar_no_deja_nada(novelas: Novelas, monkeypatch: pytest.M
     monkeypatch.setattr(estado_db, "registrar_apariciones", falla)
     assert _aplicar(ws).exit_code != 0
     assert _huellas(ws) == antes
+
+
+def test_aplicar_registra_apariciones(novelas: Novelas) -> None:
+    """CA-19 (RF-19), VAL-20: los 15 pares de demo-regalo, 5 por capítulo."""
+    ws = novelas("demo-regalo")
+    todos = {fabrica.ELENA, fabrica.TOMAS, fabrica.INES, fabrica.FARO, fabrica.PUERTO}
+    segundo = todos - {fabrica.INES} | {fabrica.ARCHIVO}
+    esperadas = {1: todos, 2: segundo, 3: todos}
+    with estado_db.abrir(ws.estado_db, solo_lectura=True) as conn:
+        filas = estado_db.apariciones(conn, 3)
+    assert {(f.entidad, f.capitulo) for f in filas} == {
+        (e, c) for c, entidades in esperadas.items() for e in entidades
+    }
+    assert len(filas) == 15
