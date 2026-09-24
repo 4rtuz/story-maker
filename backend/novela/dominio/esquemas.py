@@ -9,6 +9,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from novela.dominio.artefactos import FrontmatterCapitulo
+from novela.dominio.brief import BorradorBrief, Brief, InformeBrief
 from novela.dominio.canon import Canon
 from novela.dominio.config import Config
 from novela.dominio.estado import Delta, Estado
@@ -24,6 +25,9 @@ MODELOS: dict[str, type[BaseModel]] = {
     "qa-informe.schema.json": InformeQA,
     "capitulo.schema.json": FrontmatterCapitulo,
     "delta.schema.json": Delta,
+    "brief.schema.json": Brief,
+    "brief-borrador.schema.json": BorradorBrief,
+    "brief-informe.schema.json": InformeBrief,
 }
 
 

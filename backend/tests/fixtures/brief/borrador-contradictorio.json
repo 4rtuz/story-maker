@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.0.0",
+  "destinatario": {
+    "nombre": {
+      "valor": "Bruno Ficticio",
+      "fuente": {
+        "entrada": "ent-01",
+        "cita": "Se llama Bruno Ficticio"
+      }
+    },
+    "edad": {
+      "valor": 7,
+      "fuente": {
+        "entrada": "ent-01",
+        "cita": "Tiene 7 años"
+      }
+    },
+    "rasgos": [
+      {
+        "valor": "curioso",
+        "fuente": {
+          "entrada": "ent-01",
+          "cita": "Es curioso"
+        }
+      }
+    ]
+  },
+  "recuerdos": [
+    {
+      "entrada": "ent-01",
+      "cita": "El día que encontró un erizo en el jardín."
+    }
+  ],
+  "genero": {
+    "valor": "noir",
+    "fuente": {
+      "entrada": "ent-01",
+      "cita": "Novela negra"
+    }
+  },
+  "tono": {
+    "valor": "oscuro",
+    "fuente": {
+      "entrada": "ent-01",
+      "cita": "Oscuro"
+    }
+  },
+  "extension": {
+    "valor": "corta",
+    "fuente": {
+      "entrada": "ent-01",
+      "cita": "Corta"
+    }
+  },
+  "prohibidos": {
+    "terminos": [],
+    "fuente": {
+      "entrada": "ent-01",
+      "cita": "No hay temas vetados"
+    }
+  },
+  "preguntas": []
+}

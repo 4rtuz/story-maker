@@ -4,3 +4,5 @@
 backend/tests/fixtures/golden/** -text
 # El capítulo de VAL-16 lleva CRLF a propósito: git no debe convertirlo.
 frontend/test/fixtures/capitulos/*-crlf.md -text
+# Las entradas del brief llevan CRLF, NFD y controles a propósito (spec 0005, CA-05).
+backend/tests/fixtures/brief/** -text

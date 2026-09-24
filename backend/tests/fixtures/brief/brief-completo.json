@@ -1,0 +1,96 @@
+{
+  "schema_version": "1.0.0",
+  "ocasion": "boda",
+  "destinatario": {
+    "nombre": {
+      "valor": "Aurora Ficticia",
+      "fuente": {
+        "entrada": "ent-01",
+        "cita": "Se llama Aurora Ficticia"
+      }
+    },
+    "edad": {
+      "valor": 34,
+      "fuente": {
+        "entrada": "ent-01",
+        "cita": "Tiene 34 años"
+      }
+    },
+    "rasgos": [
+      {
+        "valor": "valiente",
+        "fuente": {
+          "entrada": "ent-01",
+          "cita": "Es valiente"
+        }
+      },
+      {
+        "valor": "paciente",
+        "fuente": {
+          "entrada": "ent-01",
+          "cita": "siempre fue paciente con todos"
+        }
+      }
+    ]
+  },
+  "recuerdos": [
+    {
+      "entrada": "ent-01",
+      "cita": "El verano en que aprendió a navegar en el lago."
+    },
+    {
+      "entrada": "ent-01",
+      "cita": "La noche que cocinó para cuarenta invitados."
+    },
+    {
+      "entrada": "ent-02",
+      "cita": "Recuerdo la tarde en que nos perdimos en el mercado de flores."
+    }
+  ],
+  "genero": {
+    "valor": "domestic_suspense",
+    "fuente": {
+      "entrada": "ent-01",
+      "cita": "Suspense doméstico"
+    }
+  },
+  "tono": {
+    "valor": "tierno",
+    "fuente": {
+      "entrada": "ent-01",
+      "cita": "Tierno, con algo de humor"
+    }
+  },
+  "extension": {
+    "valor": "media",
+    "fuente": {
+      "entrada": "ent-01",
+      "cita": "Media"
+    }
+  },
+  "prohibidos": {
+    "terminos": [
+      "hospital"
+    ],
+    "fuente": {
+      "entrada": "ent-01",
+      "cita": "Nada de hospital"
+    }
+  },
+  "entradas": [
+    {
+      "schema_version": "1.0.0",
+      "id": "ent-01",
+      "tipo": "respuesta",
+      "sha256": "95a829c6c18e9f9be56d3298bcdb577d7a55a05ce67adc92ce48a75e5f5f47a9",
+      "caracteres": 684
+    },
+    {
+      "schema_version": "1.0.0",
+      "id": "ent-02",
+      "tipo": "texto_libre",
+      "sha256": "e3825867aa48fe1a69e606898ec98a16f9411275201a4dc8aa7b4b5bf774e113",
+      "caracteres": 384
+    }
+  ]
+}
