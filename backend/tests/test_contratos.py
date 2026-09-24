@@ -296,3 +296,31 @@ def test_settings_de_claude() -> None:
     script = re.search(r"\$CLAUDE_PROJECT_DIR/([^\"\s]+)", orden)
     assert script and (RAIZ_REPO / script[1]).is_file(), orden  # F-10: la ruta existe
     assert orden.startswith("python "), "python3 es el alias de la Store en Windows (E-11)"
+
+
+ADR_ENTREGA = RAIZ_REPO / "docs" / "adr" / "0003-entrega-del-libro-en-pdf.md"
+SECCIONES_ADR = (
+    "Contexto",
+    "Opciones",
+    "Criterios",
+    "Decisión",
+    "Alternativas descartadas",
+    "Consecuencias",
+    "Cuándo reabrirla",
+)
+
+
+def test_adr_de_entrega() -> None:
+    """CA-31 (RF-31) y VAL-33: las opciones se buscan en su sección, no en todo el fichero."""
+    texto = ADR_ENTREGA.read_text(encoding="utf-8")
+    _, meta_texto, cuerpo = texto.split("---\n", 2)
+    meta = yaml.safe_load(meta_texto)
+    assert set(meta) == {"adr", "titulo", "estado", "fecha", "decide", "specs"}
+    assert (meta["adr"], meta["estado"], meta["specs"]) == (3, "aceptada", [6])
+    partes = re.split(r"^## (.+)$", cuerpo, flags=re.M)[1:]
+    secciones = dict(zip(partes[::2], partes[1::2], strict=True))
+    assert tuple(secciones) == SECCIONES_ADR
+    for opcion in ("web servida por la API", "PDF", "epub"):
+        assert opcion in secciones["Opciones"], opcion
+    for consecuencia in ("revisión humana", "LGPL"):  # VER-1
+        assert consecuencia.lower() in secciones["Consecuencias"].lower(), consecuencia
