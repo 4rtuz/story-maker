@@ -68,8 +68,9 @@ addopts = "-q"
 # informativo. Sin mutar cadenas: un mensaje distinto no es un gate decorativo.
 # En Windows, con PYTHONUTF8=1 (mutmut imprime emojis).
 paths_to_mutate = "novela/slices/validacion/gates.py,novela/slices/delta/apply.py"
-# -B: sin bytecode rancio. `|| exit 1`: mutmut 2 solo cuenta como muerto el código 1, y un
-# mutante que ni compila hace salir a pytest con 2 o 4.
-runner = "python -B -m pytest -x -q -p no:cacheprovider novela/slices/validacion/test_gates.py novela/slices/delta/test_apply.py || exit 1"
+# -B: sin bytecode rancio. `and 1`: mutmut 2 solo cuenta como muerto el código 1, y un
+# mutante que ni compila hace salir a pytest con 2 o 4. Sin `|| exit 1`: fuera de Windows
+# mutmut parte el runner con shlex y lo lanza sin shell.
+runner = '''python -B -c "import sys, pytest; sys.exit(pytest.main(['-x', '-q', '-p', 'no:cacheprovider', 'novela/slices/validacion/test_gates.py', 'novela/slices/delta/test_apply.py']) and 1)"'''
 tests_dir = "novela/slices/"
 disable_mutation_types = "string,fstring"
