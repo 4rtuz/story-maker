@@ -88,3 +88,22 @@ def test_el_juez_lee_su_rubrica_y_nadie_mas_lee_config(tmp_path: Path) -> None:
     assert _hook(_lectura(rubrica, "escritor"), tmp_path, entorno).returncode != 0
     otro = "/r/backend/config/recipes.yaml"
     assert _hook(_lectura(otro, "juez"), tmp_path, entorno).returncode != 0
+
+
+def test_escritor_no_lee_un_informe_que_copia_el_misterio(tmp_path: Path) -> None:
+    """eval-b3-inyeccion: el continuista copió en qa/01-continuidad.json la nota de la pista, y
+    ese informe va al escritor en el reintento (invariante 3). Ocho palabras seguidas bastan."""
+    raiz = tmp_path / "novelas" / "boda-ana"
+    (raiz / "canon").mkdir(parents=True)
+    (raiz / "qa").mkdir()
+    secreto = "La nota decía que el atlas guardaba la llave del depósito desde 1952."
+    (raiz / "canon" / "misterio.md").write_text(f"---\nx: 1\n---\n{secreto}\n", encoding="utf-8")
+    fuga = raiz / "qa" / "01-continuidad.json"
+    fuga.write_text(f'{{"hallazgos": ["{secreto[:60]}"]}}', encoding="utf-8")
+    limpio = raiz / "qa" / "01-suspense.json"
+    limpio.write_text('{"hallazgos": ["falta plantar pis-006 en el capítulo"]}', encoding="utf-8")
+    entorno = {"NOVELA_SLUG": "boda-ana"}
+    r = _hook(_lectura(str(fuga), "escritor"), tmp_path, entorno)
+    assert r.returncode != 0 and "misterio" in r.stderr
+    assert _hook(_lectura(str(limpio), "escritor"), tmp_path, entorno).returncode == 0
+    assert _hook(_lectura(str(fuga), "continuista"), tmp_path, entorno).returncode == 0

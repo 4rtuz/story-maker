@@ -10,6 +10,7 @@ append-only (docs/guardrails.md).
 import json
 import os
 import re
+from pathlib import Path
 import sys
 from collections.abc import Mapping
 from datetime import UTC, datetime
@@ -101,6 +102,34 @@ def _lectura(ruta: str, rol: object, entorno: Mapping[str, str]) -> str | None:
         return f"{rol} solo lee su workspace y sus esquemas: {ruta}"
     if "canon/misterio.md" in relativas:
         return f"{rol} no lee canon/misterio.md: {ruta}"
+    if rol in _SIN_MISTERIO and any(re.fullmatch(r"qa/[^/]+\.json", r) for r in relativas):
+        return _fuga(ruta, rol)
+    return None
+
+
+# Invariante 3: el escritor y el editor-estilo no leen el misterio, tampoco copiado en el informe
+# de un revisor que sí lo lee (eval-b3-inyeccion). Ocho palabras seguidas en común bastan.
+_SIN_MISTERIO = frozenset({"escritor", "editor-estilo"})
+_PALABRAS = 8
+
+
+def _ngramas(texto: str) -> set[tuple[str, ...]]:
+    p = re.findall(r"\w+", texto.casefold())
+    return {tuple(p[i : i + _PALABRAS]) for i in range(len(p) - _PALABRAS + 1)}
+
+
+def _fuga(ruta: str, rol: object) -> str | None:
+    s = ruta.split("/")
+    i = max(j for j in range(len(s) - 2) if s[j] == "novelas")
+    secreto = Path("/".join(s[: i + 2])) / "canon" / "misterio.md"
+    try:
+        comun = _ngramas(Path(ruta).read_text(encoding="utf-8")) & _ngramas(
+            secreto.read_text(encoding="utf-8")
+        )
+    except OSError:
+        return None  # sin misterio o sin informe no hay fuga que medir; Read dará su error
+    if comun:
+        return f"{rol} no lee {ruta}: copia texto de canon/misterio.md («{' '.join(min(comun))}»)"
     return None
 
 

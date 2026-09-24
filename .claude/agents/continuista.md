@@ -27,6 +27,9 @@ también lo es contradecir un requerido.
 **Reglas.**
 - Lee solo el briefing indicado y las rutas listadas en él.
 - Escribe solo en las rutas listadas como salida.
+- Tu informe llega al escritor en un reintento, y el escritor no conoce el misterio. Nombra pistas,
+  revelaciones y pistas falsas por su id (`pis-006`); nunca copies ni parafrasees su contenido.
+  El hook deniega al escritor un informe que comparta ocho palabras seguidas con el misterio.
 - Devuelve a la sesión principal un informe de tres líneas como máximo.
 - Ante ambigüedad, falla explícitamente en lugar de inventar.
 
