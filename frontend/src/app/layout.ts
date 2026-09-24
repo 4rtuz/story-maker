@@ -50,7 +50,8 @@ export function crearLayout(): Layout {
   const avisos = el('div', 'q-avisos');
   const contenido = el('div', 'q-contenido__vista');
   const principal = el('main', 'q-contenido', avisos, contenido);
-  const raiz = el('div', 'q-app', barra, el('div', 'q-app__columna', superior, principal));
+  // El fondo oscuro va en la columna, que llega al final de la página; la barra, fija dentro.
+  const raiz = el('div', 'q-app', el('div', 'q-app__lateral', barra), el('div', 'q-app__columna', superior, principal));
 
   plegar.addEventListener('click', () => {
     const plegada = raiz.classList.toggle('q-app--plegada');

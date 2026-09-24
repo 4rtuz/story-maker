@@ -4,9 +4,10 @@ import './shared/ui/estilos.css';
 import './app/app.css';
 import { inicio } from './app/inicio';
 import { arrancar, type Montador } from './app/rutas';
+import { lanzar } from './features/lanzar/vista';
 import { el, vacio } from './shared/ui/componentes';
 
-// ponytail: Lanzar, Progreso y Lectura llegan en T-09, T-10 y T-13; hasta entonces, un aviso.
+// ponytail: Progreso y Lectura llegan en T-10 y T-13; hasta entonces, un aviso.
 const pendiente = (titulo: string) => ({
   titulo,
   nodo: el('section', 'q-tarjeta', vacio('esta vista todavía no está disponible')),
@@ -18,7 +19,7 @@ const montar: Montador = (ruta) => {
     case 'inicio':
       return inicio();
     case 'lanzar':
-      return pendiente('Lanzar');
+      return lanzar();
     case 'progreso':
       return pendiente('Progreso');
     case 'lectura':

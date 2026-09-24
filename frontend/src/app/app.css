@@ -25,6 +25,10 @@
 
 /* --- Barra lateral ------------------------------------------------------------------------- */
 
+.q-app__lateral {
+  background: var(--q-nav-fondo);
+}
+
 .q-nav {
   position: sticky;
   top: 0;
@@ -307,4 +311,109 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+/* --- Lanzar -------------------------------------------------------------------------------- */
+
+.q-vista--lanzar {
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  align-items: start;
+}
+
+@media (width < 1280px) {
+  .q-vista--lanzar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.q-lanzar__campos {
+  display: grid;
+  gap: 20px;
+}
+
+.q-lanzar__numeros {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.q-lanzar__acciones {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.q-lanzar__salida {
+  grid-column: 1 / -1;
+}
+
+.q-lanzar__resultado {
+  display: grid;
+  gap: 20px;
+}
+
+.q-lanzar__aviso {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--q-radio-control);
+  background: var(--q-tinte-naranja);
+  color: var(--q-texto);
+  font-size: var(--q-texto-meta);
+}
+
+.q-orden {
+  display: grid;
+  gap: 10px;
+}
+
+.q-orden__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.q-orden__titulo {
+  margin: 0;
+  font-size: var(--q-texto-cuerpo);
+  font-weight: 600;
+}
+
+.q-orden__texto {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--q-radio-control);
+  background: var(--q-secundario-fondo);
+  color: var(--q-texto);
+  font: var(--q-texto-meta) / 1.6 var(--q-fuente-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.q-orden__texto:empty {
+  display: none;
+}
+
+.q-orden__manual {
+  font: var(--q-texto-meta) / 1.6 var(--q-fuente-mono);
+}
+
+.q-orden__estado {
+  margin: 0;
+  font-size: var(--q-texto-meta);
+  color: var(--q-texto-secundario);
+}
+
+.q-orden__estado:empty {
+  display: none;
+}
+
+.q-lanzar__etiquetas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.q-esqueleto--slugs {
+  height: 64px;
 }

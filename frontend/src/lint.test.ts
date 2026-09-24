@@ -5,11 +5,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { ESLint, type Linter } from 'eslint';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 const FRONTEND = path.resolve(import.meta.dirname, '..');
 const FIXTURES = path.join(FRONTEND, 'test', 'fixtures', 'lint');
 const eslint = new ESLint({ cwd: FRONTEND });
+
+// La primera pasada carga el parser de TypeScript: fuera del plazo de cada test.
+beforeAll(async () => {
+  await eslint.lintText('', { filePath: path.join(FRONTEND, 'src/x.ts') });
+}, 60_000);
 
 async function errores(fixture: string, como: string): Promise<Linter.LintMessage[]> {
   const codigo = fs.readFileSync(path.join(FIXTURES, fixture), 'utf8');

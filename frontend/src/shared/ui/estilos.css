@@ -140,6 +140,7 @@ body {
 
 .q-campo {
   display: grid;
+  align-content: start;
   gap: 8px;
 }
 
