@@ -115,6 +115,7 @@ Existe un subconjunto barato que sí se hace, y conviene no confundirlo con una 
 - **API**: `TestClient` de FastAPI contra un workspace fixture; se verifica también que **ningún** endpoint escribe (§4.3).
 - **Plataforma**: en Windows, `os.replace` falla con `PermissionError` si otro proceso tiene abierto el destino —la API sirviendo ese capítulo, un antivirus—. El test abre el destino con otro handle y escribe: `atomic.py` reintenta con espera acotada y, si agota, sale con error dejando el fichero anterior intacto. CA-04 inyecta la excepción; esto la provoca de verdad, que no es lo mismo.
 - **Sink caído**: con `TRACE_TO_LANGFUSE="true"` y Langfuse inalcanzable o colgado, `checkpoint` escribe igual, sale con 0 dentro de un timeout fijo y deja el fallo en `harness.log`. CA-22 prueba el sink apagado; el que para una novela es el encendido sin red.
+- **e2e del panel** (spec 0004): Playwright en Chromium y Firefox contra la API real y `vite preview` en `localhost:5173`. Los workspaces los genera `backend/tests/fixtures/panel.py` —`demo-24`, `recien-creada` y `grande-999`, con el bucle real y sin claves: aparta `TRACE_TO_LANGFUSE`, `LANGFUSE_*` y el `.env` de la raíz mientras genera (CA-42)— y `e2e/preparar.ts` añade `hostil-24`, una copia de `demo-24` con el capítulo hostil de CA-26 en el 3. `page.route` solo retrasa o hace fallar respuestas. Cada test escucha `console.error` y `pageerror` y falla si aparece uno (RNF-16); solo se excluyen, con una lista cerrada, los mensajes del navegador por el fallo que provoca el propio escenario (WebGL desactivado, logo o fuente que no cargan, la API caída de `resiliencia.spec.ts`) y el «Failed to load resource» de Chromium por el 404 de `…/escaleta` de una novela sin plan, que el panel trata como respuesta correcta (D45). Draw calls, WebGL desactivado y las 20 entradas y salidas de Lectura (VAL-20) solo en Chromium.
 
 ### 3.6 Property-based testing — T
 
@@ -753,6 +754,14 @@ Cada uno con su condición de revisión: un riesgo aceptado sin criterio para re
 
 **5.23 La huella es una señal, no un gate.** Una deriva de estilo pasa el bucle: consta en `qa/NN-validacion.json` y puntúa en `estilo`, pero no para (spec 0002 §13, F-87). Con un solo baseline, la tolerancia de la longitud de frase habría rechazado los tres capítulos de `humo-0003`. *Revisar con `humo-0002`: si las tolerancias calibradas separan los capítulos sanos de los derivados, la huella puede pasar a gate por spec.*
 
+
+**5.24 La calidad visual y la usabilidad de la escena solo se juzgan por inspección** y por la demostración de la spec 0004: ningún test dice si la estantería se recorre bien. *Revisar si el operador deja de usar Lectura en favor de la lista HTML.*
+
+**5.25 CI renderiza WebGL por software.** Los e2e prueban los draw calls, no los fps en una GPU real. *Revisar si RNF-04 de la spec 0004 falla en la máquina de desarrollo.*
+
+**5.26 La API no autentica.** Cualquier proceso local puede leer las novelas. Aceptado mientras corra en `127.0.0.1` en la máquina de desarrollo, como §5.6 acepta el sandbox. *Revisar si la API se expone en red.*
+
+**5.27 La colisión de lecturas de la API con escrituras atómicas en Windows no se reproduce en CI**, que corre en Linux; la cubren los reintentos de `atomic.py` (§3.5, Plataforma) y la demostración de la spec 0004. *Revisar si `harness.log` registra un `PermissionError` con el panel abierto.*
 ---
 
 ## 6. Qué corre en cada punto

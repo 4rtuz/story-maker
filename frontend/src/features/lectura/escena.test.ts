@@ -16,7 +16,7 @@ import { ESCALETA, servirLectura } from './servir-lectura.test-util';
 
 const TOKENS = fs.readFileSync(path.join(import.meta.dirname, '../../shared/marca/tokens.css'), 'utf8');
 
-function rendererFalso(): Renderer & { dispose: Mock<() => void> } {
+function rendererFalso(): Renderer & { dispose: Mock<() => void>; forceContextLoss: Mock<() => void> } {
   const info = { render: { calls: 0 } };
   return {
     domElement: document.createElement('canvas'),
@@ -29,6 +29,7 @@ function rendererFalso(): Renderer & { dispose: Mock<() => void> } {
       info.render.calls = dibujables;
     }),
     dispose: vi.fn<() => void>(),
+    forceContextLoss: vi.fn<() => void>(),
   };
 }
 
@@ -94,6 +95,8 @@ describe('escena', () => {
     escena.liberar();
     for (const espia of liberados) expect(espia).toHaveBeenCalled();
     expect(renderer.dispose).toHaveBeenCalled();
+    // dispose() no suelta el contexto: sin esto, tras unas entradas se agotan (VAL-20).
+    expect(renderer.forceContextLoss).toHaveBeenCalled();
     expect(contenedor.querySelector('canvas')).toBeNull();
   });
 
@@ -177,6 +180,8 @@ describe('escena', () => {
     await vi.advanceTimersByTimeAsync(17);
     expect(reducida.escena.objetivo().x).toBeCloseTo(x[3]!);
     expect(reducida.contenedor.dataset.seleccion).toBe('4');
+    expect(reducida.contenedor.dataset.transicion).toBe('0');
+    expect(reducida.contenedor.dataset.camara).toBe('4');
   });
 });
 

@@ -17,6 +17,7 @@ export interface Renderer {
   setPixelRatio(proporcion: number): void;
   render(escena: THREE.Scene, camara: THREE.Camera): void;
   dispose(): void;
+  forceContextLoss(): void;
 }
 
 export type FabricaDeRenderer = (canvas: HTMLCanvasElement) => Renderer | null;
@@ -47,7 +48,8 @@ export interface OpcionesDeEscena {
 
 export interface Escena {
   escena: THREE.Scene;
-  /** Duración de la última transición de cámara, en ms. */
+  /** Duración de la última transición de cámara, en ms; también en data-transicion, y el volumen al
+   * que apunta la cámara al terminarla, en data-camara, para los e2e (CA-30). */
   readonly transicion: number;
   objetivo(): THREE.Vector3;
   actualizar(estados: EstadoDeVolumen[], xs: number[], seleccion: number): void;
@@ -120,7 +122,10 @@ export function crearEscena(opciones: OpcionesDeEscena): Escena | null {
       animacion.inicio ??= ahora;
       const t = animacion.duracion ? Math.min(1, (ahora - animacion.inicio) / animacion.duracion) : 1;
       colocarCamara(animacion.desde + (animacion.hasta - animacion.desde) * suavizar(t));
-      if (t >= 1) animacion = null;
+      if (t >= 1) {
+        animacion = null;
+        contenedor.dataset.camara = String(seleccion);
+      }
     }
     renderer.render(escena, camara);
     contenedor.dataset.drawCalls = String(renderer.info.render.calls);
@@ -215,7 +220,10 @@ export function crearEscena(opciones: OpcionesDeEscena): Escena | null {
       if (primeraVez || nuevaSeleccion !== seleccion) {
         seleccion = nuevaSeleccion;
         contenedor.dataset.seleccion = String(seleccion);
-        if (primeraVez) colocarCamara(xs[seleccion - 1] ?? 0);
+        if (primeraVez) {
+          colocarCamara(xs[seleccion - 1] ?? 0);
+          contenedor.dataset.camara = String(seleccion);
+        }
         else api.seleccionar(seleccion);
       }
       colocarContorno();
@@ -227,6 +235,7 @@ export function crearEscena(opciones: OpcionesDeEscena): Escena | null {
       contenedor.dataset.seleccion = String(n);
       colocarContorno();
       transicion = opciones.reducirMovimiento() ? 0 : DURACION_CAMARA;
+      contenedor.dataset.transicion = String(transicion);
       animacion = { desde: mirada.x, hasta: xs[n - 1] ?? mirada.x, inicio: null, duracion: transicion };
       pedirFotograma();
     },
@@ -247,6 +256,7 @@ export function crearEscena(opciones: OpcionesDeEscena): Escena | null {
         if ((malla as THREE.InstancedMesh).isInstancedMesh) (malla as THREE.InstancedMesh).dispose();
       });
       renderer.dispose();
+      renderer.forceContextLoss(); // dispose() no suelta el contexto WebGL (VAL-20)
       canvas.remove();
       delete contenedor.dataset.drawCalls;
     },
