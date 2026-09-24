@@ -22,6 +22,11 @@ _CANON: dict[str, type[BaseModel]] = {
 }
 
 
+# El deny de Read de canon/misterio.md también deniega escribirlo, así que el arquitecto escribe
+# el misterio aquí, y el gate, que es el briefing del trazador, lo promueve (spec 0003 v0.5).
+BORRADOR = "misterio.borrador.md"
+
+
 def _texto(ruta: Path) -> str | None:
     return ruta.read_text(encoding="utf-8") if ruta.is_file() else None
 
@@ -30,23 +35,42 @@ def cargar_fuentes(
     ws: WorkspaceRepository, capitulo: int, agente: Agente, run_id: str
 ) -> assemble.Fuentes:
     """Lee lo que cualquier receta puede pedir y lo valida en el borde. Son ficheros pequeños:
-    leerlos todos cuesta menos que decidir cuáles."""
+    leerlos todos cuesta menos que decidir cuáles. Salvo para el arquitecto, que lo escribe, el
+    canon tiene que estar completo (RF-38)."""
     raiz = ws.raiz
+    borrador = raiz / "canon" / BORRADOR
+    # Solo el trazador ve el borrador, y como el misterio: bajo su nombre, `canon/*` de una receta
+    # lo recogería sin pasar por el guardarraíl del misterio.
+    con_borrador = agente is Agente.TRAZADOR and borrador.is_file()
     ficheros = {"config.yaml": ws.config_yaml.read_text(encoding="utf-8")}
     for ruta in sorted([*raiz.glob("canon/*.md"), raiz / "plan" / "escaleta.md"]):
+        if ruta.name == BORRADOR or (con_borrador and ruta.name == "misterio.md"):
+            continue
         if ruta.is_file():
             texto = ruta.read_text(encoding="utf-8")
             if ruta.parent.name == "canon" and ruta.stem in _CANON:
                 ws.modelo_de_md(ruta, texto, _CANON[ruta.stem])
             ficheros[ruta.relative_to(raiz).as_posix()] = texto
-    misterio_texto = ficheros.get("canon/misterio.md")
-    misterio = None
-    if misterio_texto is not None:
-        misterio = ws.modelo_de_md(raiz / "canon" / "misterio.md", misterio_texto, Misterio)
+    if con_borrador:
+        texto = borrador.read_text(encoding="utf-8")
+        ws.modelo_de_md(borrador, texto, Misterio)
+        ficheros["canon/misterio.md"] = texto
     personajes = {}
     for ruta in sorted(raiz.glob("canon/personajes/*.md")):
         texto = ruta.read_text(encoding="utf-8")
         personajes[ruta.stem] = (ws.modelo_de_md(ruta, texto, Personaje), texto)
+    if agente is not Agente.ARQUITECTO:
+        for nombre in _CANON:
+            if f"canon/{nombre}.md" not in ficheros:
+                # Al trazador le falta el borrador, que es lo que el arquitecto puede escribir.
+                ausente = borrador if (agente, nombre) == (Agente.TRAZADOR, "misterio") else None
+                raise WorkspaceInvalido(f"{ausente or raiz / 'canon' / f'{nombre}.md'}: falta")
+        if not personajes:
+            raise WorkspaceInvalido(f"{raiz / 'canon' / 'personajes'}: no hay fichas")
+    misterio_texto = ficheros.get("canon/misterio.md")
+    misterio = None
+    if misterio_texto is not None:
+        misterio = ws.modelo_de_md(raiz / "canon" / "misterio.md", misterio_texto, Misterio)
 
     nn = ws.nn(capitulo)
     ruta_ficha = raiz / "plan" / "capitulos" / f"{nn}.md"
@@ -82,6 +106,15 @@ def cargar_fuentes(
         resumenes=resumenes,
         digitos=len(nn),
     )
+
+
+def _promover(ws: WorkspaceRepository) -> None:
+    """El gate pasó: el borrador pasa a canon/misterio.md, atómico, y después se borra. Cortado
+    entre las dos cosas, el siguiente gate lo repite, porque con los dos manda el borrador."""
+    borrador = ws.raiz / "canon" / BORRADOR
+    if borrador.is_file():
+        ws.escribir(ws.raiz / "canon" / "misterio.md", borrador.read_bytes())
+        borrador.unlink()
 
 
 def _sello_roto(ws: WorkspaceRepository) -> list[int]:
@@ -133,6 +166,8 @@ def briefing(slug: str, capitulo: int, agente: Agente) -> None:
                 raise
             destino = abierto.dir / "briefings" / f"{nn}-{agente.value}.md"
             ws.escribir(destino, hecho.texto)
+            if agente is Agente.TRAZADOR:
+                _promover(ws)
             pasos = hecho.meta.degradacion
             degradado = f" · degradado: {'; '.join(pasos)}" if pasos else ""
             typer.echo(

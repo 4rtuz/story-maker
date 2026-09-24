@@ -278,6 +278,117 @@ def test_misterio_invalido_en_el_log(tmp_path: Path) -> None:
     assert "WorkspaceInvalido" in ultima and "misterio.md" in ultima
 
 
+def _con_canon(tmp_path: Path) -> WorkspaceRepository:
+    ws = _nueva(tmp_path)
+    fabrica.escribir(ws.raiz, fabrica.canon(fabrica.HUERFANA) | fabrica.plan(fabrica.HUERFANA))
+    return ws
+
+
+def _ultima(ws: WorkspaceRepository, run_id: str) -> str:
+    return (ws.raiz / "runs" / run_id / "harness.log").read_text("utf-8").splitlines()[-1]
+
+
+@pytest.mark.parametrize(
+    ("agente", "run_id"), [("trazador", ARRANQUE), ("escritor", "r-20260101-0100")]
+)
+@pytest.mark.parametrize(
+    "falta", ["premisa.md", "mundo.md", "estilo.md", "misterio.md", "personajes"]
+)
+def test_canon_incompleto(tmp_path: Path, agente: str, run_id: str, falta: str) -> None:
+    """CA-26 (RF-38, F-48): el gate del arquitecto validaba solo los ficheros del canon que
+    existían. Sin uno, o sin fichas de personaje, cualquier agente salvo el arquitecto sale con 4
+    y la causa nombra lo que falta."""
+    ws = _con_canon(tmp_path)
+    objetivo = ws.raiz / "canon" / falta
+    if objetivo.is_dir():
+        for ficha in objetivo.iterdir():
+            ficha.unlink()
+    else:
+        objetivo.unlink()
+    resultado = fabrica.cli(tmp_path, "briefing", ws.slug, "1", agente, run=run_id)
+    assert resultado.exit_code == 4
+    ultima = _ultima(ws, run_id)
+    # Al trazador le falta el borrador: es lo que el arquitecto escribe (RF-37).
+    nombre = "misterio.borrador.md" if (agente, falta) == ("trazador", "misterio.md") else falta
+    assert "WorkspaceInvalido" in ultima and nombre in ultima
+
+
+def test_arquitecto_sin_canon(tmp_path: Path) -> None:
+    """CA-26: el arquitecto es quien escribe el canon; su briefing no lo exige."""
+    ws = _nueva(tmp_path)
+    assert (
+        fabrica.cli(tmp_path, "briefing", ws.slug, "1", "arquitecto", run=ARRANQUE).exit_code == 0
+    )
+
+
+BORRADOR = "canon/misterio.borrador.md"
+ROTO = "---\npistas: 3\n---\nRoto.\n"
+
+
+def _con_borrador(tmp_path: Path, texto: str | None = None) -> tuple[WorkspaceRepository, bytes]:
+    """El canon tal como lo deja el arquitecto: el misterio solo en el borrador (F-28)."""
+    ws = _con_canon(tmp_path)
+    misterio = ws.raiz / "canon" / "misterio.md"
+    datos = misterio.read_bytes() if texto is None else texto.encode()
+    misterio.unlink()
+    (ws.raiz / BORRADOR).write_bytes(datos)
+    return ws, datos
+
+
+def _gate(tmp_path: Path, ws: WorkspaceRepository) -> Result:
+    return fabrica.cli(tmp_path, "briefing", ws.slug, "1", "trazador", run=ARRANQUE)
+
+
+def test_borrador_promovido(tmp_path: Path) -> None:
+    """CA-25 (RF-37): con el canon válido, el gate escribe el borrador en canon/misterio.md, tal
+    cual, y lo borra. El trazador lo recibe como el misterio."""
+    ws, datos = _con_borrador(tmp_path)
+    assert _gate(tmp_path, ws).exit_code == 0
+    assert (ws.raiz / "canon" / "misterio.md").read_bytes() == datos
+    assert not (ws.raiz / BORRADOR).exists()
+    briefing = (ws.raiz / "runs" / ARRANQUE / "briefings" / "01-trazador.md").read_text("utf-8")
+    assert "canon/misterio.md" in briefing and "borrador" not in briefing
+
+
+def test_borrador_invalido_se_queda(tmp_path: Path) -> None:
+    """CA-25: un borrador inválido sale con 4 y nombra el borrador, sin la subcadena misterio.md
+    que en /novela-nueva prohíbe el reintento: el arquitecto sí puede leerlo y reescribirlo."""
+    ws, _ = _con_borrador(tmp_path, ROTO)
+    assert _gate(tmp_path, ws).exit_code == 4
+    ultima = _ultima(ws, ARRANQUE)
+    assert "misterio.borrador.md" in ultima and "misterio.md" not in ultima
+    assert (ws.raiz / BORRADOR).is_file() and not (ws.raiz / "canon" / "misterio.md").exists()
+
+
+def test_borrador_valido_con_otro_invalido(tmp_path: Path) -> None:
+    """CA-25: solo se promueve si valida el canon entero; si no, el borrador se queda."""
+    ws, _ = _con_borrador(tmp_path)
+    fabrica.escribir(ws.raiz, {"canon/premisa.md": "---\nlogline: 3\n---\nSin premisa.\n"})
+    assert _gate(tmp_path, ws).exit_code == 4
+    assert (ws.raiz / BORRADOR).is_file() and not (ws.raiz / "canon" / "misterio.md").exists()
+
+
+def test_gana_el_borrador(tmp_path: Path) -> None:
+    """CA-25: con los dos, manda el borrador. Es el estado que deja una promoción cortada entre
+    escribir misterio.md y borrar el borrador, y el de un reintento del arquitecto."""
+    ws, datos = _con_borrador(tmp_path)
+    (ws.raiz / "canon" / "misterio.md").write_text(ROTO, encoding="utf-8")
+    assert _gate(tmp_path, ws).exit_code == 0
+    assert (ws.raiz / "canon" / "misterio.md").read_bytes() == datos
+    assert not (ws.raiz / BORRADOR).exists()
+
+
+def test_el_borrador_no_llega_a_otros_agentes(novelas: Novelas) -> None:
+    """Un borrador olvidado no entra en ningún briefing salvo el del trazador: `canon/*` de una
+    receta lo recogería sin pasar por el guardarraíl del misterio."""
+    ws = novelas("demo-24")
+    # El continuista es la receta con `canon/*`, además del trazador, y juzga el capítulo 8.
+    fabrica.escribir(ws.raiz, {"capitulos/08.md": fabrica.capitulo(fabrica.DEMO, 8)})
+    (ws.raiz / BORRADOR).write_text("secreto-del-borrador", encoding="utf-8")
+    assert _briefing(ws, 8, "continuista").exit_code == 0
+    assert "secreto-del-borrador" not in _fichero(ws, 8, "continuista").read_text("utf-8")
+
+
 @given(misterio=estrategias.misterios())
 def test_pista_permitida_dentro_del_secreto_no_lo_tapa(misterio: Misterio) -> None:
     """Contraejemplo que encontró Hypothesis: una pista permitida que es subcadena del secreto no

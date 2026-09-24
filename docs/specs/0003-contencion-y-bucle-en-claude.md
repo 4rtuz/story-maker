@@ -526,12 +526,12 @@ No aplica: no hay novelas empezadas y los cambios en `manifest.json` y `harness.
   - un `Write` bajo `estado/` con el motivo del hook cuenta como intento 1 fallido;
   - un `Agent` con `subagent_type: "general-purpose"` y el motivo de la regla 5 cuenta como intento 5 fallido.
 - [x] **CA-24** (RF-29) Revisión en el commit: la tabla de códigos de `novela-nueva.md` y de `novela-continuar.md` dice que un 1 de `novela briefing` (y en `novela-continuar.md`, de `novela checkpoint`) no se reintenta
-- [ ] **CA-25** (RF-37) Tests de `test_briefing.py`, con un canon válido y el misterio solo en el borrador:
+- [x] **CA-25** (RF-37) Tests de `test_briefing.py`, con un canon válido y el misterio solo en el borrador:
   - `novela briefing <slug> 1 trazador` sale con 0, `canon/misterio.md` tiene los bytes del borrador y el borrador ya no existe;
   - con el borrador inválido, sale con 4, la causa nombra `misterio.borrador.md` y no contiene `misterio.md`, el borrador se queda y `canon/misterio.md` no existe;
   - con el borrador válido y otro fichero del canon inválido, sale con 4 y el borrador se queda;
   - con el borrador y `canon/misterio.md` a la vez, gana el borrador.
-- [ ] **CA-26** (RF-38) Test de `test_briefing.py`: para `trazador` y `escritor`, sin cada uno de los cuatro ficheros del canon, o sin fichas de personaje, `novela briefing` sale con 4 y la última línea de `harness.log` nombra lo que falta. Con `arquitecto`, sin canon, sale con 0
+- [x] **CA-26** (RF-38) Test de `test_briefing.py`: para `trazador` y `escritor`, sin cada uno de los cuatro ficheros del canon, o sin fichas de personaje, `novela briefing` sale con 4 y la última línea de `harness.log` nombra lo que falta. Con `arquitecto`, sin canon, sale con 0
 - [ ] **CA-27** (RF-39) El contrato de `test_contratos.py` y el hook dan al `arquitecto` `canon/misterio.borrador.md` y no `canon/misterio.md`. Una ejecución real del canario informa el tercer control como pasado
 
 ## 12. Trazabilidad
@@ -567,8 +567,8 @@ Se rellena durante la implementación.
 | RF-36 | CA-23 | `backend/tests/canario/test_veredicto.py::test_un_caso_por_fixture`, `::test_sin_error_es_logrado_y_lo_ilegible_se_ignora`, sobre `backend/tests/canario/fixtures/*.jsonl` (sin modelo; lo recoge pytest) | hecho |
 | RF-35, RF-36 | CA-09 | Ejecución real de `ejecutar.py` con los prompts nuevos | pendiente |
 | RF-29 | CA-24 | Revisión de la tabla de códigos de `.claude/commands/novela-nueva.md` (el 1 de `briefing`) y `novela-continuar.md` (el de `briefing` y el de `checkpoint`), en el commit de CA-22 | hecho |
-| RF-37 | CA-25 | `backend/novela/slices/briefing/test_briefing.py` | pendiente |
-| RF-38 | CA-26 | `backend/novela/slices/briefing/test_briefing.py` | pendiente |
+| RF-37 | CA-25 | `backend/novela/slices/briefing/test_briefing.py::test_borrador_promovido`, `::test_borrador_invalido_se_queda`, `::test_borrador_valido_con_otro_invalido`, `::test_gana_el_borrador`, `::test_el_borrador_no_llega_a_otros_agentes` | hecho |
+| RF-38 | CA-26 | `backend/novela/slices/briefing/test_briefing.py::test_canon_incompleto`, `::test_arquitecto_sin_canon` | hecho |
 | RF-39 | CA-27 | `backend/tests/test_contratos.py`, `backend/tests/test_hook.py` y una ejecución real de `ejecutar.py` | pendiente |
 
 ## 13. Verificación

@@ -488,7 +488,7 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 | F-45 | `NOVELA_SESSION_ID` inválido, o heredado de la shell del bucle en una orden manual | Correlación traza ↔ paso perdida o falsa | Validación del formato (CA-12). La variable solo se exporta en la shell del bucle | T | activo en la validación del formato (CA-12); que la variable solo viva en la shell del bucle es disciplina |
 | F-46 | El OpenAPI queda desfasado tras cambiar `Manifest` | Se rompe el contrato con el frontend | `test_openapi_al_dia` | T | activo |
 | F-47 | Una causa con saltos de línea, como un `ValidationError` de Pydantic, parte la entrada de `harness.log` en varias líneas | La última línea ya no es la del subcomando: la regla de lectura 1 toma un gate por un fallo del CLI, y el gate del `arquitecto` no se reconoce | `Run.registro` escribe siempre una sola línea. Encontrado al escribir el test de CA-18 | T | activo (CA-18) |
-| F-48 | El gate del `arquitecto` (`briefing 1 trazador`) valida los ficheros del canon que existen y no exige los que faltan | Sin misterio, el gate sale con 0 y el `trazador` planifica sin pistas. Observado en la novela de humo el 2026-09-24 | Con un agente distinto del `arquitecto`, falta un fichero del canon o no hay fichas de personaje: salida 4 (spec 0003 v0.5, RF-38) | T | propuesto |
+| F-48 | El gate del `arquitecto` (`briefing 1 trazador`) valida los ficheros del canon que existen y no exige los que faltan | Sin misterio, el gate sale con 0 y el `trazador` planifica sin pistas. Observado en la novela de humo el 2026-09-24 | Con un agente distinto del `arquitecto`, falta un fichero del canon o no hay fichas de personaje: salida 4 (spec 0003 v0.5, RF-38) | T | activo (CA-26) |
 
 **Bucle y trazado**
 
