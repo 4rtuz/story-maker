@@ -405,3 +405,19 @@ def test_estado_sin_tabla_apariciones(novelas: Callable[[str], WorkspaceReposito
     sin = cliente.get("/novelas/demo-24/estado")
     assert (con.status_code, sin.status_code) == (200, 200)
     assert sin.json() == con.json()
+
+
+def _rutas(rutas: list[Any], prefijo: str = "") -> list[str]:
+    """Todas, también las que no salen en el OpenAPI (`include_in_schema=False`) y las montadas."""
+    caminos = []
+    for ruta in rutas:
+        camino = prefijo + getattr(ruta, "path", "")
+        caminos.append(camino)
+        caminos += _rutas(getattr(ruta, "routes", []), camino)
+    return caminos
+
+
+def test_sin_rutas_de_libro() -> None:
+    """CA-32 (RF-32), VAL-34: el libro de regalo no se sirve por la API (ADR 0003)."""
+    prohibidas = ("libro", "pdf", "ficha", "portada", "apariciones")
+    assert [c for c in _rutas(app.routes) if any(p in c for p in prohibidas)] == []

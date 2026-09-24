@@ -152,6 +152,8 @@ Tres contratos, mismo principio.
 
 Y el cruce entre ambos. El hook deniega todo `Write` bajo `estado/` salvo la salida declarada del `cronista`, `estado/deltas/NN.json` (`architecture.md` §7.1 y §7.5), y su tabla de salidas por rol es una copia de la de los agentes, porque no puede importar `backend/`. `test_hook.py` ejecuta el script como subproceso contra cada salida de cada rol —debe permitirla— y contra `estado/estado.db` y las salidas ajenas —debe denegarlas— (CA-03, CA-05), y compara su tabla con la del contrato de los agentes (F-16).
 
+**Libro de regalo ↔ destinatario.** El PDF de `novela exportar --formato pdf` es un contrato con alguien que no tiene el harness, y se verifica leyéndolo con `pypdf`, no mirando que exista: texto por página, destino de cada `Link` del índice y de la ficha contra la página que empieza por el título que nombra, marcadores, `/Lang`, ninguna acción `URI`, `Launch`, `JavaScript`, `SubmitForm` ni `GoToR` en ningún objeto del documento, y ninguna cadena del misterio ni de los campos de canon excluidos en el texto, los metadatos o los marcadores (`slices/export/test_pdf.py`, spec 0006). La decisión de entregarlo en PDF y no por la API la fija `docs/adr/0003-entrega-del-libro-en-pdf.md`, cuyas secciones y opciones comprueba `test_adr_de_entrega`, y `test_sin_rutas_de_libro` recorre `app.routes`, también las que no salen en el OpenAPI, para que ninguna sirva el libro.
+
 ### 3.9 Gates de artefacto — A + T
 
 Un gate es código barato en una frontera. El sistema tiene hoy uno solo, `novela validar` sobre el capítulo recién escrito, y varias fronteras que se cruzan sin nada.
