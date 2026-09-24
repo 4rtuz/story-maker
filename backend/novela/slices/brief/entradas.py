@@ -31,9 +31,12 @@ PATRONES = tuple(
         r"<<<",
         r">>>",
         r"```",
-        r"\bnovelas/",
+        r"\bnovelas\s*[\\/]",
+        r"\.\.[\\/]",
         r"\.claude\b",
-        r"\bbrief/",
+        r"\bbrief[\\/]",
+        r"\bno (hagas|hagais|hagan) caso\b",
+        r"\bcaso omiso\b",
         r"\bcambia (el|la) (tono|genero|extension|edad|nombre)\b",
     )
 )
@@ -79,8 +82,12 @@ def fragmentar(texto: str) -> list[Fragmento]:
 
 
 def _plano(texto: str) -> str:
-    descompuesto = unicodedata.normalize("NFD", texto.lower())
-    return "".join(c for c in descompuesto if unicodedata.category(c) != "Mn")
+    """Minúsculas, sin tildes y sin lo que esconde una palabra a la vista: NFKD pliega la anchura
+    completa y los caracteres de formato (Cf, como el espacio de anchura cero) se quitan
+    (security-report.md S-01). ponytail: los homoglifos de otro alfabeto (una «о» cirílica)
+    siguen pasando; cubrirlos exige la tabla de confusables de Unicode."""
+    descompuesto = unicodedata.normalize("NFKD", texto.lower())
+    return "".join(c for c in descompuesto if unicodedata.category(c) not in ("Mn", "Cf"))
 
 
 def marcar(texto: str) -> list[Fragmento]:
