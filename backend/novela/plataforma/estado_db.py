@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from novela.dominio.base import SCHEMA_VERSION, ColeccionAppendOnly
-from novela.dominio.estado import Estado
+from novela.dominio.estado import Aparicion, Estado
 
 
 class EstadoIlegible(Exception):
@@ -31,11 +31,49 @@ def _conectar(ruta: Path, modo: str) -> sqlite3.Connection:
     return conn
 
 
+def _esquema() -> str:
+    return resources.files(__package__).joinpath("esquema.sql").read_text("utf-8")
+
+
 def inicializar(conn: sqlite3.Connection) -> None:
     """DDL y `meta.schema_version` sobre una conexión vacía. El estado inicial lo guarda quien
     crea la base."""
-    conn.executescript(resources.files(__package__).joinpath("esquema.sql").read_text())
+    conn.executescript(_esquema())
     conn.execute("INSERT INTO meta VALUES ('schema_version', ?)", (SCHEMA_VERSION,))
+
+
+def asegurar_apariciones(conn: sqlite3.Connection) -> None:
+    """Crea `apariciones` en una base anterior a la spec 0006, desde el mismo bloque de
+    `esquema.sql`, y no hace nada si ya está. Sentencia a sentencia y no con `executescript`, que
+    haría COMMIT de la transacción de quien llama."""
+    bloque = _esquema().split("-- apariciones: inicio")[1].split("-- apariciones: fin")[0]
+    sentencia = ""
+    for linea in bloque.splitlines(keepends=True):  # los triggers llevan `;` dentro de BEGIN … END
+        sentencia += linea
+        if sqlite3.complete_statement(sentencia):
+            conn.execute(sentencia)
+            sentencia = ""
+
+
+def registrar_apariciones(conn: sqlite3.Connection, filas: Iterable[Aparicion]) -> None:
+    """Va dentro de la transacción de quien llama. Repetir un capítulo no duplica ni borra."""
+    conn.executemany(
+        "INSERT OR IGNORE INTO apariciones VALUES (?, ?, ?)",
+        [(f.entidad, f.tipo, f.capitulo) for f in filas],
+    )
+
+
+def apariciones(conn: sqlite3.Connection, hasta: int) -> list[Aparicion]:
+    """Las de los capítulos 1..`hasta`, por entidad y capítulo. Vale en solo lectura."""
+    try:
+        filas = conn.execute(
+            "SELECT entidad, tipo, capitulo FROM apariciones WHERE capitulo <= ? "
+            "ORDER BY entidad, capitulo",
+            (hasta,),
+        ).fetchall()
+    except sqlite3.OperationalError as exc:
+        raise EstadoIlegible(f"estado.db sin la tabla apariciones: {exc}") from exc
+    return [Aparicion(entidad=e, tipo=t, capitulo=c) for e, t, c in filas]
 
 
 def crear(ruta: Path) -> None:

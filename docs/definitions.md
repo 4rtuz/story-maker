@@ -246,6 +246,9 @@ Lo que ya ocurrió. Fuente única de verdad sobre el texto existente. Vive en `e
 
 Los nombres de esta rama son los del documento serializado de `architecture.md` §7.1, que es el que valida `state.schema.json`, el que responde la API y el que nombra las tablas de `esquema.sql`. Un nombre por campo: no hay alias.
 
+**`apariciones`** — La excepción a lo anterior: una tabla de `estado.db` que no está en la vista serializada, ni en `state.schema.json`, ni en el delta. Filas `Aparicion {entidad, tipo, capitulo}`, una por personaje (`per-`) o escenario (`esc-`) y capítulo en que sale, con `tipo` `personaje | escenario` casado con el prefijo del id. `novela aplicar-delta` las deriva, en la misma transacción que el estado, del `pov` del frontmatter, de los `personajes` y el `lugar` de las escenas de la ficha de plan que el frontmatter declara, y de los personajes del delta con `ultima_aparicion` en ese capítulo junto con su `ubicacion`. Es un índice de lo que el plan y el cronista dicen que aparece, no de cada mención en el texto. Los capítulos aplicados antes de que existiera la tabla no tienen filas.
+`tabla` · **APPEND-ONLY, DERIVADO** · aplicar-delta → `estado_db.apariciones`
+
 ---
 
 ## 5. MEMORIA

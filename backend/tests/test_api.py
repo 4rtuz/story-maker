@@ -395,3 +395,13 @@ def test_get_del_panel_en_solo_lectura(solo_lectura: WorkspaceRepository) -> Non
         assert cliente.get(ruta).status_code == 200, ruta
         for metodo in ("POST", "PUT", "PATCH", "DELETE"):
             assert cliente.request(metodo, ruta).status_code == 405, (metodo, ruta)
+
+
+def test_estado_sin_tabla_apariciones(novelas: Callable[[str], WorkspaceRepository]) -> None:
+    """CA-23 (RF-23) por la API: 200 y el mismo JSON con la tabla y sin ella."""
+    ws = novelas("demo-24")
+    con = cliente.get("/novelas/demo-24/estado")
+    fabrica.quitar_apariciones(ws.raiz)
+    sin = cliente.get("/novelas/demo-24/estado")
+    assert (con.status_code, sin.status_code) == (200, 200)
+    assert sin.json() == con.json()

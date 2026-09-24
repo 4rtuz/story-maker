@@ -8,6 +8,7 @@ Ningún fixture se genera llamando a un modelo.
 import hashlib
 import json
 import shutil
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -495,3 +496,14 @@ def construir(
         if instantaneas and n in instantaneas:
             shutil.copytree(raiz, base / instantaneas[n])
     return raiz
+
+
+def quitar_apariciones(raiz: Path) -> None:
+    """Deja la base como la de un workspace anterior a la spec 0006: sin la tabla, sus triggers ni
+    su índice, que caen con ella."""
+    conn = sqlite3.connect(raiz / "estado" / "estado.db")
+    try:
+        conn.execute("DROP TABLE apariciones")
+        conn.commit()
+    finally:
+        conn.close()

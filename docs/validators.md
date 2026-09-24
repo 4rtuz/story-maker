@@ -129,6 +129,7 @@ Hypothesis, generando estados y deltas aleatorios. Las propiedades que aquí son
 | `restore(checkpoint(e)) == e` | La reanudación depende de esto y nada más lo comprueba |
 | `misterio.md ⊄ briefing(escritor, *)` | Invariante 3, sobre canons generados al azar |
 | `validar(cap) == ok ⟹ todas las pistas del plan están en el frontmatter` | El gate no puede pasar en falso |
+| Registrar dos veces `apply.apariciones` de un capítulo es registrarlo una; el `pov` está siempre y los capítulos anteriores no cambian (`test_apariciones_property`, 200 casos) | Reanudar repite `aplicar-delta`, y la tabla es append-only (spec 0006) |
 
 La cuarta es la más valiosa: un test de ejemplo comprueba que *ese* misterio no se filtra; la propiedad comprueba que ninguno lo hace.
 
@@ -765,6 +766,10 @@ Cada uno con su condición de revisión: un riesgo aceptado sin criterio para re
 **5.27 La colisión de lecturas de la API con escrituras atómicas en Windows no se reproduce en CI**, que corre en Linux; la cubren los reintentos de `atomic.py` (§3.5, Plataforma) y la demostración de la spec 0004. *Revisar si `harness.log` registra un `PermissionError` con el panel abierto.*
 
 **5.28 El juicio estético del panel solo tiene inspección.** Si el panel «se ve profesional» lo decide la revisión visual manual de la spec 0004 (T-22); las comprobaciones de `marca.spec.ts` y `visual.spec.ts` reducen lo que queda a juicio, no lo eliminan. *Revisar si la revisión visual encuentra desviaciones que ninguna comprobación automática había detectado.*
+
+**5.29 Las apariciones salen del plan y del delta, no del texto.** Un personaje que el escritor añade a una escena sin que lo planifique la ficha ni lo registre el cronista no consta en `apariciones`, y la ficha del libro no lo enlaza a ese capítulo (spec 0006 §11). La unión con `delta.personajes`, que el cronista extrae del texto, y la revisión del `continuista` contra el plan lo acotan. *Revisar si la revisión humana del PDF encuentra un personaje que sale en un capítulo y no figura en su ficha.*
+
+**5.30 Los workspaces anteriores a la tabla `apariciones` no tienen apariciones de sus capítulos ya aplicados.** No hay backfill (spec 0006 D6): un workspace terminado antes de la spec no exporta en PDF, y uno a medias gana la tabla en el siguiente `aplicar-delta`, pero solo con filas desde ese capítulo. `md` y `epub` siguen, como en §5.22. *Revisar si hace falta regalar una novela escrita antes de la spec: entonces se escribe el backfill, y eso es otra spec.*
 ---
 
 ## 6. Qué corre en cada punto

@@ -178,6 +178,21 @@ class Delta(Modelo):
     resumen: Resumen
 
 
+class Aparicion(Modelo):
+    """Una fila de la tabla `apariciones` de `estado.db`: la entidad sale en ese capítulo. Es un
+    índice derivado para la ficha del libro, fuera de `Estado` y de `Delta` (spec 0006)."""
+
+    entidad: PersonajeId | EscenarioId
+    tipo: Literal["personaje", "escenario"]
+    capitulo: CapituloNum
+
+    @model_validator(mode="after")
+    def _tipo_del_prefijo(self) -> Self:
+        if self.entidad.startswith("per-") != (self.tipo == "personaje"):
+            raise ValueError(f"{self.entidad} no es de tipo {self.tipo}")
+        return self
+
+
 class Estado(Modelo):
     schema_version: SchemaVersion = SCHEMA_VERSION
     cursor: Cursor

@@ -10,7 +10,8 @@ from dataclasses import dataclass
 
 from novela.dominio.artefactos import FrontmatterCapitulo
 from novela.dominio.base import ColeccionAppendOnly
-from novela.dominio.estado import Cursor, Delta, Estado, EstadoPista, Metricas
+from novela.dominio.estado import Aparicion, Cursor, Delta, Estado, EstadoPista, Metricas
+from novela.dominio.plan import FichaCapitulo
 
 
 @dataclass(frozen=True)  # pragma: no mutate
@@ -102,4 +103,25 @@ def aplicar(estado: Estado, delta: Delta, d: Derivados) -> Estado:
                 desviacion_vs_plan=round(d.palabras_totales / objetivo - 1, 4) if objetivo else 0.0,
             ),
         }
+    )
+
+
+def apariciones(
+    capitulo: int, fm: FrontmatterCapitulo, ficha: FichaCapitulo, delta: Delta
+) -> tuple[Aparicion, ...]:
+    """Quién y dónde sale en el capítulo, sin repetir y en orden de primera aparición: el pov; los
+    personajes y el lugar de cada escena de la ficha que declara el frontmatter; y los personajes
+    del delta con `ultima_aparicion` en este capítulo, cada uno con su ubicación (spec 0006, D4)."""
+    ids = [fm.pov]
+    for escena in ficha.escenas:
+        if escena.id in fm.escenas:
+            ids += [*escena.personajes, escena.lugar]
+    for personaje, estado in delta.personajes.items():
+        if estado.ultima_aparicion == capitulo:
+            ids += [personaje] if estado.ubicacion is None else [personaje, estado.ubicacion]
+    return tuple(
+        Aparicion(
+            entidad=i, tipo="personaje" if i.startswith("per-") else "escenario", capitulo=capitulo
+        )
+        for i in dict.fromkeys(ids)
     )

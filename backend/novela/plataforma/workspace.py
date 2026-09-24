@@ -177,7 +177,7 @@ class WorkspaceRepository:
         """El frontmatter de un markdown ya leído, validado contra su modelo."""
         try:
             return modelo.model_validate(frontmatter.partir(texto)[0])
-        except ValueError as exc:  # ValidationError, o frontmatter mal formado
+        except (ValueError, yaml.YAMLError) as exc:  # ValidationError, o frontmatter mal formado
             raise WorkspaceInvalido(f"{ruta}: {exc}") from exc
 
     def leer_md[M: BaseModel](self, ruta: Path, modelo: type[M]) -> M:

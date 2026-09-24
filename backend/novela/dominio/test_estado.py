@@ -3,7 +3,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
-from novela.dominio.estado import Estado, Hecho, Hilo
+from novela.dominio.estado import Aparicion, Estado, Hecho, Hilo
 from tests import estrategias
 
 
@@ -38,3 +38,14 @@ def test_hilo_cerrado_lleva_capitulo_de_cierre() -> None:
         Hilo.model_validate({**base, "estado": "cerrado"})
     with pytest.raises(ValidationError, match="cerrado_en"):
         Hilo.model_validate({**base, "estado": "cerrado", "cerrado_en": 1})
+
+
+@pytest.mark.parametrize(
+    ("entidad", "tipo"),
+    [("per-elena-vidal", "escenario"), ("esc-01-3", "escenario"), ("esc-puerto", "personaje")],
+)
+def test_aparicion_casa_tipo_y_prefijo(entidad: str, tipo: str) -> None:
+    """VER-5: un personaje no es un lugar, y un id de escena no es un escenario."""
+    with pytest.raises(ValidationError):
+        Aparicion.model_validate({"entidad": entidad, "tipo": tipo, "capitulo": 1})
+    assert Aparicion(entidad="esc-casa-del-faro", tipo="escenario", capitulo=1).capitulo == 1
