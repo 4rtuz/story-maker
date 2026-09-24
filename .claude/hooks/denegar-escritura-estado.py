@@ -10,10 +10,10 @@ append-only (docs/guardrails.md).
 import json
 import os
 import re
-from pathlib import Path
 import sys
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 MOTIVO = "denegar-escritura-estado:"  # prefijo de todo motivo; el canario lo busca en el transcript
