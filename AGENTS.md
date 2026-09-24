@@ -6,7 +6,7 @@ Documentación de referencia, solo cuando la necesites: `docs/architecture.md` (
 
 ## Qué es este proyecto
 
-Un sistema multiagente que escribe una novela de suspense completa a partir de una idea inicial. Siete roles se reparten el trabajo: `arquitecto`, `trazador`, `escritor`, `continuista`, `editor-estilo`, `lector-suspense` y `cronista`. Un orquestador los invoca en un bucle por capítulo y aplica gates de calidad entre paso y paso.
+Un sistema multiagente que escribe una novela de suspense completa a partir de una idea inicial. Los roles se reparten el trabajo: `arquitecto`, `trazador`, `escritor`, `continuista`, `editor-estilo`, `lector-suspense` y `cronista`, y en una novela de regalo, antes, el `entrevistador`. Un orquestador los invoca en un bucle por capítulo y aplica gates de calidad entre paso y paso.
 
 ## Monorepo
 

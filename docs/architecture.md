@@ -105,6 +105,7 @@ Sin acceso a `temperature`, el único parámetro de control que queda es el mode
 | `editor-estilo` | sonnet | Corrige contra párrafos canónicos |
 | `lector-suspense` | sonnet | Puntuaciones estructuradas |
 | `cronista` | haiku | Extracción mecánica; el agente más barato del bucle |
+| `entrevistador` | sonnet | Fuera del bucle, en la fase de brief: estructura y cita; el CLI verifica cada cita |
 
 La variación creativa que antes se buscaba con temperatura alta se compensa por prompt: el `escritor` recibe en su briefing una restricción de apertura distinta por capítulo (con qué tipo de frase empieza, qué registro domina la primera escena) para evitar que 24 capítulos abran igual. Es la mitigación disponible y conviene medir si basta.
 
@@ -578,10 +579,10 @@ Modificar o eliminar una entrada existente no es una corrección, es reescribir 
 Refuerzo adicional, preventivo en lugar de detectivo: el hook `PreToolUse` de `.claude/hooks/denegar-escritura-estado.py`, registrado en `.claude/settings.json` para `Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Agent|Task`. Un agente que lo intente no llega a escribir, en vez de descubrirse después de haberlo hecho. Deniega con exit 2, también ante una entrada que no entiende, porque cualquier otro código deja pasar la acción:
 
 1. Cualquier escritura bajo `novelas/*/estado/` salvo `estado/deltas/NN.json`, que es la salida del `cronista`. La ruta se normaliza antes de comparar —contra `cwd`, sin `..`, sin mayúsculas, sin el prefijo `\\?\` ni los puntos y espacios finales que Win32 quita al escribir— y lo que no sabe normalizar, como un flujo alternativo, se deniega.
-2. A cada uno de los siete roles, cualquier escritura fuera de sus salidas de §7.5.
+2. A cada rol de `.claude/agents/`, cualquier escritura fuera de sus salidas de §7.5.
 3. A la sesión principal, cualquier escritura en el workspace salvo `runs/*/intervencion.md`.
 4. Toda orden `Bash` o `PowerShell` que nombre `canon/…misterio` o `estado.db`.
-5. Con `NOVELA_SESSION_ID` definida, que solo exportan el bucle y las sesiones del harness, cualquier subagente que no sea uno de los siete o el `canario` de `validators.md` §4.9.
+5. Con `NOVELA_SESSION_ID` definida, que solo exportan el bucle y las sesiones del harness, cualquier subagente que no sea uno de los roles o el `canario` de `validators.md` §4.9.
 
 Debajo quedan los `deny` de `settings.json` sobre `estado.db*`, `state.lock` y `sqlite3`, y los triggers, que cubren lo que el hook no normaliza: nombres cortos 8.3, uniones y enlaces simbólicos.
 
@@ -647,7 +648,7 @@ model: opus
 
 | Agente | `tools` | Por qué |
 |---|---|---|
-| `arquitecto`, `trazador`, `escritor`, `continuista`, `lector-suspense`, `cronista` | `Read, Write` | Leen rutas que el briefing nombra y crean ficheros nuevos |
+| `arquitecto`, `trazador`, `escritor`, `continuista`, `lector-suspense`, `cronista`, `entrevistador` | `Read, Write` | Leen rutas que el briefing nombra y crean ficheros nuevos |
 | `editor-estilo` | `Read, Edit, Write` | Único que modifica un fichero existente, `capitulos/NN.md` |
 
 Ninguno tiene `Glob`, `Grep`, `Bash`, `Task`, `Skill`, `WebFetch` ni `WebSearch`. Cada ausencia hace mecánica una regla que si no sería solo una petición en el prompt:
@@ -679,6 +680,7 @@ Qué recibe cada agente en su briefing y qué escribe. El briefing lo compone `n
 | `editor-estilo` | `capitulos/NN.md`, `canon/estilo.md` con sus párrafos canónicos y prohibiciones; su esquema, `backend/schemas/qa-informe.schema.json`. **Nunca** `canon/misterio.md` | `capitulos/NN.md` reescrito y `qa/NN-estilo.json` | `veredicto` y hallazgos por gravedad |
 | `lector-suspense` | `capitulos/NN.md`, `canon/misterio.md`, `plan/escaleta.md`, estado (`pistas`, `conocimiento_lector`, `tension_real`); su esquema, `backend/schemas/qa-informe.schema.json` | `qa/NN-suspense.json` | Puntuaciones de tensión, fair play y previsibilidad |
 | `cronista` | `capitulos/NN.md` aprobado, estado vigente; su esquema, `backend/schemas/delta.schema.json` | `estado/deltas/NN.json` | Nº de hechos e hilos del delta (no lleva pistas, §7.6) |
+| `entrevistador` | El briefing de `novela brief preparar` (no el de `novela briefing`: no tiene receta ni está en `Agente`): ocasión, vocabularios, límites, reglas de procedencia, fragmentos marcados, borrador e informe anteriores y las entradas delimitadas; su esquema, `backend/schemas/brief-borrador.schema.json` | `brief/borrador.json` | Campos a `null` y preguntas, sin datos del destinatario |
 
 `estado/deltas/NN.json` es la única entrada de `novela aplicar-delta`; ningún agente escribe `estado/estado.db`.
 

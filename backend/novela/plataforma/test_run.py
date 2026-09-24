@@ -12,6 +12,7 @@ from novela.cli import app
 from novela.dominio.artefactos import Manifest
 from novela.plataforma import run
 from novela.plataforma.workspace import CONFIG_DIR, WorkspaceRepository
+from tests.test_contratos import CONTRATO
 
 Novelas = Callable[[str], WorkspaceRepository]
 LAS_DIEZ = datetime(2026, 9, 23, 10, 0)
@@ -123,11 +124,11 @@ def test_procedencia(tmp_path: Path) -> None:
 
 
 def test_manifiesto_registra_los_prompts(novelas: Novelas) -> None:
-    """RF-12 sobre el repo real: el manifiesto lleva el hash de los siete agentes y de lo que se
-    carga en cada uno."""
+    """RF-12 sobre el repo real: el manifiesto lleva el hash de cada agente de CONTRATO y de lo que
+    se carga en cada uno."""
     abierto = run.abrir(novelas("demo-24"), 8, entorno={}, ahora=LAS_DIEZ)
     manifiesto = Manifest.model_validate_json((abierto.dir / "manifest.json").read_bytes())
     hashes = manifiesto.hashes_claude
     agentes = {k for k in hashes if k.startswith(".claude/agents/")}
-    assert len(agentes) == 7
+    assert agentes == {f".claude/agents/{rol}.md" for rol in CONTRATO}
     assert {"CLAUDE.md", "AGENTS.md", ".claude/settings.json"} <= set(hashes)

@@ -195,6 +195,24 @@ def test_salidas_casan_el_contrato() -> None:
             assert any(re.fullmatch(r, ruta) for ruta in rutas), (rol, r)
 
 
+def test_entrevistador_solo_borrador(tmp_path: Path) -> None:
+    """CA-03 (RF-03) y VER-32: el entrevistador escribe su borrador y nada más, tampoco el brief
+    que valida el CLI ni una ruta que solo empieza como la suya."""
+    for ruta, esperado in (
+        ("novelas/boda-prueba/brief/borrador.json", 0),
+        ("novelas/boda-prueba/./brief/borrador.json", 0),
+        ("novelas/boda-prueba/brief/brief.json", 2),
+        ("novelas/boda-prueba/brief/informe.json", 2),
+        ("novelas/boda-prueba/brief/entradas/ent-01.md", 2),
+        ("novelas/boda-prueba/brief/borrador.json.bak", 2),
+        ("novelas/boda-prueba/brief/borrador.json/../../config.yaml", 2),
+        ("novelas/boda-prueba/config.yaml", 2),
+        ("novelas/boda-prueba/canon/premisa.md", 2),
+    ):
+        resultado = _hook(_escritura(ruta, tmp_path, agente="entrevistador"), tmp_path)
+        assert resultado.returncode == esperado, (ruta, resultado.stderr)
+
+
 # --- Regla 3: la sesión principal no escribe en el workspace ---------------------------------
 
 
@@ -233,7 +251,7 @@ def test_ordenes(tmp_path: Path) -> None:
         assert _hook(entrada, tmp_path).returncode == esperado, orden
 
 
-# --- Regla 5: solo los siete, en una sesión del harness --------------------------------------
+# --- Regla 5: solo los roles, en una sesión del harness --------------------------------------
 
 SESION = {"NOVELA_SESSION_ID": "0f8fad5b-d9cb-469f-a165-70867728950e"}
 
@@ -247,6 +265,7 @@ def test_subagentes(tmp_path: Path) -> None:
         (SESION, "Task", None, 2),
         (SESION, "Agent", "escritor", 0),
         (SESION, "Agent", "canario", 0),
+        (SESION, "Agent", "entrevistador", 0),
         ({}, "Agent", "general-purpose", 0),
         ({}, "Agent", None, 0),
     ):

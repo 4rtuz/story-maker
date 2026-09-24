@@ -300,6 +300,7 @@ CONTRATO = {
     ),
     "lector-suspense": (["Read", "Write"], "sonnet", ["qa/NN-suspense.json"]),
     "cronista": (["Read", "Write"], "haiku", ["estado/deltas/NN.json"]),
+    "entrevistador": (["Read", "Write"], "sonnet", ["brief/borrador.json"]),
 }
 ESQUEMAS = {
     "arquitecto": ["backend/schemas/canon.schema.json"],
@@ -312,6 +313,7 @@ ESQUEMAS = {
     "editor-estilo": ["backend/schemas/qa-informe.schema.json"],
     "lector-suspense": ["backend/schemas/qa-informe.schema.json"],
     "cronista": ["backend/schemas/delta.schema.json"],
+    "entrevistador": ["backend/schemas/brief-borrador.schema.json"],
 }
 PROHIBIDAS = {"Glob", "Grep", "Bash", "Task", "Agent", "Skill", "WebFetch", "WebSearch"}
 
@@ -325,7 +327,8 @@ def _agente(rol: str) -> tuple[dict[str, str], str]:
 
 
 def test_agentes_de_claude() -> None:
-    """CA-01 (RF-01 a RF-03): los siete roles, con name, tools y model de la spec 0003 §5.1."""
+    """CA-01 (RF-01 a RF-03): los roles de CONTRATO, con name, tools y model de la spec 0003 §5.1
+    y de la 0005."""
     assert {p.stem for p in AGENTES_DIR.glob("*.md")} == set(CONTRATO)
     for rol, (tools, model, _) in CONTRATO.items():
         meta, _ = _agente(rol)
