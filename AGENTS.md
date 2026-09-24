@@ -81,6 +81,8 @@ novela pendiente <slug>               salida 0 si quedan capítulos
 novela auditar <slug>                 pistas huérfanas, hilos sin cerrar
 novela exportar <slug> --formato epub
 novela comprobar-entorno [--limpio]   hook, python, settings.local.json y .env antes de lanzar
+novela brief iniciar <slug> --ocasion <o>            novela de regalo: workspace del brief
+novela brief entrada <slug> --tipo <t> --fichero <f> ingiere lo que aporta el cliente
 ```
 
 Ejecuta `novela validar` antes de invocar a ningún agente de revisión: detecta gratis lo que no merece una llamada a un modelo.

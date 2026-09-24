@@ -296,6 +296,14 @@ Reflejo literal de la rama 6 de la ontología.
 novelas/<slug>/
 ├── config.yaml                   # rama 1, inmutable tras el arranque
 │
+├── brief/                        # solo en novelas de regalo, antes de config.yaml
+│   ├── inicio.json               # CLI: ocasión y fecha
+│   ├── entradas/
+│   │   └── ent-01.md             # CLI: lo que aporta el cliente, normalizado, frontmatter EntradaMeta
+│   ├── borrador.json             # entrevistador: el único fichero que escribe
+│   ├── informe.json              # CLI
+│   └── brief.json                # CLI, solo si el borrador valida
+│
 ├── canon/                        # rama 2 — VERSIONADO
 │   ├── premisa.md
 │   ├── mundo.md
@@ -348,6 +356,8 @@ novelas/<slug>/
     └── novela.epub
 ```
 
+`brief/` lleva los datos personales del destinatario. Lo crea `novela brief iniciar` y, en cuanto existe `config.yaml`, queda cerrado: ningún subcomando lo vuelve a escribir.
+
 `memoria/` y `runs/` son reconstruibles o desechables. `canon/`, `plan/`, `estado/` y `capitulos/` son los cuatro directorios que importa respaldar.
 
 ---
@@ -369,6 +379,7 @@ hil-004              hilo               ^hil-\d{3}$
 obj-011              objeto o prueba    ^obj-\d{3}$
 hec-014              hecho              ^hec-\d{3}$
 cap-01               capítulo           ^cap-\d{2,3}$
+ent-01               entrada del brief  ^ent-\d{2}$
 ```
 
 `esc-` sirve a escenario y a escena, y las dos expresiones son disjuntas por construcción: la de
@@ -742,6 +753,15 @@ novela auditar <slug>              # pistas huérfanas, hilos sin cerrar, fair p
 novela exportar <slug> --formato epub
 novela comprobar-entorno [--limpio]   # hook, python, settings.local.json y .env antes de lanzar
 ```
+
+Fase de brief de una novela de regalo, antes de `novela nueva`. Cada subcomando toma el lock y deja una línea en el `harness.log` del run de arranque `(1, "arranque")`, sin valores del brief ni texto de las entradas; con `config.yaml` presente, salen con 1 y «brief cerrado: la novela ya existe»:
+
+```
+novela brief iniciar <slug> --ocasion hijo|pareja|boda|aniversario|jubilacion
+novela brief entrada <slug> --tipo respuesta|texto-libre --fichero <ruta>   # imprime ent-NN
+```
+
+`iniciar` reclama el slug (1 si ya existe, 2 con otra ocasión) y crea `brief/entradas/`, `estado/`, `runs/` y `brief/inicio.json`. `entrada` lee el fichero como UTF-8 estricto sin BOM, lo normaliza (NFC, `\n`, sin caracteres de control salvo `\n` y `\t`) y lo escribe como `brief/entradas/ent-NN.md` con su sha256; sale con 2 si el fichero no existe, no es UTF-8, queda vacío o pasa de 20.000 caracteres, y con 1 si ya hay 20 entradas.
 
 **Reanudación.** `/novela-continuar` empieza leyendo `checkpoints/latest.json` y repite el último paso no confirmado. Regla dura: el estado nunca se reconstruye desde una conversación previa, ni siquiera desde la sesión anterior de Claude Code.
 
