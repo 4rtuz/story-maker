@@ -6,7 +6,7 @@ Documentación de referencia, solo cuando la necesites: `docs/architecture.md` (
 
 ## Qué es este proyecto
 
-Un sistema multiagente que escribe una novela de suspense completa a partir de una idea inicial. Siete roles se reparten el trabajo: `arquitecto`, `trazador`, `escritor`, `continuista`, `editor-estilo`, `lector-suspense` y `cronista`. Un orquestador los invoca en un bucle por capítulo y aplica gates de calidad entre paso y paso.
+Un sistema multiagente que escribe una novela de suspense completa a partir de una idea inicial. Los roles se reparten el trabajo: `arquitecto`, `trazador`, `escritor`, `continuista`, `editor-estilo`, `lector-suspense` y `cronista`, y en una novela de regalo, antes, el `entrevistador`. Un orquestador los invoca en un bucle por capítulo y aplica gates de calidad entre paso y paso.
 
 ## Monorepo
 
@@ -72,6 +72,7 @@ Operaciones deterministas. No llaman a ningún modelo y no consumen cuota.
 
 ```
 novela nueva <slug> --idea "..."      crea el workspace y estado.db
+novela nueva <slug> --brief           lo mismo, con la obra derivada de brief/brief.json
 novela estado <slug> --breve          cursor, hilos abiertos, capítulos hechos
 novela estado <slug> --json           estado completo serializado, para inspección
 novela briefing <slug> <cap> <agente> genera el contexto de una invocación
@@ -83,6 +84,10 @@ novela auditar <slug>                 pistas huérfanas, hilos sin cerrar
 novela exportar <slug> --formato md|epub|pdf
 novela comprobar-entorno [--limpio]   hook, python, settings.local.json y .env antes de lanzar
 novela producir <slug> [--idea "..."] la novela entera, una sesión de claude por paso; sin idea, reanuda
+novela brief iniciar <slug> --ocasion <o>            novela de regalo: workspace del brief
+novela brief entrada <slug> --tipo <t> --fichero <f> ingiere lo que aporta el cliente
+novela brief preparar <slug>                         briefing del entrevistador
+novela brief validar <slug>                          informe y, si valida, brief.json
 ```
 
 Ejecuta `novela validar` antes de invocar a ningún agente de revisión: detecta gratis lo que no merece una llamada a un modelo.

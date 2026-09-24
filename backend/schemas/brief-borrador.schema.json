@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "DestinatarioBorrador": {
+      "additionalProperties": false,
+      "properties": {
+        "nombre": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ValorTexto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "edad": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ValorEdad"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rasgos": {
+          "items": {
+            "$ref": "#/$defs/ValorTexto"
+          },
+          "maxItems": 10,
+          "title": "Rasgos",
+          "type": "array"
+        }
+      },
+      "required": [
+        "nombre",
+        "edad",
+        "rasgos"
+      ],
+      "title": "DestinatarioBorrador",
+      "type": "object"
+    },
+    "Fuente": {
+      "additionalProperties": false,
+      "properties": {
+        "entrada": {
+          "pattern": "^ent-[0-9]{2}$",
+          "title": "Entrada",
+          "type": "string"
+        },
+        "cita": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Cita",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entrada",
+        "cita"
+      ],
+      "title": "Fuente",
+      "type": "object"
+    },
+    "Prohibidos": {
+      "additionalProperties": false,
+      "description": "`terminos: []` es «ninguno»; `prohibidos: null` en el borrador, «no preguntado».",
+      "properties": {
+        "terminos": {
+          "items": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Terminos",
+          "type": "array"
+        },
+        "fuente": {
+          "$ref": "#/$defs/Fuente"
+        }
+      },
+      "required": [
+        "terminos",
+        "fuente"
+      ],
+      "title": "Prohibidos",
+      "type": "object"
+    },
+    "ValorCerrado_Literal__corta____media____larga___": {
+      "additionalProperties": false,
+      "properties": {
+        "valor": {
+          "enum": [
+            "corta",
+            "media",
+            "larga"
+          ],
+          "title": "Valor",
+          "type": "string"
+        },
+        "fuente": {
+          "$ref": "#/$defs/Fuente"
+        }
+      },
+      "required": [
+        "valor",
+        "fuente"
+      ],
+      "title": "ValorCerrado[Literal['corta', 'media', 'larga']]",
+      "type": "object"
+    },
+    "ValorCerrado_Literal__ligero____tierno____emotivo____intrigante____oscuro___": {
+      "additionalProperties": false,
+      "properties": {
+        "valor": {
+          "enum": [
+            "ligero",
+            "tierno",
+            "emotivo",
+            "intrigante",
+            "oscuro"
+          ],
+          "title": "Valor",
+          "type": "string"
+        },
+        "fuente": {
+          "$ref": "#/$defs/Fuente"
+        }
+      },
+      "required": [
+        "valor",
+        "fuente"
+      ],
+      "title": "ValorCerrado[Literal['ligero', 'tierno', 'emotivo', 'intrigante', 'oscuro']]",
+      "type": "object"
+    },
+    "ValorCerrado_Literal__thriller_psicologico____noir____domestic_suspense____procedural___": {
+      "additionalProperties": false,
+      "properties": {
+        "valor": {
+          "enum": [
+            "thriller_psicologico",
+            "noir",
+            "domestic_suspense",
+            "procedural"
+          ],
+          "title": "Valor",
+          "type": "string"
+        },
+        "fuente": {
+          "$ref": "#/$defs/Fuente"
+        }
+      },
+      "required": [
+        "valor",
+        "fuente"
+      ],
+      "title": "ValorCerrado[Literal['thriller_psicologico', 'noir', 'domestic_suspense', 'procedural']]",
+      "type": "object"
+    },
+    "ValorEdad": {
+      "additionalProperties": false,
+      "properties": {
+        "valor": {
+          "maximum": 120,
+          "minimum": 0,
+          "title": "Valor",
+          "type": "integer"
+        },
+        "fuente": {
+          "$ref": "#/$defs/Fuente"
+        }
+      },
+      "required": [
+        "valor",
+        "fuente"
+      ],
+      "title": "ValorEdad",
+      "type": "object"
+    },
+    "ValorTexto": {
+      "additionalProperties": false,
+      "properties": {
+        "valor": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Valor",
+          "type": "string"
+        },
+        "fuente": {
+          "$ref": "#/$defs/Fuente"
+        }
+      },
+      "required": [
+        "valor",
+        "fuente"
+      ],
+      "title": "ValorTexto",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "La salida del `entrevistador`: `null` o lista vacía es lo que aún no sabe.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "destinatario": {
+      "$ref": "#/$defs/DestinatarioBorrador"
+    },
+    "recuerdos": {
+      "items": {
+        "$ref": "#/$defs/Fuente"
+      },
+      "maxItems": 20,
+      "title": "Recuerdos",
+      "type": "array"
+    },
+    "genero": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ValorCerrado_Literal__thriller_psicologico____noir____domestic_suspense____procedural___"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tono": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ValorCerrado_Literal__ligero____tierno____emotivo____intrigante____oscuro___"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "extension": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ValorCerrado_Literal__corta____media____larga___"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "prohibidos": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Prohibidos"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "preguntas": {
+      "default": [],
+      "items": {
+        "maxLength": 300,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 8,
+      "title": "Preguntas",
+      "type": "array"
+    }
+  },
+  "required": [
+    "destinatario",
+    "recuerdos",
+    "genero",
+    "tono",
+    "extension",
+    "prohibidos"
+  ],
+  "title": "BorradorBrief",
+  "type": "object"
+}

@@ -7,6 +7,7 @@ import typer
 
 from novela.plataforma.salida import con_codigos
 from novela.slices.auditoria.cmd import auditar
+from novela.slices.brief import cmd as brief
 from novela.slices.briefing.cmd import briefing
 from novela.slices.checkpoint.cmd import checkpoint
 from novela.slices.delta.cmd import aplicar_delta
@@ -41,3 +42,10 @@ app.command()(con_codigos(auditar))
 app.command()(con_codigos(exportar))
 app.command("comprobar-entorno")(con_codigos(comprobar_entorno))
 app.command()(con_codigos(producir))
+
+brief_app = typer.Typer(no_args_is_help=True, help="Fase de brief de una novela de regalo.")
+brief_app.command()(con_codigos(brief.iniciar))
+brief_app.command()(con_codigos(brief.entrada))
+brief_app.command()(con_codigos(brief.preparar))
+brief_app.command()(con_codigos(brief.validar))
+app.add_typer(brief_app, name="brief")

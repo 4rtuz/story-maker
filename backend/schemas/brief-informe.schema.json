@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Hallazgo": {
+      "additionalProperties": false,
+      "properties": {
+        "tipo": {
+          "enum": [
+            "esquema",
+            "faltante",
+            "contradiccion",
+            "procedencia"
+          ],
+          "title": "Tipo",
+          "type": "string"
+        },
+        "codigo": {
+          "enum": [
+            "borrador_ausente",
+            "esquema_invalido",
+            "falta_campo",
+            "edad_genero",
+            "edad_tono",
+            "prohibido_en_texto",
+            "entrada_inexistente",
+            "cita_no_literal",
+            "valor_fuera_de_cita",
+            "campo_cerrado_desde_texto_libre",
+            "cita_en_fragmento_marcado"
+          ],
+          "title": "Codigo",
+          "type": "string"
+        },
+        "campos": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Campos",
+          "type": "array"
+        },
+        "entrada": {
+          "anyOf": [
+            {
+              "pattern": "^ent-[0-9]{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entrada"
+        }
+      },
+      "required": [
+        "tipo",
+        "codigo"
+      ],
+      "title": "Hallazgo",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "valido": {
+      "title": "Valido",
+      "type": "boolean"
+    },
+    "hallazgos": {
+      "items": {
+        "$ref": "#/$defs/Hallazgo"
+      },
+      "title": "Hallazgos",
+      "type": "array"
+    },
+    "preguntas": {
+      "default": [],
+      "items": {
+        "maxLength": 300,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Preguntas",
+      "type": "array"
+    }
+  },
+  "required": [
+    "valido",
+    "hallazgos"
+  ],
+  "title": "InformeBrief",
+  "type": "object"
+}

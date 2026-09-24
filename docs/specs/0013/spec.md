@@ -23,7 +23,7 @@ Se escribe en TLA+ el flujo completo de una novela: configuración, planificaci�
 - **El abanico de revisión.** Los tres revisores corren en paralelo, y el `editor-estilo` reescribe el capítulo (`docs/architecture.md` § 2.1; `docs/validators.md` § 5.15). Un fallo del segundo `validar` reintenta al `editor-estilo` y no al `escritor` (`.claude/commands/novela-continuar.md` paso 5).
 - **Contadores de intentos.** Hay uno por gate (mecánico, revisión y delta), cada uno contado en `harness.log` con su propia regla (`novela-continuar.md` § Cuenta de intentos). La enumeración usa un solo contador.
 - **La reanudación.** La tabla de `novela-continuar.md` § Punto de reanudación decide dónde se retoma a partir de `harness.log`, `estado/deltas/NN.json` y `capitulos/NN.md`. `docs/validators.md` § 4.12 admite que el procedimiento de reanudación nunca se ha ensayado cortando en cada frontera.
-- **La parada del panel y el freno por falta de avance.** Los aplica `backend/novela/slices/producir/flujo.py::producir`. La auditoría y la exportación los aplica `.claude/commands/novela-auditar.md`.
+- **La parada del panel y el freno por falta de avance.** Los aplica `backend/novela/slices/producir/flujo.py::producir`. La auditoría y la exportación las aplica `.claude/commands/novela-auditar.md`.
 
 **La regeneración por cambio del lector añade una rama más.** La spec 0007 (Propuesta, sin implementar: no existe `novela cambio` en `backend/novela/slices/`) introduce versiones y capítulos reaplicados byte a byte. También tiene una garantía nueva: la versión anterior se conserva intacta (ADR 0004).
 
@@ -128,7 +128,7 @@ Se escribe en TLA+ el flujo completo de una novela: configuración, planificaci�
 
 | ID | Requisito (EARS) | Prioridad |
 |----|------------------|-----------|
-| RF-19 | El sistema debe incluir `formal/tla/Harness.cfg` con `SPECIFICATION Spec` y estas constantes: `NumCapitulos = 5`, `MaxIntentos = 3` (2 reintentos), `MaxCaidas = 2`, `MaxCambios = 1`, `Procesos = {p1, p2}` como valores de modelo y `Mutante = FALSE`. Incluye `INVARIANTS` con las siete invariantes de RF-13 a RF-17 y `PROPERTIES Termina` (ver D12). | Must |
+| RF-19 | El sistema debe incluir `formal/tla/Harness.cfg` con `SPECIFICATION Spec` y estas constantes: `NumCapitulos = 5`, `MaxIntentos = 3` (2 reintentos), `MaxCaidas = 2`, `MaxCambios = 1`, `Procesos = {p1, p2}` como valores de modelo y `Mutante = FALSE`. Incluye `INVARIANTS` con las ocho invariantes de RF-13 a RF-17 y `PROPERTIES Termina` (ver D12). | Must |
 | RF-20 | El sistema debe incluir `formal/tla/HarnessMutante.cfg`, igual que `Harness.cfg` salvo `Mutante = TRUE`. Con `Mutante = TRUE`, `ValidarFinal` se omite tras `EditorEstilo`, y TLC debe informar una violación de `PublicaSoloValidado` (ver D13). | Should |
 | RF-21 | El sistema debe incluir `formal/tla/tla2tools.version` con dos líneas, `version=<x.y.z>` y `sha256=<hex>`, de la versión estable de `tla2tools.jar` fijada al implementar. El jar no se versiona: `formal/tla/*.jar`, `formal/tla/states/` y `formal/tla/*_TTrace_*.tla` van al `.gitignore` (ver D11). | Must |
 | RF-22 | El sistema debe añadir a `.github/workflows/ci.yml` el job `tla` en `ubuntu-latest`, con `timeout-minutes: 15`, en este orden. Instala Java 17 con `actions/setup-java@v4` (`distribution: temurin`). Descarga la versión de `tla2tools.version` y verifica su sha256, y falla si no coincide. Ejecuta TLC con `Harness.cfg` y falla con cualquier código de salida distinto de 0. Ejecuta TLC con `HarnessMutante.cfg` y falla si TLC sale con 0 o si su salida no nombra `PublicaSoloValidado` (ver D10, D11, D13). | Must |
@@ -164,7 +164,7 @@ Se escribe en TLA+ el flujo completo de una novela: configuración, planificaci�
 ### CA-01 (cubre RF-01)
 - **Dado** `formal/tla/Harness.tla`
 - **Cuando** se ejecuta TLC con `Harness.cfg` (job `tla`)
-- **Entonces** el módulo se analiza sin errores de sintaxis, `grep -c "^\(\*" Harness.tla` no encuentra bloques `--algorithm`, y el módulo declara las seis constantes y las seis etapas de RF-01
+- **Entonces** el módulo se analiza sin errores de sintaxis, no contiene ningún bloque `--algorithm` y declara las seis constantes y las seis etapas de RF-01
 
 ### CA-02 (cubre RF-02)
 - **Dado** el `.tla` y los enums de `backend/novela/dominio/estado.py` y `backend/novela/slices/producir/flujo.py`
@@ -254,7 +254,7 @@ Se escribe en TLA+ el flujo completo de una novela: configuración, planificaci�
 ### CA-19 (cubre RF-19)
 - **Dado** `formal/tla/Harness.cfg`
 - **Cuando** lo lee `test_tla.py::test_cfg_del_repo`
-- **Entonces** contiene `SPECIFICATION Spec`, las constantes con los valores de RF-19, las siete invariantes y `PROPERTIES Termina`
+- **Entonces** contiene `SPECIFICATION Spec`, las constantes con los valores de RF-19, las ocho invariantes y `PROPERTIES Termina`
 
 ### CA-20 (cubre RF-20)
 - **Dado** `formal/tla/HarnessMutante.cfg`
@@ -411,8 +411,6 @@ PROPERTIES
   Termina
 ```
 
-`TypeOK` se suma a las siete invariantes de RF-13 a RF-17 porque RF-17 lo nombra.
-
 **Formato de los conjuntos que lee el test** (RF-02). Una definición por conjunto, en una sola línea o en varias, siempre entre `Nombre ==` y la `}` que la cierra, solo con cadenas entre comillas dobles:
 
 ```tla
@@ -524,7 +522,7 @@ Correspondencia de estados finales: `publicada` → `terminado`; `detenida` con 
 
 | ID | Tarea | Cubre | Verificación |
 |----|-------|-------|--------------|
-| T-01 | Escribir `backend/tests/test_tla.py::test_nombres_coinciden_con_el_dominio` y verlo en rojo (sin `.tla`). Después, el esqueleto de `Harness.tla` con constantes, variables, `TypeOK` y los conjuntos `Fases`, `Pasos` y `Finales` | RF-01, RF-02 | El test pasa de rojo a verde; CA-02 |
+| T-01 | Escribir `backend/tests/test_tla.py::test_nombres_coinciden_con_el_dominio` y verlo en rojo (sin `.tla`). Después, el esqueleto de `Harness.tla` con constantes, variables, `TypeOK` y los conjuntos `Fases`, `Pasos` y `Finales` | RF-01, RF-02 | El test pasa de rojo a verde; CA-01, CA-02 |
 | T-02 | Acciones de configuración y planificación con su gate | RF-03 | TLC local con un `.cfg` provisional; CA-03 |
 | T-03 | Acciones del bucle por capítulo, reintentos por gate e `Intervencion` | RF-04, RF-05, RF-06 | CA-04, CA-05, CA-06 |
 | T-04 | `Caida` y `Reanudar` con la tabla literal del procedimiento | RF-07 | CA-07 |

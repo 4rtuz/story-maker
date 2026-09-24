@@ -131,6 +131,82 @@ def test_estado_json_valida_contra_el_esquema(
     jsonschema.validate(json.loads(resultado.stdout), esquema)
 
 
+BRIEF = RAIZ_REPO / "backend" / "tests" / "fixtures" / "brief"
+
+
+def test_brief_valida_contra_el_esquema() -> None:
+    """CA-28 (RF-28): las fixtures del brief validan contra los esquemas commiteados."""
+    for fixture, esquema in (
+        ("brief-completo.json", "brief.schema.json"),
+        ("borrador-completo.json", "brief-borrador.schema.json"),
+    ):
+        datos = json.loads((BRIEF / fixture).read_text(encoding="utf-8"))
+        jsonschema.validate(datos, json.loads((SCHEMAS / esquema).read_text(encoding="utf-8")))
+
+
+# RNF-05: correo, teléfono de 9 dígitos, DNI/NIE y nombres propios fuera de los ficticios (§13).
+_CORREO = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
+_TELEFONO = re.compile(r"(?<!\w)\d{3}[ .-]?\d{3}[ .-]?\d{3}(?!\w)")
+_DNI_NIE = re.compile(r"(?<!\w)[XYZxyz]?\d{7,8}[A-Za-z](?!\w)")
+# Una palabra con mayúscula dentro de una línea, salvo tras fin de frase, dos puntos o título.
+_NOMBRE = re.compile(r"(?<![.:?!…#\-])[ \t]([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)")
+FICTICIOS = {"Aurora", "Ficticia", "Bruno", "Ficticio"}
+
+
+def _datos_personales(texto: str) -> list[str]:
+    hallados = [m[0] for p in (_CORREO, _TELEFONO, _DNI_NIE) for m in p.finditer(texto)]
+    return hallados + [m[1] for m in _NOMBRE.finditer(texto) if m[1] not in FICTICIOS]
+
+
+def test_fixtures_de_brief_sin_datos_personales() -> None:
+    """RNF-05. El control positivo va primero: un escáner que no ve nada no prueba nada."""
+    muestra = "Escribe a nadie@example.com o al 612 345 678, DNI 12345678Z, con Marta Gil."
+    assert len(_datos_personales(muestra)) == 5
+    for fichero in sorted(BRIEF.rglob("*")):
+        if fichero.is_file():
+            texto = fichero.read_bytes().decode("utf-8")
+            assert _datos_personales(texto) == [], fichero.name
+
+
+def _propiedades(esquema: dict[str, object], nodo: object, ruta: str = "") -> set[str]:
+    """Rutas de todas las hojas del esquema, resolviendo $ref a $defs."""
+    if not isinstance(nodo, dict):
+        return set()
+    if "$ref" in nodo:
+        defs = esquema["$defs"]
+        assert isinstance(defs, dict)
+        return _propiedades(esquema, defs[nodo["$ref"].rsplit("/", 1)[1]], ruta)
+    rutas: set[str] = set()
+    for clave in ("items", "anyOf"):
+        hijos = nodo.get(clave, [])
+        for hijo in hijos if isinstance(hijos, list) else [hijos]:
+            rutas |= _propiedades(esquema, hijo, ruta)
+    for nombre, hijo in nodo.get("properties", {}).items():
+        sub = f"{ruta}.{nombre}" if ruta else nombre
+        rutas |= _propiedades(esquema, hijo, sub) or {sub}
+    return rutas
+
+
+def test_brief_minimiza_datos_personales() -> None:
+    """RNF-06 (D19): lo único que el brief guarda de una persona es nombre, edad, rasgos y
+    recuerdos. Todo lo demás son preferencias, procedencia o custodia."""
+    esquema = json.loads((SCHEMAS / "brief.schema.json").read_text(encoding="utf-8"))
+    raices = {r.split(".")[0] for r in _propiedades(esquema, esquema)}
+    assert raices == {
+        "schema_version",
+        "ocasion",
+        "destinatario",
+        "recuerdos",
+        "genero",
+        "tono",
+        "extension",
+        "prohibidos",
+        "entradas",
+    }
+    personales = {r.split(".")[1] for r in _propiedades(esquema, esquema) if r.startswith("dest")}
+    assert personales == {"nombre", "edad", "rasgos"}
+
+
 # Clientes de proveedores de modelos y gateways: AGENTS.md, «Nunca».
 PROHIBIDOS = (
     "anthropic",
@@ -233,6 +309,7 @@ CONTRATO = {
     ),
     "lector-suspense": (["Read", "Write"], "haiku", ["qa/NN-suspense.json"]),
     "cronista": (["Read", "Write"], "haiku", ["estado/deltas/NN.json"]),
+    "entrevistador": (["Read", "Write"], "sonnet", ["brief/borrador.json"]),
 }
 ESQUEMAS = {
     "arquitecto": ["backend/schemas/canon.schema.json"],
@@ -245,6 +322,7 @@ ESQUEMAS = {
     "editor-estilo": ["backend/schemas/qa-informe.schema.json"],
     "lector-suspense": ["backend/schemas/qa-informe.schema.json"],
     "cronista": ["backend/schemas/delta.schema.json"],
+    "entrevistador": ["backend/schemas/brief-borrador.schema.json"],
 }
 PROHIBIDAS = {"Glob", "Grep", "Bash", "Task", "Agent", "Skill", "WebFetch", "WebSearch"}
 
@@ -258,7 +336,8 @@ def _agente(rol: str) -> tuple[dict[str, str], str]:
 
 
 def test_agentes_de_claude() -> None:
-    """CA-01 (RF-01 a RF-03): los siete roles, con name, tools y model de la spec 0003 §5.1."""
+    """CA-01 (RF-01 a RF-03): los roles de CONTRATO, con name, tools y model de la spec 0003 §5.1
+    y de la 0005."""
     assert {p.stem for p in AGENTES_DIR.glob("*.md")} == set(CONTRATO)
     for rol, (tools, model, _) in CONTRATO.items():
         meta, _ = _agente(rol)

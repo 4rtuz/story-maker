@@ -17,7 +17,7 @@ MOTIVO = "denegar-escritura-estado:"  # prefijo de todo motivo; el canario lo bu
 _NN = r"\d{2,3}"
 _DELTA = rf"estado/deltas/{_NN}\.json"
 _INTERVENCION = r"runs/[^/]+/intervencion\.md"
-# spec 0003 §5.1, relativas a novelas/<slug>/. test_hook comprueba que casa con CONTRATO de
+# spec 0003 §5.1 y 0005 §8.4, relativas a novelas/<slug>/. test_hook comprueba que casa con CONTRATO de
 # test_contratos (D-2): el hook no puede importar backend/, así que es una copia vigilada.
 SALIDAS = {
     # El misterio, al borrador: el deny de Read también deniega escribirlo, y lo promueve el CLI.
@@ -32,6 +32,7 @@ SALIDAS = {
     "editor-estilo": [rf"capitulos/{_NN}\.md", rf"qa/{_NN}-estilo\.json"],
     "lector-suspense": [rf"qa/{_NN}-suspense\.json"],
     "cronista": [_DELTA],
+    "entrevistador": [r"brief/borrador\.json"],
 }
 ROLES = frozenset(SALIDAS)
 _PREFIJO_WIN32 = re.compile(r"^(\\\\|//)[?.][\\/]")  # \\?\  \\.\
@@ -110,7 +111,7 @@ def decidir(entrada: dict[str, Any], entorno: Mapping[str, str]) -> str | None:
     # Regla 1, para todos.
     if any(r.split("/")[0] == "estado" and not re.fullmatch(_DELTA, r) for r in relativas):
         return f"escritura bajo estado/ denegada: {valor}"
-    # Regla 2: un rol de los siete, solo en sus salidas. Los agentes de desarrollo no son roles.
+    # Regla 2: un rol, solo en sus salidas. Los agentes de desarrollo no son roles.
     # ponytail: no sabe qué capítulo está en curso; reescribir uno cerrado lo para el sello.
     rol = entrada.get("agent_type")
     if rol in ROLES and not any(re.fullmatch(p, r) for p in SALIDAS[rol] for r in relativas):

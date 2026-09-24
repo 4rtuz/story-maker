@@ -38,7 +38,7 @@ Máximo dos reintentos por gate. Al tercero, escribe `runs/<run_id>/intervencion
 
 Están en `.claude/agents/`, uno por rol. Invócalos con Task por su nombre exacto; no improvises roles nuevos ni hagas tú el trabajo de uno de ellos «para ahorrar una llamada».
 
-El campo `model` del frontmatter ya está fijado por rol (opus para `arquitecto`, `trazador` y `escritor`; sonnet para los de revisión; haiku para `cronista`). No lo cambies sobre la marcha.
+El campo `model` del frontmatter ya está fijado por rol (opus para `arquitecto`, `trazador` y `escritor`; sonnet para los de revisión; haiku para `cronista`; sonnet para `entrevistador`, que solo corre en la fase de brief). No lo cambies sobre la marcha.
 
 Si modificas el prompt de un agente, hazlo en su fichero y commitea: el sha del commit es lo que permite atribuir un cambio de calidad en las trazas.
 
@@ -74,7 +74,7 @@ claude --session-id "$NOVELA_SESSION_ID" --setting-sources project,local --model
 
 ### Hooks
 
-- `PreToolUse` deniega cualquier escritura bajo `estado/` salvo `estado/deltas/NN.json`, a cada rol fuera de sus salidas, a la sesión principal en el workspace salvo `intervencion.md`, y en el bucle, cualquier subagente que no sea de los siete. Si salta, algún agente intentó escribir donde no debía: no lo silencies, corrige el contrato del agente.
+- `PreToolUse` deniega cualquier escritura bajo `estado/` salvo `estado/deltas/NN.json`, a cada rol fuera de sus salidas, a la sesión principal en el workspace salvo `intervencion.md`, y en una sesión del harness, cualquier subagente que no sea un rol de `.claude/agents/`. Si salta, algún agente intentó escribir donde no debía: no lo silencies, corrige el contrato del agente.
 - El trazado a Langfuse lo hacen los hooks `Stop` y `SessionEnd` del plugin `langfuse-observability`. Si no aparecen trazas, revisa `~/.claude/state/langfuse_hook.log` antes de tocar nada más.
 
 ### Claves y trazado

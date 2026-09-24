@@ -105,6 +105,7 @@ Sin acceso a `temperature`, el único parámetro de control que queda es el mode
 | `editor-estilo` | sonnet | Corrige contra párrafos canónicos |
 | `lector-suspense` | sonnet | Puntuaciones estructuradas |
 | `cronista` | haiku | Extracción mecánica; el agente más barato del bucle |
+| `entrevistador` | sonnet | Fuera del bucle, en la fase de brief: estructura y cita; el CLI verifica cada cita |
 
 La variación creativa que antes se buscaba con temperatura alta se compensa por prompt: el `escritor` recibe en su briefing una restricción de apertura distinta por capítulo (con qué tipo de frase empieza, qué registro domina la primera escena) para evitar que 24 capítulos abran igual. Es la mitigación disponible y conviene medir si basta.
 
@@ -200,8 +201,10 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   ├── continuista.md
 │   │   ├── editor-estilo.md
 │   │   ├── lector-suspense.md
-│   │   └── cronista.md
+│   │   ├── cronista.md
+│   │   └── entrevistador.md      # fase de brief de una novela de regalo
 │   ├── commands/                 # los procedimientos del orquestador
+│   │   ├── novela-brief.md       # la entrevista, antes de novela-nueva --brief
 │   │   ├── novela-nueva.md
 │   │   ├── novela-continuar.md   # el bucle por capítulo
 │   │   └── novela-auditar.md
@@ -223,6 +226,7 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   ├── cli.py                # Typer: solo registra el cmd.py de cada slice
 │   │   │
 │   │   ├── slices/               # un caso de uso por carpeta, ver §3.0
+│   │   │   ├── brief/            # cmd.py · entradas.py · assemble.py · gates.py, con sus tests
 │   │   │   ├── briefing/         # cmd.py · assemble.py · recipes.py · test_briefing.py
 │   │   │   ├── validacion/       # cmd.py · gates.py · test_gates.py
 │   │   │   ├── delta/            # cmd.py · apply.py · violaciones.py · test_delta.py
@@ -234,6 +238,8 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │
 │   │   ├── dominio/              # la ontología como código; sin I/O, sin framework
 │   │   │   ├── config.py         # rama 1
+│   │   │   ├── brief.py          # Brief, BorradorBrief, InformeBrief e idea_semilla
+│   │   │   ├── texto.py          # normalizar: qué cuenta como la misma cita
 │   │   │   ├── canon.py          # rama 2 — Canon, Pista
 │   │   │   ├── plan.py           # rama 3 — Plan
 │   │   │   ├── estado.py         # rama 4 — Estado, LibroDeHechos (append-only)
@@ -299,6 +305,14 @@ Reflejo literal de la rama 6 de la ontología.
 novelas/<slug>/
 ├── config.yaml                   # rama 1, inmutable tras el arranque
 │
+├── brief/                        # solo en novelas de regalo, antes de config.yaml
+│   ├── inicio.json               # CLI: ocasión y fecha
+│   ├── entradas/
+│   │   └── ent-01.md             # CLI: lo que aporta el cliente, normalizado, frontmatter EntradaMeta
+│   ├── borrador.json             # entrevistador: el único fichero que escribe
+│   ├── informe.json              # CLI
+│   └── brief.json                # CLI, solo si el borrador valida
+│
 ├── canon/                        # rama 2 — VERSIONADO
 │   ├── premisa.md
 │   ├── mundo.md
@@ -352,6 +366,8 @@ novelas/<slug>/
     └── novela.pdf            # el libro de regalo: portada, índice, capítulos y ficha
 ```
 
+`brief/` lleva los datos personales del destinatario. Lo crea `novela brief iniciar` y, en cuanto existe `config.yaml`, queda cerrado: ningún subcomando lo vuelve a escribir.
+
 `memoria/` y `runs/` son reconstruibles o desechables. `canon/`, `plan/`, `estado/` y `capitulos/` son los cuatro directorios que importa respaldar.
 
 ---
@@ -373,6 +389,7 @@ hil-004              hilo               ^hil-\d{3}$
 obj-011              objeto o prueba    ^obj-\d{3}$
 hec-014              hecho              ^hec-\d{3}$
 cap-01               capítulo           ^cap-\d{2,3}$
+ent-01               entrada del brief  ^ent-\d{2}$
 ```
 
 `esc-` sirve a escenario y a escena, y las dos expresiones son disjuntas por construcción: la de
@@ -573,10 +590,10 @@ Una tabla queda fuera de la vista serializada: `apariciones (entidad, tipo, capi
 Refuerzo adicional, preventivo en lugar de detectivo: el hook `PreToolUse` de `.claude/hooks/denegar-escritura-estado.py`, registrado en `.claude/settings.json` para `Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Agent|Task`. Un agente que lo intente no llega a escribir, en vez de descubrirse después de haberlo hecho. Deniega con exit 2, también ante una entrada que no entiende, porque cualquier otro código deja pasar la acción:
 
 1. Cualquier escritura bajo `novelas/*/estado/` salvo `estado/deltas/NN.json`, que es la salida del `cronista`. La ruta se normaliza antes de comparar —contra `cwd`, sin `..`, sin mayúsculas, sin el prefijo `\\?\` ni los puntos y espacios finales que Win32 quita al escribir— y lo que no sabe normalizar, como un flujo alternativo, se deniega.
-2. A cada uno de los siete roles, cualquier escritura fuera de sus salidas de §7.5.
+2. A cada rol de `.claude/agents/`, cualquier escritura fuera de sus salidas de §7.5.
 3. A la sesión principal, cualquier escritura en el workspace salvo `runs/*/intervencion.md`.
 4. Toda orden `Bash` o `PowerShell` que nombre `canon/…misterio` o `estado.db`.
-5. Con `NOVELA_SESSION_ID` definida, que solo exportan el bucle y las sesiones del harness, cualquier subagente que no sea uno de los siete o el `canario` de `validators.md` §4.9.
+5. Con `NOVELA_SESSION_ID` definida, que solo exportan el bucle y las sesiones del harness, cualquier subagente que no sea uno de los roles o el `canario` de `validators.md` §4.9.
 
 Debajo quedan los `deny` de `settings.json` sobre `estado.db*`, `state.lock` y `sqlite3`, y los triggers, que cubren lo que el hook no normaliza: nombres cortos 8.3, uniones y enlaces simbólicos.
 
@@ -653,7 +670,7 @@ model: opus
 
 | Agente | `tools` | Por qué |
 |---|---|---|
-| `arquitecto`, `trazador`, `escritor`, `continuista`, `lector-suspense`, `cronista` | `Read, Write` | Leen rutas que el briefing nombra y crean ficheros nuevos |
+| `arquitecto`, `trazador`, `escritor`, `continuista`, `lector-suspense`, `cronista`, `entrevistador` | `Read, Write` | Leen rutas que el briefing nombra y crean ficheros nuevos |
 | `editor-estilo` | `Read, Edit, Write` | Único que modifica un fichero existente, `capitulos/NN.md` |
 
 Ninguno tiene `Glob`, `Grep`, `Bash`, `Task`, `Skill`, `WebFetch` ni `WebSearch`. Cada ausencia hace mecánica una regla que si no sería solo una petición en el prompt:
@@ -685,6 +702,7 @@ Qué recibe cada agente en su briefing y qué escribe. El briefing lo compone `n
 | `editor-estilo` | `capitulos/NN.md`, `canon/estilo.md` con sus párrafos canónicos y prohibiciones; su esquema, `backend/schemas/qa-informe.schema.json`. **Nunca** `canon/misterio.md` | `capitulos/NN.md` reescrito y `qa/NN-estilo.json` | `veredicto` y hallazgos por gravedad |
 | `lector-suspense` | `capitulos/NN.md`, `canon/misterio.md`, `plan/escaleta.md`, estado (`pistas`, `conocimiento_lector`, `tension_real`); su esquema, `backend/schemas/qa-informe.schema.json` | `qa/NN-suspense.json` | Puntuaciones de tensión, fair play y previsibilidad |
 | `cronista` | `capitulos/NN.md` aprobado, estado vigente; su esquema, `backend/schemas/delta.schema.json` | `estado/deltas/NN.json` | Nº de hechos e hilos del delta (no lleva pistas, §7.6) |
+| `entrevistador` | El briefing de `novela brief preparar` (no el de `novela briefing`: no tiene receta ni está en `Agente`): ocasión, vocabularios, límites, reglas de procedencia, fragmentos marcados, borrador e informe anteriores y las entradas delimitadas; su esquema, `backend/schemas/brief-borrador.schema.json` | `brief/borrador.json` | Campos a `null` y preguntas, sin datos del destinatario |
 
 `estado/deltas/NN.json` es la única entrada de `novela aplicar-delta`; ningún agente escribe `estado/estado.db`.
 
@@ -742,7 +760,9 @@ Toda `cita` presente tiene que ser literal del cuerpo del capítulo tras normali
 Slash commands, en `.claude/commands/`:
 
 ```
+/novela-brief <slug> --ocasion boda     # solo novelas de regalo, en una sesión --setting-sources project
 /novela-nueva <slug> --idea "..." --capitulos 24 --palabras 80000
+/novela-nueva <slug> --brief
 /novela-continuar <slug> [--capitulos N]
 /novela-auditar <slug>
 ```
@@ -751,6 +771,7 @@ Herramientas Bash, invocadas por los anteriores o por ti directamente:
 
 ```
 novela nueva <slug> --idea "..."   # árbol del workspace, config.yaml y estado.db
+novela nueva <slug> --brief        # lo mismo, desde brief/brief.json
 novela estado <slug> --breve
 novela estado <slug> --json        # estado completo serializado, para inspección
 novela briefing <slug> <cap> <agente>
@@ -764,6 +785,24 @@ novela comprobar-entorno [--limpio]   # hooks, python, settings.local.json y .en
 ```
 
 **Entrega.** `novela exportar <slug> --formato pdf` compone el libro de regalo en `export/novela.pdf` (ADR 0003): portada con el título (`--titulo`, o el slug) y, si hay `brief/brief.json`, la dedicatoria; índice con un enlace por capítulo; cada capítulo cerrado en página nueva, con el markdown compuesto desde los tokens y sin ningún enlace saliente; y la ficha de personajes y lugares, con un enlace «Capítulo N — título» por cada fila de `apariciones` (§7.1) hasta el checkpoint. De cada personaje salen el nombre y los alias, y de cada lugar el nombre y la descripción: nada más del canon, y `canon/misterio.md` no se abre. Lleva un marcador por sección, `/Lang` del `config.yaml` y como `CreationDate` el `creado` del manifiesto del último checkpoint, así que dos exportaciones del mismo workspace dan los mismos bytes. Sale con 1 si un carácter no está en la fuente (nombra la sección y el `U+XXXX`), con 2 si `--titulo` está vacío o pasa de 120 caracteres, y con 4 si falta la tabla, si un capítulo cerrado no tiene apariciones o si una entidad no tiene canon. Antes de entregarlo, el operador lee la ficha.
+
+
+Fase de brief de una novela de regalo, antes de `novela nueva`. Cada subcomando toma el lock y deja una línea en el `harness.log` del run de arranque `(1, "arranque")`, sin valores del brief ni texto de las entradas; con `config.yaml` presente, salen con 1 y «brief cerrado: la novela ya existe»:
+
+```
+novela brief iniciar <slug> --ocasion hijo|pareja|boda|aniversario|jubilacion
+novela brief entrada <slug> --tipo respuesta|texto-libre --fichero <ruta>   # imprime ent-NN
+novela brief preparar <slug>       # runs/<run_id>/briefings/brief-RR-entrevistador.md · N tokens
+novela brief validar <slug>        # brief/informe.json y, sin hallazgos, brief/brief.json
+```
+
+`preparar` ensambla el briefing del `entrevistador`: ocasión, vocabularios de `genero`, `tono` y `extension`, límites, reglas de procedencia, fragmentos marcados, borrador e informe anteriores si los hay, y las entradas. Cada entrada va entre `<<<ENTRADA ent-NN tipo=… marca=…>>>` y `<<<FIN ENTRADA ent-NN marca=…>>>`, precedida de un aviso fijo de que es dato y no instrucción; la marca son los 16 primeros hexadecimales del sha256 de `run_id`, id y texto, así que el texto no puede anticiparla, y si la contiene, `preparar` sale con 1. Las entradas `texto_libre` se parten en frases por línea y las que casan la lista cerrada de patrones de `slices/brief/entradas.py` («ignora», «a partir de ahora», «eres un», `novelas/`…) se listan como `ent-NN: líneas a, b`, sin su texto. Sale con 1 sin entradas o si el briefing pasa de 40.000 tokens a 3,5 caracteres por token. `RR` sube uno por briefing distinto dentro del run; si nada cambió desde el último, imprime su ruta sin escribir otro.
+
+`novela nueva <slug> --brief` cierra la fase: sobre un workspace con `brief/brief.json` válido y sin `config.yaml` ni `estado.db`, completa el árbol y escribe `config.yaml` con 10 capítulos, `palabras_por_capitulo` `{objetivo, 1000, 1500}` según la extensión (`corta` 1.000, `media` 1.250, `larga` 1.500), `longitud_total_palabras` = 10 × objetivo, `subgenero` = `genero`, `restricciones_contenido` = `prohibidos.terminos` e `idea_semilla` generada del brief por `dominio/brief.py::idea_semilla`, sin texto de modelo. Con `--idea`, `--capitulos`, `--palabras` o `--subgenero` sale con 2; sin `brief.json`, con uno que no valida o con la novela ya creada, con 1, y ningún mensaje lleva valores del brief. Sin `--brief` nada cambia, y `--idea` sobre un workspace de brief sale con 1 como ante cualquier workspace existente. `nueva` no abre run: el primer `novela briefing <slug> 1 arquitecto` reutiliza el run de arranque de la entrevista, con su manifiesto de entonces, y comparte su `harness.log`.
+
+`validar` comprueba primero la custodia: si el cuerpo de una entrada no casa con el sha256 de su frontmatter, sale con 4 sin escribir nada. Después pasa `brief/borrador.json` por cuatro gates de `slices/brief/gates.py`, en orden: esquema (`borrador_ausente` o `esquema_invalido` con la ruta del campo; si falla, nada más), faltantes (cada obligatorio a `null` y `rasgos` o `recuerdos` vacíos; `prohibidos.terminos: []` no falta), contradicciones (edad menor de 12 con `noir` o `thriller_psicologico`, o con tono `oscuro`, y un término vetado como palabra completa en un recuerdo o un rasgo) y procedencia (la entrada existe, la cita es literal tras NFC, espacios colapsados y minúsculas, nombre, rasgos y términos salen de su cita, los campos cerrados citan una `respuesta` y ninguna cita toca un fragmento marcado). Siempre escribe `brief/informe.json`; sin hallazgos, además `brief/brief.json` con la ocasión y las entradas, y sale con 0. Con hallazgos sale con 1 sin tocar el `brief.json` que hubiera, y la línea de log es `brief validar -> 1 · agente: <codigo>@<campo>; …` si el fallo es del borrador (esquema o procedencia) o `· usuario: …` si falta un dato o se contradice: el procedimiento decide con ese prefijo.
+
+`iniciar` reclama el slug (1 si ya existe, 2 con otra ocasión) y crea `brief/entradas/`, `estado/`, `runs/` y `brief/inicio.json`. `entrada` lee el fichero como UTF-8 estricto sin BOM, lo normaliza (NFC, `\n`, sin caracteres de control salvo `\n` y `\t`) y lo escribe como `brief/entradas/ent-NN.md` con su sha256; sale con 2 si el fichero no existe, no es UTF-8, queda vacío o pasa de 20.000 caracteres, y con 1 si ya hay 20 entradas.
 
 **Reanudación.** `/novela-continuar` empieza leyendo `checkpoints/latest.json` y repite el último paso no confirmado. Regla dura: el estado nunca se reconstruye desde una conversación previa, ni siquiera desde la sesión anterior de Claude Code.
 

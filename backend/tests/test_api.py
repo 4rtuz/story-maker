@@ -449,3 +449,9 @@ def test_sin_rutas_de_libro() -> None:
     """CA-32 (RF-32), VAL-34: el libro de regalo no se sirve por la API (ADR 0003)."""
     prohibidas = ("libro", "pdf", "ficha", "portada", "apariciones")
     assert [c for c in _rutas(app.routes) if any(p in c for p in prohibidas)] == []
+
+
+def test_sin_rutas_de_brief() -> None:
+    """CA-29 (spec 0005, RF-29): el brief lleva datos personales y la API no lo sirve."""
+    rutas = [getattr(r, "path", "") for r in app.routes]
+    assert rutas and [r for r in rutas if "brief" in r] == []
