@@ -35,10 +35,28 @@ describe('imports de fuera de src/ (CA-43)', () => {
   });
 });
 
-describe('HTML sin sanear (no-unsanitized)', () => {
-  it('una asignación a innerHTML es error', async () => {
-    const mensajes = await errores('inner-html.ts', 'src/app/x.ts');
-    expect(mensajes.map((m) => m.ruleId)).toContain('no-unsanitized/property');
+describe('HTML sin sanear (no-unsanitized, CA-26 parte estática)', () => {
+  const LECTOR = path.join(FRONTEND, 'src/features/lectura/lector.ts');
+
+  it('una asignación a innerHTML es error, también en la carpeta del lector', async () => {
+    for (const como of ['src/app/x.ts', 'src/features/lectura/x.ts']) {
+      const mensajes = await errores('inner-html.ts', como);
+      expect(mensajes.map((m) => m.ruleId)).toContain('no-unsanitized/property');
+    }
+  });
+
+  it('lector.ts pasa, con una sola inserción de HTML y un solo eslint-disable-next-line', async () => {
+    const [resultado] = await eslint.lintFiles([LECTOR]);
+    expect(resultado?.messages.filter((m) => m.severity === 2)).toEqual([]);
+    const codigo = fs.readFileSync(LECTOR, 'utf8');
+    expect(codigo.match(/innerHTML|outerHTML|insertAdjacentHTML|createContextualFragment|document\.write/g)).toHaveLength(1);
+    expect(codigo.match(/eslint-disable/g)).toHaveLength(1);
+    expect(codigo.match(/eslint-disable-next-line no-unsanitized\/property\r?\n\s*\S+\.innerHTML = md\.render\(/g)).toHaveLength(1);
+  });
+
+  it('eslint.config.js no apaga no-unsanitized para ningún fichero', () => {
+    const config = fs.readFileSync(path.join(FRONTEND, 'eslint.config.js'), 'utf8');
+    expect(config).not.toMatch(/no-unsanitized\/\w+['"]?\s*:\s*['"]?(off|0)\b/);
   });
 });
 

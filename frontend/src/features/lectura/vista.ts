@@ -36,7 +36,7 @@ export function lectura(
   const datos: Datos = {};
   let seleccion = capitulo ?? 1;
   let abierto: number | null = capitulo ?? null;
-  let texto: { n: number; markdown: string } | { n: number; error: string } | null = null;
+  let texto: { n: number; nodo: HTMLElement } | { n: number; error: string } | null = null;
   let peticion: { n: number; control: AbortController } | null = null;
   let escena3d: Escena | null = null;
   let estadoEscena: 'sin-empezar' | 'cargando' | 'lista' | 'no-disponible' = 'sin-empezar';
@@ -168,7 +168,9 @@ export function lectura(
     const control = new AbortController();
     peticion = { n, control };
     try {
-      texto = { n, markdown: await api.capitulo(slug, n, control.signal) };
+      // markdown-it y el lector llegan en el chunk de Lectura, con la escena (RNF-02).
+      const [markdown, { cuerpoDeCapitulo }] = await Promise.all([api.capitulo(slug, n, control.signal), import('./lector')]);
+      texto = { n, nodo: cuerpoDeCapitulo(markdown) };
     } catch (error) {
       if (!(error instanceof ErrorDeApi)) return; // abortada al cerrar o al salir
       texto = { n, error: error.message };
@@ -201,7 +203,7 @@ export function lectura(
     firma = nuevaFirma;
     let cuerpo: HTMLElement;
     if (fase === 'no-disponible') cuerpo = vacio('capítulo no disponible todavía');
-    else if (fase === 'texto' && texto) cuerpo = 'error' in texto ? aviso(texto.error) : el('div', 'q-lector__texto', texto.markdown);
+    else if (fase === 'texto' && texto) cuerpo = 'error' in texto ? aviso(texto.error) : texto.nodo;
     else cuerpo = esqueleto('q-esqueleto--lector');
     mostrarDialogo(n, cuerpo);
   }

@@ -764,8 +764,40 @@
 .q-lector__texto {
   max-width: var(--q-ancho-lectura);
   font: var(--q-texto-cuerpo) / 1.7 var(--q-fuente-cuerpo);
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.q-lector__texto > :first-child {
+  margin-top: 0;
+}
+
+.q-lector__texto :is(h1, h2, h3) {
+  margin: 1.6em 0 0.6em;
+  font-size: var(--q-texto-titulo-pagina);
+  font-weight: var(--q-peso-titulo-pagina);
+  line-height: 1.3;
+}
+
+.q-lector__texto p {
+  margin: 0 0 1em;
+}
+
+.q-lector__texto hr {
+  width: 30%;
+  margin: 2em auto;
+  border: 0;
+  border-top: 1px solid var(--q-borde-tarjeta);
+}
+
+.q-lector__texto blockquote {
+  margin: 0 0 1em;
+  padding-left: 16px;
+  border-left: 3px solid var(--q-borde-tarjeta);
+  color: var(--q-texto-secundario);
+}
+
+.q-lector__texto code {
+  font: var(--q-texto-meta) var(--q-fuente-mono);
 }
 
 .q-esqueleto--lector {
