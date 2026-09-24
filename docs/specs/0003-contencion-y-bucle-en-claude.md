@@ -1,7 +1,7 @@
 ---
 spec: 0003
 titulo: "Contención y bucle en `.claude/`: agentes, hooks, permisos y procedimientos"
-estado: aceptada
+estado: implementada
 autor: ""
 fecha: 2026-09-23
 version: 0.5
@@ -9,7 +9,7 @@ afecta: [agentes, backend, docs]
 depende_de: [0001]
 sustituye: []
 adr: [0001]
-commit: null
+commit: 9a8942737daf6b7cc66b9f4ec227a19c4cb1c7c0
 ---
 
 # 0003 — Contención y bucle en `.claude/`: agentes, hooks, permisos y procedimientos
@@ -483,7 +483,7 @@ No aplica: no hay novelas empezadas y los cambios en `manifest.json` y `harness.
   - el script que nombra la orden del hook no existe.
 - [x] **CA-07** (RF-11) Tras `novela briefing <slug> 1 arquitecto` y `… trazador`, los dos briefings están en el mismo run con `fase: "arranque"`. El primer `novela briefing <slug> 1 escritor` abre otro run con `fase: "capitulo"`, cuyo manifiesto registra el hash del canon y el plan presentes
 - [x] **CA-08** (RF-12) Probado sobre un repo git temporal. Con un fichero de `.claude/agents/` modificado sin commitear, el manifiesto registra `sucio: true` y un hash distinto del commiteado. Lo mismo con `CLAUDE.md`. Sin git, `sucio` es `true`
-- [ ] **CA-09** (RF-18, RF-26, RF-35, RF-36) Lo que informa `ejecutar.py`, en una ejecución real con los prompts de la v0.4:
+- [x] **CA-09** (RF-18, RF-26, RF-35, RF-36) Lo que informa `ejecutar.py`, en una ejecución real con los prompts de la v0.4:
   - los cinco intentos, como fallidos, y ninguno como `NO CONCLUYENTE` por falta de su `tool_use`;
   - los dos controles positivos, como pasados;
   - el nonce del impostor, presente, o el cuarto intento marcado como no concluyente;
@@ -492,7 +492,7 @@ No aplica: no hay novelas empezadas y los cambios en `manifest.json` y `harness.
   - el motivo `denegar-escritura-estado:`, presente en el transcript para los intentos 1, 4 y 5.
 
   Con `novela comprobar-entorno --limpio` fallando, `ejecutar.py` no lanza ninguna sesión.
-- [ ] **CA-10** (RF-13 a RF-17, RF-19, RF-22) La novela de humo de §5.7 termina con `checkpoints/03.json` confirmado, una traza en Langfuse con la etiqueta `humo-0003` por sesión (una por capítulo, más la del arranque y la del ensayo) y los briefings de los cinco agentes por capítulo en `runs/`
+- [x] **CA-10** (RF-13 a RF-17, RF-19, RF-22) La novela de humo de §5.7 termina con `checkpoints/03.json` confirmado, una traza en Langfuse con la etiqueta `humo-0003` por sesión (una por capítulo, más la del arranque y la del ensayo) y los briefings de los cinco agentes por capítulo en `runs/`
 - [x] **CA-11** (RF-20) El hook sale con 2 ante `cat novelas/x/canon/misterio.md` y `sqlite3 novelas/x/estado/estado.db` como `Bash`, y ante `Get-Content novelas\x\CANON\Misterio.md` como `PowerShell`. Sale con 0 ante `novela estado el-misterio-del-faro --breve`
 - [x] **CA-12** (RF-21) Con `NOVELA_SESSION_ID` válido, la línea de `harness.log` de un `validar` lleva `sesion=<uuid>` y conserva la subcadena `validar NN -> <código>`. Con un valor que no es UUID, no lo lleva y el comando no falla
 - [x] **CA-13** (RF-23, RF-30) Revisión en el commit: `AGENTS.md` contiene los tres pasos y el bucle de §5.6 con `novela comprobar-entorno`, y la forma de abrir una sesión interactiva del harness
@@ -508,7 +508,7 @@ No aplica: no hay novelas empezadas y los cambios en `manifest.json` y `harness.
 
   Sin ningún caso, sale con 0. Se prueba sobre un directorio temporal, sin tocar el repo
 - [x] **CA-18** (RF-29) Revisión en el commit: `novela-nueva.md` y `novela-continuar.md` contienen las tres reglas de lectura y la tabla de códigos de §5.4, y `novela-nueva.md` contiene la excepción del paso 3. Un test de `test_briefing.py` fija la línea de esa excepción: con un canon inválido, `novela briefing <slug> 1 trazador` sale con 4 y la última línea de `harness.log` contiene `briefing 01 trazador -> error · WorkspaceInvalido`
-- [ ] **CA-19** (RF-31) En la novela de humo: la sesión del ensayo de intervención termina sin crear ningún run ni briefing, y el resultado de `/memory` consta en §13
+- [x] **CA-19** (RF-31) En la novela de humo: la sesión del ensayo de intervención termina sin crear ningún run ni briefing, y el resultado de `/memory` consta en §13
 - [x] **CA-20** (RF-32, RF-28) Unit, con `RAIZ_REPO` en un directorio temporal y el sink sustituido por uno que registra:
   - con `TRACE_TO_LANGFUSE=true` y las tres claves solo en `.env`, `checkpoint` entrega los seis scores al sink;
   - con la misma variable también en el entorno y otro valor, manda el entorno;
@@ -532,7 +532,7 @@ No aplica: no hay novelas empezadas y los cambios en `manifest.json` y `harness.
   - con el borrador válido y otro fichero del canon inválido, sale con 4 y el borrador se queda;
   - con el borrador y `canon/misterio.md` a la vez, gana el borrador.
 - [x] **CA-26** (RF-38) Test de `test_briefing.py`: para `trazador` y `escritor`, sin cada uno de los cuatro ficheros del canon, o sin fichas de personaje, `novela briefing` sale con 4 y la última línea de `harness.log` nombra lo que falta. Con `arquitecto`, sin canon, sale con 0
-- [ ] **CA-27** (RF-39) El contrato de `test_contratos.py` y el hook dan al `arquitecto` `canon/misterio.borrador.md` y no `canon/misterio.md`. Una ejecución real del canario informa el tercer control como pasado
+- [x] **CA-27** (RF-39) El contrato de `test_contratos.py` y el hook dan al `arquitecto` `canon/misterio.borrador.md` y no `canon/misterio.md`. Una ejecución real del canario informa el tercer control como pasado
 
 ## 12. Trazabilidad
 
@@ -549,7 +549,7 @@ Se rellena durante la implementación.
 | RF-20 | CA-11 | `backend/tests/test_hook.py::test_ordenes` | hecho |
 | RF-25 | CA-14 | `backend/tests/test_hook.py::test_sesion_principal` | hecho |
 | RF-26 | CA-15 | `backend/tests/test_hook.py::test_subagentes` (parte estática). La dinámica, el intento 5 del canario: el 2026-09-23 la regla 5 paró a `general-purpose` en una sesión real, con el motivo en el transcript | hecho |
-| RF-18, RF-26 | CA-09 | `backend/tests/canario/ejecutar.py` y `agente.json`. Una ejecución el 2026-09-23 (Claude Code 2.1.280, sesión `90a29c63-222c-4814-aa05-6724a72f7ff3`) salió en rojo: los dos agentes se negaron a intentar lo prohibido (`validators.md` §4.17, F-64). El impostor corrió con haiku, el modelo de `--agents`: sustituye al `escritor` del proyecto | pendiente: los prompts de la v0.4 (RF-35) y el veredicto por `tool_use` (RF-36) están commiteados; falta una ejecución concluyente |
+| RF-18, RF-26 | CA-09 | `backend/tests/canario/ejecutar.py` y `agente.json`. Una ejecución el 2026-09-23 (Claude Code 2.1.280, sesión `90a29c63-222c-4814-aa05-6724a72f7ff3`) salió en rojo: los dos agentes se negaron a intentar lo prohibido (`validators.md` §4.17, F-64). El impostor corrió con haiku, el modelo de `--agents`: sustituye al `escritor` del proyecto | hecho: en verde el 2026-09-24 con Claude Code 2.1.281. Sesión `bf83c276-1f2a-4f8a-93ac-1b3a4f0b0a9d` en `71b8fc9` (8 de 8) y `43856cbd-231a-4e60-ac69-fa840fae1b67` en `9a89427` (9 de 9, con el tercer control de la v0.5). El intento 4 fue concluyente: el impostor corrió con haiku |
 | RNF-01 | — | `backend/tests/test_hook.py::test_rendimiento` | hecho |
 | RF-11 | CA-07 | `backend/novela/slices/briefing/test_briefing.py::test_arranque_no_contamina_el_capitulo_1`, `backend/novela/plataforma/test_run.py::test_run_de_arranque` | hecho |
 | RF-27 | CA-16 | `backend/novela/slices/briefing/test_briefing.py::test_run_fijado_de_otra_fase` | hecho |
@@ -558,18 +558,18 @@ Se rellena durante la implementación.
 | RF-28 | CA-17 | `backend/novela/slices/entorno/test_entorno.py` | hecho |
 | RF-29 | CA-18 | Revisión de `.claude/commands/novela-nueva.md` y `novela-continuar.md` en su commit, y `backend/novela/slices/briefing/test_briefing.py::test_canon_invalido_en_el_log` | hecho |
 | RF-23, RF-30 | CA-13 | Revisión de `AGENTS.md` en su commit: los tres pasos, el bucle de §5.6 con `novela comprobar-entorno` y la sesión interactiva del harness | hecho |
-| RF-22 | CA-10 | En seco (plan, tarea 6.3): con `claude` sustituido por una sesión que no avanza, el bucle hace una iteración y sale; con `settings.local.json` ampliado, sale antes de la primera | hecho en seco; con el bucle real, pendiente de CA-10 |
-| RF-13 a RF-17, RF-19, RF-22 | CA-10 | Novela de humo `humo-0003` (plan, fase 7). Sin ejecutar: necesita la confianza aceptada, las claves de Langfuse y el canario en verde | pendiente |
-| RF-31 | CA-19 | Ensayo de intervención y `/memory` en la novela de humo. Sin ejecutar | pendiente |
+| RF-22 | CA-10 | En seco (plan, tarea 6.3): con `claude` sustituido por una sesión que no avanza, el bucle hace una iteración y sale; con `settings.local.json` ampliado, sale antes de la primera | hecho: en seco, y en el bucle real de la novela de humo, que paró tras una sesión sin avance del checkpoint (§13, Baseline) |
+| RF-13 a RF-17, RF-19, RF-22 | CA-10 | Novela de humo `humo-0003`, el 2026-09-24 en `9a89427`: `checkpoints/03.json`, `pendiente` con 1, los briefings de los cinco agentes por capítulo, una traza con la etiqueta `humo-0003` por sesión (`GET /api/public/v2/observations`), `/novela-auditar` sin hallazgos y exportada a md y epub (§13, Baseline) | hecho |
+| RF-31 | CA-19 | Ensayo de intervención (sesión `8f18d74d-a4ca-45a7-ba12-c0a78a5545b3`): paró sin runs, briefings ni subagentes, y el `diff` de `runs/` salió vacío. `/memory`, por sustituto, porque `-p` no lo ejecuta: una sesión con los mismos flags enumeró lo que tenía cargado (§13) | hecho |
 | RF-32, RF-28 | CA-20 | `backend/novela/plataforma/test_langfuse.py::test_fusionar_*`, `::test_manda_el_entorno`; `backend/novela/slices/checkpoint/test_checkpoint.py::test_claves_desde_env`, `::test_manda_el_entorno_del_proceso`, `::test_env_ilegible_no_rompe_ni_se_imprime`; `backend/novela/slices/entorno/test_entorno.py::test_env_y_claves` | hecho |
 | RF-33 | CA-21 | `backend/novela/slices/entorno/test_entorno.py::test_env_sin_ignorar_por_cli`, `::test_env_y_claves`, y `.gitignore`, que tiene `.env` en su primera línea | hecho |
 | RF-34 | CA-22 | `backend/novela/slices/briefing/test_briefing.py::test_misterio_invalido_en_el_log` y revisión de `.claude/commands/novela-nueva.md`, paso 3, en su commit | hecho |
 | RF-36 | CA-23 | `backend/tests/canario/test_veredicto.py::test_un_caso_por_fixture`, `::test_sin_error_es_logrado_y_lo_ilegible_se_ignora`, sobre `backend/tests/canario/fixtures/*.jsonl` (sin modelo; lo recoge pytest) | hecho |
-| RF-35, RF-36 | CA-09 | Ejecución real de `ejecutar.py` con los prompts nuevos | pendiente |
+| RF-35, RF-36 | CA-09 | Ejecución real de `ejecutar.py` con los prompts nuevos: ver la fila de RF-18 | hecho |
 | RF-29 | CA-24 | Revisión de la tabla de códigos de `.claude/commands/novela-nueva.md` (el 1 de `briefing`) y `novela-continuar.md` (el de `briefing` y el de `checkpoint`), en el commit de CA-22 | hecho |
 | RF-37 | CA-25 | `backend/novela/slices/briefing/test_briefing.py::test_borrador_promovido`, `::test_borrador_invalido_se_queda`, `::test_borrador_valido_con_otro_invalido`, `::test_gana_el_borrador`, `::test_el_borrador_no_llega_a_otros_agentes` | hecho |
 | RF-38 | CA-26 | `backend/novela/slices/briefing/test_briefing.py::test_canon_incompleto`, `::test_arquitecto_sin_canon` | hecho |
-| RF-39 | CA-27 | `backend/tests/test_contratos.py`, `backend/tests/test_hook.py` y una ejecución real de `ejecutar.py` | pendiente |
+| RF-39 | CA-27 | `backend/tests/test_contratos.py::test_agentes_nombran_sus_salidas`, `backend/tests/test_hook.py::test_arquitecto_escribe_el_borrador`, `::test_salidas_casan_el_contrato`, y el canario `43856cbd-231a-4e60-ac69-fa840fae1b67`, con el tercer control pasado | hecho |
 
 ## 13. Verificación
 
@@ -586,7 +586,7 @@ Se rellena durante la implementación.
   - La regla 5 solo protege las sesiones que exportan `NOVELA_SESSION_ID`. Una sesión del harness abierta sin la variable puede invocar cualquier subagente, y la auditoría de trayectoria de la 0002 lo detecta después.
   - Los nombres cortos 8.3, las uniones y los enlaces simbólicos esquivan la normalización del hook (`validators.md` §5.14). Debajo quedan los triggers de `estado.db` y, con la 0002, la reproducción del estado.
   - `agent_type`, la herencia del entorno en los hooks, la ubicación del transcript y `--setting-sources` no son contrato de Claude Code (`validators.md` §5.10). El canario vigila los tres primeros; el último, la novela de humo (CA-19).
-  - No se sabe si `--setting-sources project,local` excluye la memoria de usuario (`~/.claude/CLAUDE.md`). CA-19 lo comprueba; si no la excluye, se anota aquí y no se mitiga en esta spec.
+  - `--setting-sources project,local` **no** excluye la memoria de usuario (`~/.claude/CLAUDE.md`, y el `RTK.md` que incluye) ni la auto-memoria del proyecto (CA-19). No se mitiga en esta spec (`validators.md` §4.17, F-58).
   - La segunda regla del hook no sabe qué capítulo está en curso: permite `capitulos/NN.md` para cualquier `NN`. Reescribir uno cerrado lo detecta el sello de 0001 RF-35.
   - Los tres revisores comparten turno con el `editor-estilo`, que reescribe el capítulo (`validators.md` §5.15).
   - El baseline es de una sola ejecución (`validators.md` §5.16).
@@ -616,11 +616,62 @@ Lo que la implementación encontró y la spec no decía. Los fallos nuevos está
   - no hay `settings.local.json`, y el plugin de Langfuse no está instalado.
 
   `comprobar-entorno --limpio` sale con 0 igualmente, porque no mira la confianza ni el plugin. El canario y la novela de humo no se lanzaron: sin confianza, `claude -p` ignora el `allow`, y el canario fallaría por la razón equivocada.
-- **Riesgos del plan.** El 2 (el plugin con `--setting-sources project,local`) sigue sin comprobar. El 3 está resuelto: `--agents` sustituye al `escritor` del proyecto, porque el impostor corrió con haiku. El 4 también: el hook hereda el entorno de `claude`, porque la regla 5 paró a `general-purpose` en una sesión real. El 5 (la memoria de usuario con `--setting-sources`) sigue sin comprobar, a la espera de CA-19.
+- **Riesgos del plan.** El 2 se dio a medias: con `--setting-sources project,local` el plugin carga (habilitado en `settings.local.json`), pero sus `pluginConfigs` solo se leen del ámbito de usuario y la sesión no ve la clave pública. Se resolvió con `LANGFUSE_PUBLIC_KEY` en el entorno de usuario de Windows, como prevé el plan (tarea 5.1, paso 2); la secreta la da el llavero. El 3 está resuelto: `--agents` sustituye al `escritor` del proyecto, porque el impostor corrió con haiku. El 4 también: el hook hereda el entorno de `claude`, porque la regla 5 paró a `general-purpose` en una sesión real. El 5 se confirmó: la memoria de usuario se carga (CA-19).
+
+### Hallazgos de la ejecución (2026-09-24)
+
+Lo que encontraron el canario y la novela de humo. Las filas nuevas están en `validators.md` §4.17.
+
+- **F-28 y F-48, activos (v0.5).** El `deny` de `Read` del misterio también denegaba escribirlo, y el gate del `arquitecto` no exigía el canon completo. Se vieron en el tercer arranque: el `arquitecto` escribió todo menos el misterio, el gate salió con 0 y el orquestador paró con `intervencion.md`.
+- **F-56 y F-57, propuestos.** Dos requisitos de la máquina que `AGENTS.md` no cubre. Con Git para Windows instalado por usuario, `claude` no encuentra Git Bash sin `CLAUDE_CODE_GIT_BASH_PATH`: la sesión solo tiene PowerShell, y los hooks corren en PowerShell y fallan. Y App Control bloquea el `novela.exe` de `uv tool`, mientras que el de `backend\.venv\Scripts` corre. Están en `architecture.md` §11.1. Llevarlos a los pasos de puesta en marcha es una enmienda de RF-23.
+- **F-25, observado.** El orquestador añadía `; echo "exit=$?"` a las órdenes `novela`. `Bash(novela:*)` no autoriza la orden compuesta, y `dontAsk` la denegó en dos arranques. Los tres procedimientos piden ahora cada orden sola y leen el código del resultado de la herramienta (`71b8fc9`).
+- **F-58, propuesto.** La auto-memoria del proyecto se carga en las sesiones del harness. Una memoria obsoleta, escrita por una sesión de desarrollo, hizo parar el segundo arranque, que atribuyó la denegación a una máquina sin preparar.
+- **F-37, propuesto.** `/novela-nueva` no se puede reanudar: el primer arranque se cortó por red (`ENOTFOUND api.anthropic.com` durante 16 minutos, en mitad de un turno de 23 del `arquitecto`) y el workspace creado hacía fallar el paso 1. Se apartó y se repitió.
+- **F-59, propuesto.** El `.env` del operador tenía las claves y no `TRACE_TO_LANGFUSE=true`. `comprobar-entorno` avisa del flag sin claves, no de las claves sin flag.
+- **El canario daba por no concluyente un intento 4 que sí lo era.** Un subagente devuelve a la sesión solo su último mensaje, y el nonce del impostor no llegaba a la salida. Ahora se busca en el texto de los agentes, en cualquier transcript (`461f214`). Lo encontró la verificación de la primera ejecución verde sobre sus transcripts.
+- **Langfuse.** La organización es de después del 2026-09-16, y las APIs de lectura legadas devuelven 410. Las trazas se comprobaron con `GET /api/public/v2/observations`. `POST /api/public/scores` sí funciona, y `checkpoint` emitió los seis scores de cada capítulo sin fallos.
+- **`validators.md` §5.9, condición cumplida.** La intervención del capítulo 3 nació en el libro de hechos. La cita de `hec-002` es literal y no contiene la fecha que afirma su texto, el 14 de octubre, mientras que el canon fecha el crimen el 13. El capítulo 1 dice «14» y ningún «13», y su `continuista` no lo vio contra el canon. El `trazador` ya había avisado en el arranque de una ambigüedad de fechas en el canon. El operador decidió que manda lo escrito, y el capítulo 3 se reescribió sin fecha. La contradicción entre canon y libro de hechos queda latente: resolverla es de la 0002 (cita obligatoria e invariantes narrativos).
+- **F-31, observado.** Tras resolver la intervención, la sesión reanudada volvió a revisar el capítulo 3 ya rechazado antes de reintentar al `escritor`, e informó 1 de 2 reintentos de revisión. La cuenta de `harness.log` da 2. Aprobó en el último permitido.
+- **El `escritor` no recibe `version_canon` ni `version_plan`** para el frontmatter del capítulo, y escribe `1`. No lo detecta ningún gate. El manifiesto del capítulo 1 sí registra el canon real.
+- **Cómo se lanzó.** El arranque corrió con `claude -p`, no en interactivo. El canario, el arranque y el bucle se lanzaron desde una sesión de desarrollo, con un envoltorio que quitaba sus variables `CLAUDE*`, ponía `backend\.venv\Scripts` por delante en el PATH y exportaba `CLAUDE_CODE_GIT_BASH_PATH`, `TRACE_TO_LANGFUSE=true` y `LANGFUSE_PUBLIC_KEY`. El bucle es el de `AGENTS.md`, literal, con una línea de eco por vuelta.
 
 ### Baseline
 
-Se rellena al cerrar CA-10: `run_id` y `session_id` por capítulo, los seis scores de `architecture.md` §10.5, palabras, intentos por gate, intervenciones y sha del commit con el árbol limpio.
+Novela de humo `humo-0003`, el 2026-09-24, con Claude Code 2.1.281 y el árbol limpio en `9a89427` (`sucio: false` en los cuatro manifiestos). **Una sola ejecución**: sirve para detectar un sistema roto, no para aceptar cambios de prompt (`validators.md` §5.16).
+
+Idea: «Durante un temporal de octubre en la Costa da Morte, el farero jubilado aparece muerto al pie de la escalera del faro que custodió treinta años. Su sobrina, técnica de salvamento marítimo, descubre que falta una página del libro de guardia y que alguien encendió la linterna, apagada desde hace diez años.» Tres capítulos, 9.000 palabras.
+
+| Paso | Sesión | Run | Resultado |
+|---|---|---|---|
+| Arranque | `8190dc4f-0312-4e25-aa28-f620e0d05021` | `r-20260924-1040` (`fase: arranque`) | Canon y plan a la primera; el borrador del misterio, promovido |
+| Ensayo de intervención | `8f18d74d-a4ca-45a7-ba12-c0a78a5545b3` | — | Paró sin crear nada (CA-19) |
+| Capítulo 01 | `34d4bf3c-2ad3-4fa3-83ea-0446b3c188d9` | `r-20260924-1049` | Cerrado |
+| Capítulo 02 | `4e51e13b-e107-4adb-9874-e74e2ba2d332` | `r-20260924-1101` | Cerrado |
+| Capítulo 03 | `1f13127f-b88f-4149-8765-1ed4add7b9e2` | `r-20260924-1120` | Intervención por el invariante 7; el freno paró el bucle |
+| Capítulo 03, reanudado | `c0b53180-9cb1-4012-b5a7-d877b44fa727` | `r-20260924-1120` | Cerrado, con `checkpoints/03.json` |
+| `/novela-auditar` | `72a8e7af-ccb7-4915-beee-329657e8d930` | — | Sin hallazgos; exportada a md y epub |
+
+Cada una de las siete sesiones tiene una traza en Langfuse con la etiqueta `humo-0003`, y cada línea de `harness.log` lleva su `sesion=`.
+
+| Capítulo | Palabras | tension | fair_play | coherencia | continuidad | estilo | longitud | Intentos (mecánico · revisión · delta) |
+|---|---|---|---|---|---|---|---|---|
+| 01 | 3.364 | 7 | 9 | 9 | 1 | 1 | 0,88 | 0 · 0 · 2 |
+| 02 | 3.194 | 8 | 9 | 9 | 1 | 0,5 | 0,94 | 0 · 1 · 1 |
+| 03 | 3.394 | 9 | 9 | 9 | 1 | 1 | 0,87 | 0 · 2 · 0 |
+
+Los scores los emitió `checkpoint` a Langfuse sin fallos. Los intentos salen de la cuenta de `harness.log`, con las tres reglas de §5.4. Los dos reintentos de delta del capítulo 1 fueron un id de escena donde el esquema pide un escenario y una cita no literal. El de revisión del 2, un objeto en la planta equivocada.
+
+**Paradas y su causa**, en orden:
+
+1. Primer arranque (`93192d52`, en `461f214`): corte de red en mitad del `arquitecto` (F-37).
+2. Segundo arranque (`c7d0f68c`): orden compuesta denegada (F-25) y una memoria obsoleta (F-58). Se corrigió en `71b8fc9` y se repitió el canario.
+3. Tercer arranque (`0d64a8fb`, en `71b8fc9`): el misterio no se pudo escribir (F-28) y el gate no lo vio (F-48). Intervención; v0.5 en `5034601`, `55f0ccf` y `9a89427`, y el canario otra vez.
+4. Ensayo de intervención: la parada esperada.
+5. Capítulo 3: intervención por el invariante 7 (§5.9 cumplido). La resolvió el operador (`resuelto: … manda lo escrito, el 14`), y el bucle reanudó desde el checkpoint 02.
+
+**`/memory` (CA-19), por sustituto.** `claude -p` no ejecuta `/memory`. Una sesión con los flags del harness (`699b7407-a761-492e-8311-3409ff5eb5ab`) enumeró las instrucciones que tenía cargadas: `~/.claude/CLAUDE.md`, `CLAUDE.md` y `AGENTS.md` del repo y el `MEMORY.md` de la auto-memoria del proyecto. La memoria de usuario no queda fuera.
+
+Los valores completos, en Langfuse; el workspace, en `novelas/humo-0003/`, que no se versiona y no se borra: sus briefings son el registro de qué vio cada agente.
 
 ## 14. Impacto
 
@@ -663,7 +714,7 @@ Se rellena al cerrar CA-10: `run_id` y `session_id` por capítulo, los seis scor
 
 ## 16. Preguntas abiertas
 
-Ninguna. Las once de la v0.1 se resolvieron con el experimento del 2026-09-23 y el razonamiento de `docs/implementation-plans/0003-contencion/decisiones-abiertas.md`. Los fallos en `propuesto` que dejó la implementación de la v0.3 se resuelven en la v0.4.
+Ninguna. Las once de la v0.1 se resolvieron con el experimento del 2026-09-23 y el razonamiento de `docs/implementation-plans/0003-contencion/decisiones-abiertas.md`, que se borró con el plan al implementar la spec y sigue en el historial (`9a89427`). Los fallos en `propuesto` que dejó la implementación de la v0.3 se resuelven en la v0.4, y los de la novela de humo, en la v0.5. Los que siguen en `propuesto` (`validators.md` §4.17: F-27, F-37 y F-56 a F-59) no los recoge esta spec.
 
 ### Enmiendas de la v0.5
 
