@@ -5,6 +5,10 @@ argument-hint: <slug>
 
 `$ARGUMENTS` es `<slug>`. Sin slug, responde `uso: /novela-auditar <slug>` y para.
 
+Cada orden `novela` va sola en su llamada a Bash, sin `;`, `&&`, `|` ni `echo $?`: el `allow`
+solo autoriza órdenes que empiezan por `novela`. Un código distinto de 0 sale como error con
+`Exit code N`; sin error, es 0.
+
 1. `novela auditar <slug>`.
 2. Sale con 0 → `novela exportar <slug> --formato md` y `novela exportar <slug> --formato epub`,
    e informa de las dos rutas.

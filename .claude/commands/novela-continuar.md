@@ -22,6 +22,11 @@ capítulo. Repite «Por capítulo» hasta hacer `N` o hasta que algo pare.
 | 3 | Lock ocupado: otro proceso trabaja en la novela. Para sin `intervencion.md` |
 | 4 | Workspace inválido: `intervencion.md` y para. No es un gate y no se reintenta |
 
+Cada orden `novela` va sola en su llamada a Bash: sin `;`, `&&`, `|`, redirecciones ni
+`echo $?`. El `allow` solo autoriza órdenes que empiezan por `novela`, y en el bucle `dontAsk`
+deniega cualquier otra forma. El código lo da el resultado de la herramienta: distinto de 0, sale
+como error con `Exit code N`; sin error, es 0.
+
 ## Reglas de lectura
 
 1. **Un 1 solo es un gate si el log lo dice.** Tras un 1 de `novela validar` o de
