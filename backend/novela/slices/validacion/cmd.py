@@ -4,6 +4,7 @@ Escribe `qa/NN-validacion.json` siempre, pase o no, con el sha256 del fichero qu
 que la custodia de `aplicar-delta` compara (RF-31, RF-32).
 """
 
+from dataclasses import replace
 from enum import StrEnum
 from typing import Annotated
 
@@ -12,8 +13,9 @@ import typer
 from novela.dominio import frontmatter
 from novela.dominio.canon import Misterio, Personaje
 from novela.dominio.plan import FichaCapitulo
+from novela.dominio.prohibidas import Coincidencia, buscar
 from novela.dominio.qa import Hallazgo, InformeQA
-from novela.plataforma import estado_db, run
+from novela.plataforma import estado_db, langfuse, policy_db, run
 from novela.plataforma.salida import USO_INCORRECTO
 from novela.plataforma.workspace import WorkspaceRepository, sha256
 from novela.slices.validacion import gates
@@ -75,15 +77,18 @@ def validar(
         # `validar-hook NN` no contiene `validar NN -> `, que es lo que cuenta el procedimiento.
         orden = "validar-hook" if origen is Origen.hook else "validar"
         with abierto.registro(orden, nn) as causas:
-            ctx = _contexto(ws, capitulo)
+            ctx = replace(_contexto(ws, capitulo), prohibidos=policy_db.prohibidos(ws))
             ruta = ws.raiz / "capitulos" / f"{nn}.md"
+            coincidencias: list[Coincidencia] = []
             if ruta.is_file():
                 texto = ruta.read_text(encoding="utf-8")
                 try:
                     meta, cuerpo = frontmatter.partir(texto)
-                    hallazgos = gates.validar(meta, cuerpo, ctx)
                 except ValueError:
-                    hallazgos = gates.validar(None, texto, ctx)
+                    meta, cuerpo = None, texto
+                hallazgos = gates.validar(meta, cuerpo, ctx)
+                if any(h.tipo == "termino_prohibido" for h in hallazgos):
+                    coincidencias = buscar(cuerpo, ctx.prohibidos)
                 sha: str | None = sha256(ruta)
             else:
                 descripcion = f"no existe capitulos/{nn}.md"
@@ -99,6 +104,15 @@ def validar(
                 capitulo_sha256=sha,
             )
             ws.escribir(ws.raiz / "qa" / f"{nn}-validacion.json", informe.model_dump_json(indent=2))
+            if coincidencias:
+                # Guardrail (docs/guardrails.md): al log de auditoría y a Langfuse. El score solo
+                # con coincidencias; el del capítulo aprobado es vp_prohibidas, en checkpoint.
+                policy_db.auditar(ws, orden, capitulo, coincidencias)
+                sink = langfuse.desde_entorno(langfuse.entorno_efectivo(run.RAIZ_REPO))
+                score = {"guardrail_prohibidas": float(len(coincidencias))}
+                for fallo in sink.emitir(slug, capitulo, abierto.id, score):
+                    causas.append(fallo)
+                    typer.echo(f"aviso: {fallo}", err=True)
             if not hallazgos:
                 typer.echo(f"validar {nn}: aprobado")
                 return

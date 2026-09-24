@@ -16,6 +16,7 @@ from pydantic import BaseModel, ValidationError
 from novela.dominio.artefactos import FrontmatterCapitulo, contar_palabras
 from novela.dominio.config import PalabrasPorCapitulo
 from novela.dominio.plan import FichaCapitulo
+from novela.dominio.prohibidas import Termino, buscar
 from novela.dominio.qa import Hallazgo
 
 _BRIEF = "brief/brief.json"
@@ -38,6 +39,7 @@ class Contexto:
     pistas: frozenset[str]  # ids de canon.misterio.pistas
     hilos_abiertos: frozenset[str]  # abiertos en el estado antes de este capítulo
     formas: tuple[FormaCanonica, ...] = ()  # personajes por id y, al final, el destinatario
+    prohibidos: tuple[Termino, ...] = ()  # los tres niveles (docs/guardrails.md)
 
 
 def _frontmatter(meta: Mapping[str, Any] | None, capitulo: int) -> FrontmatterCapitulo | Hallazgo:
@@ -169,6 +171,25 @@ def nombres(cuerpo: str, formas: Sequence[FormaCanonica]) -> list[Hallazgo]:
     ]
 
 
+def prohibidas(cuerpo: str, terminos: Sequence[Termino]) -> list[Hallazgo]:
+    """vp_prohibidas: un hallazgo por término y forma, con sus líneas. Es lo que lee el escritor
+    en el reintento, así que dice qué término, de qué nivel y dónde."""
+    lineas: dict[tuple[Termino, str], list[int]] = {}
+    for c in buscar(cuerpo, terminos):
+        lineas.setdefault((c.termino, c.forma), []).append(c.linea)
+    return [
+        Hallazgo(
+            tipo="termino_prohibido",
+            gravedad="alta",
+            referencia=termino.nivel,
+            ubicacion="línea " + ", ".join(map(str, dict.fromkeys(ns))),
+            descripcion=f"«{forma}» es el término prohibido «{termino.texto}» ({termino.nivel})",
+            correccion_sugerida="reescribe el pasaje sin ese término ni ninguna variante suya",
+        )
+        for (termino, forma), ns in lineas.items()
+    ]
+
+
 def esquemas(
     documentos: Mapping[str, tuple[type[BaseModel], object | None, bool]],
     contexto: Mapping[str, Any] | None = None,
@@ -218,4 +239,5 @@ def validar(meta: Mapping[str, Any] | None, cuerpo: str, ctx: Contexto) -> list[
         + _hilos(fm, ctx.hilos_abiertos)
         + _ids(fm, ctx)
         + nombres(cuerpo, ctx.formas)
+        + prohibidas(cuerpo, ctx.prohibidos)
     )

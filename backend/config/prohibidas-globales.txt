@@ -1,0 +1,31 @@
+# Nivel global del guardrail de palabras prohibidas (docs/guardrails.md): insultos y términos
+# ofensivos. Uno por línea, en su forma base; plural, género, diminutivo, mayúsculas y tildes ya
+# los cubre la normalización. Fuera las palabras con una forma inocente de otro género
+# («zorra»/«zorro», «perra»/«perro», «polla»/«pollo»): darían falsos positivos. Se siembra en
+# la base de cada novela con INSERT OR IGNORE; quitar una línea no la borra de las existentes.
+bastardo
+bollera
+cabrón
+carajo
+cojones
+coño
+estúpido
+follar
+gilipollas
+hijoputa
+idiota
+imbécil
+jodido
+joder
+malnacido
+mamón
+marica
+maricón
+mongólico
+negrata
+pendejo
+puta
+retrasado mental
+subnormal
+sudaca
+tortillera

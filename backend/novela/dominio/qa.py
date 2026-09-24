@@ -22,6 +22,7 @@ TipoHallazgo = Literal[
     "hilo_cerrado_sin_abrir",
     "id_inexistente",
     "nombre_mal_escrito",
+    "termino_prohibido",
     # novela validar (frontmatter) y novela checkpoint (el resto de artefactos)
     "esquema_invalido",
     # continuista

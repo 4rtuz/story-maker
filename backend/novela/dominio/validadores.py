@@ -8,7 +8,14 @@ from typing import Literal
 from novela.dominio.qa import TipoHallazgo
 
 NombreValidador = Literal[
-    "vp_schema", "vp_longitud", "vp_pistas", "vp_hilos", "vp_ids", "vp_nombres", "vp_cobertura"
+    "vp_schema",
+    "vp_longitud",
+    "vp_pistas",
+    "vp_hilos",
+    "vp_ids",
+    "vp_nombres",
+    "vp_cobertura",
+    "vp_prohibidas",
 ]
 Punto = Literal["validar", "checkpoint", "auditar"]
 
@@ -38,6 +45,8 @@ VALIDADORES: tuple[Validador, ...] = (
     Validador(
         "vp_cobertura", ("checkpoint", "auditar"), "auditar", ("elemento_sin_cubrir",), "fraccion"
     ),
+    # docs/guardrails.md
+    Validador("vp_prohibidas", ("validar",), "validar", ("termino_prohibido",), "binario"),
 )
 
 
