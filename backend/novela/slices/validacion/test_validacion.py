@@ -99,3 +99,31 @@ def test_rendimiento(novelas: Novelas) -> None:
     resultado = _validar(ws, 8)
     assert time.perf_counter() - inicio < 2
     assert resultado.exit_code == 1  # fuera de rango para esta novela, que es de 300 palabras
+
+
+def test_regeneracion(novelas: Novelas) -> None:
+    """CA-27 (RF-31): con un cambio en curso, el 2 regenerado con el contrato de la versión 1
+    pasa; sin una pista plantada, con un hilo abierto de más o un cerrado de menos, 1 con
+    regeneracion_altera_contrato en qa/02-validacion.json."""
+    ws = novelas("demo-cambio")
+    assert fabrica.pedir_cambio(ws.raiz.parent, ws.slug).exit_code == 0
+    fabrica.reaplicar(ws.raiz, 1)
+    meta, cuerpo = frontmatter.partir(fabrica.capitulo_regenerado(fabrica.CAMBIO, 2))
+    assert (meta["pistas_plantadas"], meta["hilos_abiertos"], meta["hilos_cerrados"]) == (
+        ["pis-001"],
+        ["hil-002"],
+        ["hil-003"],
+    )
+    for retoque, codigo in (
+        ({}, 0),
+        ({"pistas_plantadas": []}, 1),
+        ({"hilos_abiertos": ["hil-002", "hil-009"]}, 1),
+        ({"hilos_cerrados": []}, 1),
+    ):
+        fabrica.escribir(ws.raiz, {"capitulos/02.md": frontmatter.unir(meta | retoque, cuerpo)})
+        resultado = fabrica.v2(ws.raiz, "validar", 2)
+        assert resultado.exit_code == codigo, (retoque, resultado.output)
+        hallazgos = _informe(ws, 2)["hallazgos"]
+        assert isinstance(hallazgos, list)
+        tipos = {h["tipo"] for h in hallazgos}
+        assert ("regeneracion_altera_contrato" in tipos) == bool(codigo), retoque

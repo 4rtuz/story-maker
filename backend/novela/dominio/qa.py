@@ -21,6 +21,8 @@ TipoHallazgo = Literal[
     "pista_ausente",
     "hilo_cerrado_sin_abrir",
     "id_inexistente",
+    # novela validar, con un cambio en curso (spec 0007, RF-31)
+    "regeneracion_altera_contrato",
     # continuista
     "contradiccion_hecho",
     "contradiccion_temporal",

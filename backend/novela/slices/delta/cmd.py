@@ -19,7 +19,7 @@ from novela.dominio.artefactos import (
     contar_palabras,
 )
 from novela.dominio.canon import Misterio
-from novela.dominio.estado import Delta
+from novela.dominio.estado import Delta, Estado
 from novela.dominio.qa import InformeQA
 from novela.dominio.version import PeticionDeCambio, Version
 from novela.plataforma import estado_db, run, versiones
@@ -109,6 +109,13 @@ def _copiar_de_la_version(ws: WorkspaceRepository, version: int, nn: str) -> lis
     return distintos
 
 
+def _base_anterior(ws: WorkspaceRepository, version: int) -> Estado:
+    """La base de `versiones/vN/`, en solo lectura: está en modo DELETE y no deja -wal ni -shm."""
+    ruta = ws.raiz / "versiones" / f"v{version}" / ws.estado_db.relative_to(ws.raiz)
+    with estado_db.abrir(ruta, solo_lectura=True) as conn:
+        return estado_db.leer(conn)
+
+
 def aplicar_delta(
     slug: str,
     capitulo: int,
@@ -168,6 +175,10 @@ def aplicar_delta(
                 motivos = violaciones.violaciones(vigente, delta, cuerpo, fm)
                 if reaplicar:
                     motivos += violaciones.hilos_sin_abrir(vigente, delta)
+                elif cambio and capitulo in cambio.plan.regenerar:
+                    motivos += violaciones.de_regeneracion(
+                        delta, cambio, _base_anterior(ws, cambio.version_base), vigente
+                    )
                 tension = vigente.tension_real.entradas
                 if len(tension) >= capitulo and tension[capitulo - 1] != derivados.tension:
                     motivos.append(f"tension_real del capítulo {nn} ya registrada con otro valor")

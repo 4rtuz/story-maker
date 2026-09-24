@@ -608,6 +608,38 @@ def cerrar_capitulo(base: Path, slug: str, novela: Novela, n: int) -> None:
         assert resultado.exit_code == 0, f"{orden} {n}: {resultado.output}"
 
 
+def v2(raiz: Path, orden: str, n: int, *resto: str) -> Result:
+    """Una orden de la versión 2 sobre el capítulo `n`, en su run v2."""
+    return cli(raiz.parent, orden, raiz.name, str(n), *resto, run=run_v2(n))
+
+
+def reaplicar(raiz: Path, n: int) -> None:
+    """Lo que hace el procedimiento con `NN reaplicar`: sin agentes."""
+    for orden, resto in (("aplicar-delta", ("--reaplicar",)), ("checkpoint", ())):
+        resultado = v2(raiz, orden, n, *resto)
+        assert resultado.exit_code == 0, f"{orden} {n}: {resultado.output}"
+
+
+def regenerado(raiz: Path, novela: Novela, n: int) -> tuple[str, dict[str, Any]]:
+    """Capítulo y delta del agente falso de regeneración, sobre las bases de este momento."""
+    peticion = PeticionDeCambio.model_validate_json(
+        sorted((raiz / "cambios").glob("cam-*.json"))[-1].read_bytes()
+    )
+    vigente, anterior = estados(raiz, peticion.version_base)
+    texto = capitulo_regenerado(novela, n)
+    return texto, delta_regenerado(novela, n, peticion, vigente, anterior)
+
+
+def cerrar_regenerado(
+    raiz: Path, novela: Novela, n: int, texto: str, delta_: dict[str, Any]
+) -> None:
+    """El bucle de un capítulo afectado, con el CLI real, hasta el checkpoint."""
+    preparar_capitulo(raiz.parent, raiz.name, novela, n, texto, delta_, run_v2(n))
+    for orden in ("aplicar-delta", "checkpoint"):
+        resultado = v2(raiz, orden, n)
+        assert resultado.exit_code == 0, f"{orden} {n}: {resultado.output}"
+
+
 def construir(
     base: Path, slug: str, novela: Novela, cerrados: int, instantaneas: dict[int, str] | None = None
 ) -> Path:

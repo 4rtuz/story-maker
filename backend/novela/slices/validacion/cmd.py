@@ -4,13 +4,17 @@ Escribe `qa/NN-validacion.json` siempre, pase o no, con el sha256 del fichero qu
 que la custodia de `aplicar-delta` compara (RF-31, RF-32).
 """
 
+from typing import Any
+
 import typer
+from pydantic import ValidationError
 
 from novela.dominio import frontmatter
+from novela.dominio.artefactos import FrontmatterCapitulo
 from novela.dominio.canon import Misterio
 from novela.dominio.plan import FichaCapitulo
 from novela.dominio.qa import Hallazgo, InformeQA
-from novela.plataforma import estado_db, run
+from novela.plataforma import estado_db, run, versiones
 from novela.plataforma.salida import USO_INCORRECTO
 from novela.plataforma.workspace import WorkspaceRepository, sha256
 from novela.slices.validacion import gates
@@ -38,6 +42,20 @@ def _contexto(ws: WorkspaceRepository, capitulo: int) -> gates.Contexto:
     )
 
 
+def _contrato(ws: WorkspaceRepository, capitulo: int, meta: dict[str, Any]) -> list[Hallazgo]:
+    """RF-31: con un cambio en curso, un capítulo afectado conserva el contrato de pistas e hilos
+    del mismo capítulo en la versión anterior. Sin cambio, o reaplicable, nada que mirar."""
+    cambio = versiones.cambio_en_curso(ws)
+    if cambio is None or capitulo not in cambio.plan.regenerar:
+        return []
+    try:
+        fm = FrontmatterCapitulo.model_validate(meta)
+    except ValidationError:
+        return []  # ya es frontmatter_invalido
+    ruta = ws.raiz / "versiones" / f"v{cambio.version_base}" / "capitulos" / f"{ws.nn(capitulo)}.md"
+    return gates.regeneracion_altera_contrato(fm, ws.leer_md(ruta, FrontmatterCapitulo))
+
+
 def validar(slug: str, capitulo: int) -> None:
     """Esquema, longitud, pistas del plan, balance de hilos e ids. Sale con 1 si hay hallazgos."""
     ws = WorkspaceRepository.resolver(slug).exigir()
@@ -55,7 +73,7 @@ def validar(slug: str, capitulo: int) -> None:
                 texto = ruta.read_text(encoding="utf-8")
                 try:
                     meta, cuerpo = frontmatter.partir(texto)
-                    hallazgos = gates.validar(meta, cuerpo, ctx)
+                    hallazgos = gates.validar(meta, cuerpo, ctx) + _contrato(ws, capitulo, meta)
                 except ValueError:
                     hallazgos = gates.validar(None, texto, ctx)
                 sha: str | None = sha256(ruta)

@@ -1,8 +1,9 @@
 from typing import Any
 
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from novela.dominio.artefactos import FrontmatterCapitulo
 from novela.dominio.config import PalabrasPorCapitulo
 from novela.dominio.plan import FichaCapitulo
 from novela.slices.validacion import gates
@@ -159,3 +160,35 @@ def test_casos_fijos_de_cada_gate() -> None:
     assert [(h.tipo, h.referencia) for h in pagada_ajena] == [("id_inexistente", "pis-900")]
     escena_ajena = gates.validar({**meta, "escenas": ["esc-05-1", "esc-05-7"]}, cuerpo, ctx)
     assert [(h.tipo, h.referencia) for h in escena_ajena] == [("id_inexistente", "esc-05-7")]
+
+
+def _contrato(
+    pistas: tuple[list[str], list[str]], hilos: tuple[list[str], list[str]]
+) -> FrontmatterCapitulo:
+    meta = _caso()[0] | {
+        "pistas_plantadas": pistas[0],
+        "pistas_pagadas": pistas[1],
+        "hilos_abiertos": hilos[0],
+        "hilos_cerrados": hilos[1],
+    }
+    return FrontmatterCapitulo.model_validate(meta)
+
+
+_pistas, _hilos = (st.lists(st.sampled_from(ids), unique=True) for ids in (PISTAS, HILOS))
+_conjuntos = st.tuples(_pistas, _pistas, _hilos, _hilos)
+
+
+@settings(max_examples=200)
+@given(_conjuntos, _conjuntos, st.booleans())
+def test_regeneracion_altera_contrato_property(
+    ahora: tuple[list[str], ...], antes: tuple[list[str], ...], iguales: bool
+) -> None:
+    """RF-31: un hallazgo por cada id que difiere en alguno de los cuatro conjuntos entre el
+    capítulo regenerado y el de la versión anterior, y ninguno si son iguales."""
+    antes = ahora if iguales else antes
+    fm = _contrato((ahora[0], ahora[1]), (ahora[2], ahora[3]))
+    anterior = _contrato((antes[0], antes[1]), (antes[2], antes[3]))
+    esperados = sorted(id_ for a, b in zip(ahora, antes, strict=True) for id_ in set(a) ^ set(b))
+    hallazgos = gates.regeneracion_altera_contrato(fm, anterior)
+    assert sorted(h.referencia or "" for h in hallazgos) == esperados
+    assert all((h.tipo, h.gravedad) == ("regeneracion_altera_contrato", "alta") for h in hallazgos)

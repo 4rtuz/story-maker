@@ -11,6 +11,7 @@
             "pista_ausente",
             "hilo_cerrado_sin_abrir",
             "id_inexistente",
+            "regeneracion_altera_contrato",
             "contradiccion_hecho",
             "contradiccion_temporal",
             "contradiccion_personaje",

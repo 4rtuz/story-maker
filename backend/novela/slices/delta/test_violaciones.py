@@ -1,10 +1,20 @@
 import unicodedata
+from datetime import UTC, datetime
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from novela.dominio.base import ColeccionAppendOnly
-from novela.dominio.estado import Cursor, Delta, Estado, Hecho, Hilo, UsoCitado
+from novela.dominio.estado import (
+    Cursor,
+    Delta,
+    EntradaConocimiento,
+    Estado,
+    Hecho,
+    Hilo,
+    UsoCitado,
+)
+from novela.dominio.version import PeticionDeCambio, PlanDeRegeneracion
 from novela.slices.delta import violaciones
 from tests import estrategias
 
@@ -172,3 +182,93 @@ def test_hilos_sin_abrir_property(delta: Delta, previos: list[Hilo], datos: st.D
     causas = violaciones.hilos_sin_abrir(estado, delta)
     assert len(causas) == len(esperados)
     assert all(any(id_ in c for c in causas) for id_ in esperados)
+
+
+H, NUEVO, T = "hec-002", "hec-103", "La puerta estaba intacta."
+ANTERIORES = ["hec-002", "hec-004", "hec-102", "obj-001", "obj-002"]
+
+
+@settings(max_examples=200)
+@given(st.data())
+def test_de_regeneracion_property(datos: st.DataObject) -> None:
+    """CA-28 (RF-32): hay causa `regeneracion:` si y solo si el delta del capítulo de origen
+    omite el id reservado o cambia su texto, referencia H, omite o altera un requerido, o
+    introduce un id de hecho u objeto de la versión anterior que no es requerido."""
+    requerido = Hecho(id="hec-102", texto="La colilla.", capitulo=2, cita="c")
+    anterior = _estado(6).model_copy(
+        update={
+            "libro_de_hechos": ColeccionAppendOnly(
+                [Hecho(id=i, texto=f"texto de {i}", capitulo=2, cita="c") for i in ANTERIORES[:2]]
+                + [requerido]
+            ),
+            "objetos": [
+                o.model_copy(update={"id": i})
+                for i, o in zip(
+                    ANTERIORES[3:],
+                    datos.draw(st.lists(estrategias.objetos, min_size=2, max_size=2)),
+                    strict=True,
+                )
+            ],
+        }
+    )
+    vigente_obj = datos.draw(st.sets(st.sampled_from(ANTERIORES[3:])))
+    vigente = _estado(1).model_copy(
+        update={"objetos": [o for o in anterior.objetos if o.id in vigente_obj]}
+    )
+    plan = PlanDeRegeneracion(
+        regenerar=[2, 4], reaplicar=[1, 3], origen=2, requeridos={2: ["hec-102"]}
+    )
+    peticion = PeticionDeCambio(
+        id="cam-001",
+        hecho=H,
+        texto_anterior="texto de hec-002",
+        texto=T,
+        hecho_nuevo=NUEVO,
+        version_base=1,
+        version_nueva=2,
+        plan=plan,
+        estado="en_curso",
+        creado=datetime(2026, 9, 24, tzinfo=UTC),
+    )
+    nuevo_texto = datos.draw(st.sampled_from([T, "  La puerta  estaba intacta. ", "Otra cosa."]))
+    hechos = []
+    if datos.draw(st.booleans()):
+        hechos.append(Hecho(id=NUEVO, texto=nuevo_texto, capitulo=2, cita="c"))
+    req = datos.draw(st.sampled_from(["igual", "otro", "sin"]))
+    if req != "sin":
+        texto = requerido.texto if req == "igual" else "Otra colilla."
+        hechos.append(requerido.model_copy(update={"texto": texto}))
+    extra = datos.draw(st.sampled_from([None, "hec-004", "hec-150", H]))
+    if extra:
+        hechos.append(Hecho(id=extra, texto="x", capitulo=2, cita="c"))
+    objetos = [
+        o.model_copy(update={"id": i})
+        for i, o in zip(
+            datos.draw(st.lists(st.sampled_from(["obj-001", "obj-002", "obj-009"]), unique=True)),
+            datos.draw(st.lists(estrategias.objetos, min_size=3, max_size=3)),
+            strict=False,
+        )
+    ]
+    en_lector = datos.draw(st.booleans())
+    lector = [EntradaConocimiento(hecho=H, desde_capitulo=2)] if en_lector else []
+    usado = datos.draw(st.booleans())
+    usos = [UsoCitado(hecho=H, cita="c")] if usado else []
+    n = datos.draw(st.sampled_from([2, 4]))
+    delta = datos.draw(estrategias.deltas(capitulo=n)).model_copy(
+        update={
+            "libro_de_hechos": hechos,
+            "objetos": objetos,
+            "conocimiento": {},
+            "conocimiento_lector": lector,
+            "hechos_usados": usos,
+        }
+    )
+    ids_nuevo = [h for h in hechos if h.id == NUEVO]
+    a = n == 2 and not any(" ".join(h.texto.split()) == T for h in ids_nuevo)
+    b = extra == H or en_lector or usado
+    c = n == 2 and req != "igual"
+    introducidos = {x.id for x in hechos} | ({o.id for o in objetos} - vigente_obj)
+    d = bool(introducidos & (set(ANTERIORES) - ({"hec-102"} if n == 2 else set())))
+    causas = violaciones.de_regeneracion(delta, peticion, anterior, vigente)
+    assert bool(causas) == (a or b or c or d), (a, b, c, d, causas)
+    assert all(c.startswith("regeneracion: ") for c in causas)
