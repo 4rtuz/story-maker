@@ -284,6 +284,11 @@
       "minItems": 1,
       "title": "Entradas",
       "type": "array"
+    },
+    "ficticio": {
+      "default": false,
+      "title": "Ficticio",
+      "type": "boolean"
     }
   },
   "required": [

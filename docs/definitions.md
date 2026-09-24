@@ -27,6 +27,7 @@ Todo lo que el usuario decide antes de que el sistema arranque y que el sistema 
 `objeto` · **INMUTABLE** una vez escrito · entrevistador y CLI → `novela nueva`
 
 - `ocasion` — `hijo | pareja | boda | aniversario | jubilacion`, de `brief/inicio.json`.
+- `ficticio` — `true` si el destinatario es inventado (novela de ejemplo o de evaluación), de `novela brief iniciar --ficticio`. La `idea_semilla` lo declara para que el arquitecto no anonimice el nombre; con datos reales no se usa.
 - `destinatario.nombre` (1..80), `destinatario.edad` (0..120), `destinatario.rasgos` (1..10) y `recuerdos` (1..20, el recuerdo es la cita) — los únicos datos personales del sistema. Ni sexo ni pronombres, ni contacto, identificación o salud.
 - `genero` (el `subgenero` de arriba), `tono` (`ligero | tierno | emotivo | intrigante | oscuro`) y `extension` (`corta | media | larga` → 1.000, 1.250 o 1.500 palabras por capítulo) — campos cerrados: solo pueden citar una entrada `respuesta`, nunca un `texto_libre`.
 - `prohibidos` — `{terminos (0..30), fuente}`; `terminos: []` es «ninguno», también campo cerrado.
@@ -295,7 +296,7 @@ El contexto persiste como ficheros, no como historial de conversación. Cada sub
 
 **`config.yaml`** — Serialización de la rama 1. Se escribe al inicio y no se toca.
 
-**`brief/`** — Solo en novelas de regalo, y anterior a `config.yaml`. `inicio.json` (`{ocasion, creado}`), `entradas/ent-NN.md` (lo que aporta el cliente, normalizado, con frontmatter `EntradaMeta`: `id`, `tipo` `respuesta | texto_libre`, `sha256` del cuerpo y `caracteres`), `borrador.json` (el único fichero que escribe el `entrevistador`), `informe.json` y `brief.json`, que el CLI escribe solo si el borrador valida. Contiene datos personales: no se traza ni se copia al log. Cuando existe `config.yaml` el brief queda cerrado y ningún subcomando lo vuelve a tocar.
+**`brief/`** — Solo en novelas de regalo, y anterior a `config.yaml`. `inicio.json` (`{ocasion, creado, ficticio}`), `entradas/ent-NN.md` (lo que aporta el cliente, normalizado, con frontmatter `EntradaMeta`: `id`, `tipo` `respuesta | texto_libre`, `sha256` del cuerpo y `caracteres`), `borrador.json` (el único fichero que escribe el `entrevistador`), `informe.json` y `brief.json`, que el CLI escribe solo si el borrador valida. Contiene datos personales: no se traza ni se copia al log. Cuando existe `config.yaml` el brief queda cerrado y ningún subcomando lo vuelve a tocar.
 
 **`canon/`** — `premisa.md`, `mundo.md`, `personajes/*.md`, `misterio.md`, `estilo.md`. Un fichero por personaje permite cargar solo los que aparecen en el capítulo.
 

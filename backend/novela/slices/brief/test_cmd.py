@@ -504,3 +504,21 @@ def test_validar_rendimiento(tmp_path: Path) -> None:
     duracion = time.perf_counter() - inicio
     assert r.exit_code == 1  # el veto «larga» casa en rasgos y recuerdos: todo se evalúa
     assert duracion < 2, duracion
+
+
+def test_ficticio_llega_al_brief(tmp_path: Path) -> None:
+    """`iniciar --ficticio` queda en inicio.json y validar lo pasa a brief.json."""
+    r = _cli(tmp_path, "brief", "iniciar", SLUG, "--ocasion", "boda", "--ficticio")
+    assert r.exit_code == 0, r.output
+    raiz = tmp_path / SLUG
+    assert _json(raiz / "brief" / "inicio.json")["ficticio"] is True
+    fichero = str(FIXTURES / "respuestas-completas.md")
+    assert (
+        _cli(
+            tmp_path, "brief", "entrada", SLUG, "--tipo", "respuesta", "--fichero", fichero
+        ).exit_code
+        == 0
+    )
+    _agente(raiz, "borrador-completo.json")
+    assert _cli(tmp_path, "brief", "validar", SLUG).exit_code == 0
+    assert _json(raiz / "brief" / "brief.json")["ficticio"] is True

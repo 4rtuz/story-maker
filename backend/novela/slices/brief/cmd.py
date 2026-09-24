@@ -74,6 +74,9 @@ def _parada(causas: list[str]) -> Callable[[int, str], NoReturn]:
 def iniciar(
     slug: str,
     ocasion: Annotated[str, typer.Option(help="hijo, pareja, boda, aniversario o jubilacion")],
+    ficticio: Annotated[
+        bool, typer.Option(help="Destinatario inventado: novela de ejemplo o de evaluación")
+    ] = False,
 ) -> None:
     """Crea el workspace del brief: brief/entradas/, estado/, runs/ y brief/inicio.json."""
     ws = WorkspaceRepository.resolver(slug)  # valida el slug antes de tocar el disco
@@ -91,7 +94,7 @@ def iniciar(
     with ws.bloquear():
         with run.abrir(ws, 1, "arranque").registro("brief", "iniciar", ocasion):
             creado = datetime.now().astimezone().isoformat(timespec="seconds")
-            inicio = InicioBrief(ocasion=cast(Ocasion, ocasion), creado=creado)
+            inicio = InicioBrief(ocasion=cast(Ocasion, ocasion), creado=creado, ficticio=ficticio)
             ws.escribir(ws.raiz / "brief" / "inicio.json", inicio.model_dump_json(indent=2))
     typer.echo(f"{slug}: brief iniciado en {ws.raiz}")
 
@@ -225,7 +228,12 @@ def validar(slug: str) -> None:
             entradas_ = [e.meta.model_dump() for e in lista]
             try:
                 definitivo = Brief.model_validate(
-                    datos | {"ocasion": inicio.ocasion, "entradas": entradas_}
+                    datos
+                    | {
+                        "ocasion": inicio.ocasion,
+                        "entradas": entradas_,
+                        "ficticio": inicio.ficticio,
+                    }
                 )
             except ValidationError as exc:  # sin su valor: un gate dejó pasar algo que Brief no
                 campos = ", ".join(".".join(map(str, e["loc"])) for e in exc.errors())

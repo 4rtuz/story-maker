@@ -202,6 +202,7 @@ def test_brief_minimiza_datos_personales() -> None:
         "extension",
         "prohibidos",
         "entradas",
+        "ficticio",
     }
     personales = {r.split(".")[1] for r in _propiedades(esquema, esquema) if r.startswith("dest")}
     assert personales == {"nombre", "edad", "rasgos"}

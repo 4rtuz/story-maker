@@ -94,3 +94,12 @@ def test_informe_valido_sii_sin_hallazgos() -> None:
         InformeBrief(valido=True, hallazgos=[hallazgo])
     with pytest.raises(ValidationError):
         InformeBrief(valido=False, hallazgos=[])
+
+
+def test_idea_semilla_declara_datos_ficticios() -> None:
+    """Una novela de ejemplo o de evaluación: el arquitecto sabe que el destinatario no existe y
+    no lo anonimiza. Sin la marca, la semilla no cambia (el golden de arriba lo fija)."""
+    datos = _json("brief-completo.json") | {"ficticio": True}
+    semilla = idea_semilla(Brief.model_validate(datos))
+    assert semilla.splitlines()[2].startswith("Datos ficticios")
+    assert "ficticio" not in idea_semilla(Brief.model_validate(_json("brief-completo.json")))
