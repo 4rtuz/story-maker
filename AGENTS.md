@@ -71,6 +71,7 @@ Operaciones deterministas. No llaman a ningún modelo y no consumen cuota.
 
 ```
 novela nueva <slug> --idea "..."      crea el workspace y estado.db
+novela nueva <slug> --brief           lo mismo, con la obra derivada de brief/brief.json
 novela estado <slug> --breve          cursor, hilos abiertos, capítulos hechos
 novela estado <slug> --json           estado completo serializado, para inspección
 novela briefing <slug> <cap> <agente> genera el contexto de una invocación
