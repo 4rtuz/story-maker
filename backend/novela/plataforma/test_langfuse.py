@@ -70,7 +70,9 @@ def test_con_true_llegan_los_seis(monkeypatch: pytest.MonkeyPatch) -> None:
     sink = langfuse.desde_entorno(CLAVES | {"TRACE_TO_LANGFUSE": "true"})
     assert sink.emitir("demo", 8, "r-20260923-1000", SEIS) == []
     assert {e["name"] for e in enviados} == set(SEIS)
-    assert all(e["sessionId"] == "r-20260923-1000" for e in enviados)
+    # Sin traza del capítulo, a la sesión de la novela; Langfuse admite uno solo de los dos.
+    assert all(e["sessionId"] == langfuse.sesion_de("demo") for e in enviados)
+    assert all("traceId" not in e for e in enviados)
     # Id determinista: reemitir el mismo capítulo sustituye el score en vez de duplicarlo.
     assert {e["id"] for e in enviados} == {f"demo-r-20260923-1000-08-{n}" for n in SEIS}
 
@@ -131,3 +133,37 @@ def test_manda_el_entorno(entorno: dict[str, str], fichero: dict[str, str]) -> N
     fusion = langfuse.fusionar(entorno, "".join(f"{k}={v}\n" for k, v in fichero.items()))
     assert all(fusion[k] == v for k, v in entorno.items())
     assert set(fusion) == set(entorno) | {k for k in fichero if k != "OTRA"}
+
+
+TRAZA = "0af7651916cd43dd8448eb211c80319c"
+
+
+def test_con_traceparent_van_a_la_traza_del_capitulo(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`producir` abre una traza por paso y la hereda la sesión: el score va a esa traza, que ya
+    pertenece a la sesión de la novela."""
+    enviados: list[dict[str, Any]] = []
+
+    class Respuesta:
+        def __enter__(self) -> "Respuesta":
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+    def capturar(peticion: urllib.request.Request, timeout: float) -> Respuesta:
+        enviados.append(json.loads(peticion.data))  # type: ignore[arg-type]
+        return Respuesta()
+
+    monkeypatch.setattr(urllib.request, "urlopen", capturar)
+    entorno = CLAVES | {
+        "TRACE_TO_LANGFUSE": "true",
+        "CC_LANGFUSE_TRACEPARENT": f"00-{TRAZA}-b7ad6b7169203331-01",
+    }
+    assert langfuse.desde_entorno(entorno).emitir("demo", 8, "r-20260923-1000", SEIS) == []
+    assert all(e["traceId"] == TRAZA and "sessionId" not in e for e in enviados)
+
+
+def test_sesion_de_es_estable_y_por_novela() -> None:
+    assert langfuse.sesion_de("demo") == langfuse.sesion_de("demo")
+    assert langfuse.sesion_de("demo") != langfuse.sesion_de("otra")
+    assert langfuse.sesion_de("demo") == "novela-demo"

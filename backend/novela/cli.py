@@ -15,6 +15,7 @@ from novela.slices.entorno.cmd import comprobar_entorno
 from novela.slices.estado.cmd import estado, pendiente
 from novela.slices.export.cmd import exportar
 from novela.slices.nueva.cmd import nueva
+from novela.slices.observabilidad import cmd as observabilidad
 from novela.slices.producir.cmd import producir
 from novela.slices.validacion.cmd import validar
 
@@ -42,6 +43,9 @@ app.command()(con_codigos(auditar))
 app.command()(con_codigos(exportar))
 app.command("comprobar-entorno")(con_codigos(comprobar_entorno))
 app.command()(con_codigos(producir))
+app.command()(con_codigos(observabilidad.costes))
+app.command()(con_codigos(observabilidad.traza))
+app.add_typer(observabilidad.prompts_app, name="prompts")
 
 brief_app = typer.Typer(no_args_is_help=True, help="Fase de brief de una novela de regalo.")
 brief_app.command()(con_codigos(brief.iniciar))

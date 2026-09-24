@@ -10,15 +10,17 @@ import shutil
 import subprocess
 import sys
 import uuid
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Annotated
 
 import typer
 
-from novela.plataforma import lanzador
+from novela.plataforma import langfuse, lanzador
 from novela.plataforma.lock import bloquear
 from novela.plataforma.run import RAIZ_REPO
 from novela.plataforma.workspace import WorkspaceRepository
+from novela.slices.observabilidad import prompts, traza
 from novela.slices.producir.flujo import Puertos, orden_nueva
 from novela.slices.producir.flujo import producir as flujo
 
@@ -46,6 +48,31 @@ def _entorno(claude: str | None) -> str | None:
     return None if r.returncode == 0 else (r.stdout + r.stderr).strip() or "comprobar-entorno: 1"
 
 
+# Sin esto, `claude -p` cancela el SessionEnd del plugin al salir y el último turno no llega.
+SESSIONEND_MS = "30000"
+
+
+def entorno_sesion(
+    ws: WorkspaceRepository,
+    prompt: str,
+    sid: str,
+    base: Mapping[str, str],
+    efectivo: Mapping[str, str],
+) -> dict[str, str]:
+    """El entorno de un `claude -p`: `base` sin claves del `.env` (RNF-07), más la traza del paso,
+    abierta con `efectivo`, en la sesión de Langfuse de la novela."""
+    paso = traza.paso_de(ws, prompt.split()[0])
+    entorno = {
+        **base,
+        "NOVELA_SESSION_ID": sid,
+        "CC_LANGFUSE_TRACE_TAGS": ws.slug,
+        "CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS": SESSIONEND_MS,
+    }
+    if padre := traza.abrir(efectivo, ws.slug, paso, prompts.metadatos_de_version()):
+        entorno["CC_LANGFUSE_TRACEPARENT"] = padre
+    return entorno
+
+
 def _pendiente(slug: str) -> bool:
     r = subprocess.run([sys.executable, "-m", "novela", "pendiente", slug], check=False)  # noqa: S603
     if r.returncode not in (0, 1):
@@ -67,7 +94,8 @@ def producir(
 
     def sesion(prompt: str) -> int:
         sid = str(uuid.uuid4())
-        entorno = {**os.environ, "NOVELA_SESSION_ID": sid, "CC_LANGFUSE_TRACE_TAGS": slug}
+        efectivo = langfuse.entorno_efectivo(RAIZ_REPO)
+        entorno = entorno_sesion(ws, prompt, sid, os.environ, efectivo)
         with registro.open("a", encoding="utf-8") as salida:
             salida.write(f"\n[{datetime.now(UTC):%H:%M:%S}] {prompt.split()[0]} · sesión {sid}\n")
             salida.flush()

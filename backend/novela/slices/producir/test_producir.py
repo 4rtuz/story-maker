@@ -200,3 +200,33 @@ def test_cascara_deja_el_estado_final_y_respeta_el_cerrojo(
     assert final is not None and final.estado == "fallido" and "claude" in final.detalle
     with FileLock(lanzador.cerrojo()):
         assert CliRunner().invoke(app, ["producir", "demo", "--idea", "x"]).exit_code == 3
+
+
+def test_cada_sesion_cuelga_de_la_traza_de_su_paso(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Una traza por paso en la sesión de la novela (docs/observabilidad.md §1), y el SessionEnd
+    del plugin con tiempo de enviar el último turno de un `claude -p`."""
+    from novela.slices.observabilidad import traza
+    from novela.slices.producir import cmd
+
+    abiertas: list[tuple[str, str]] = []
+
+    def abrir(_entorno: object, slug: str, paso: str, metadatos: dict[str, str]) -> str:
+        abiertas.append((slug, paso))
+        assert "sha_commit" in metadatos and "prompt_escritor" in metadatos
+        return "00-" + "a" * 32 + "-" + "b" * 16 + "-01"
+
+    monkeypatch.setattr(traza, "abrir", abrir)
+    h = Harness(tmp_path)
+    h.cerrados = 1
+    (h.ws.raiz / "checkpoints").mkdir(parents=True)
+    (h.ws.raiz / "checkpoints" / "latest.json").write_text('{"capitulo": 1}', encoding="utf-8")
+    uuid = "12345678-1234-1234-1234-123456789abc"
+    entorno = cmd.entorno_sesion(h.ws, "/novela-continuar demo --capitulos 1", uuid, {}, {})
+    assert abiertas == [("demo", "capitulo 02")]
+    assert entorno["CC_LANGFUSE_TRACEPARENT"].startswith("00-aaaa")
+    assert entorno["NOVELA_SESSION_ID"] == uuid
+    assert int(entorno["CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS"]) >= 30000
+    cmd.entorno_sesion(h.ws, "/novela-auditar demo", uuid, {}, {})
+    assert abiertas[-1] == ("demo", "auditoria")
