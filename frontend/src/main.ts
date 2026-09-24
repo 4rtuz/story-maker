@@ -5,17 +5,10 @@ import './app/app.css';
 import { inicio } from './app/inicio';
 import { arrancar, type Montador } from './app/rutas';
 import { lanzar } from './features/lanzar/vista';
+import { lectura } from './features/lectura/vista';
 import { progreso } from './features/progreso/vista';
-import { el, vacio } from './shared/ui/componentes';
 
-// ponytail: Lectura llega en T-13; hasta entonces, un aviso.
-const pendiente = (titulo: string) => ({
-  titulo,
-  nodo: el('section', 'q-tarjeta', vacio('esta vista todavía no está disponible')),
-  recursos: [],
-});
-
-const montar: Montador = (ruta) => {
+const montar: Montador = (ruta, navegar) => {
   switch (ruta.vista) {
     case 'inicio':
       return inicio();
@@ -24,7 +17,7 @@ const montar: Montador = (ruta) => {
     case 'progreso':
       return progreso(ruta);
     case 'lectura':
-      return pendiente('Lectura');
+      return lectura(ruta, navegar);
   }
 };
 
