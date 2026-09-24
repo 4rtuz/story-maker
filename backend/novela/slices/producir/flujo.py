@@ -59,6 +59,13 @@ def _latest(ws: WorkspaceRepository) -> bytes | None:
     return ruta.read_bytes() if ruta.is_file() else None
 
 
+def _export(ws: WorkspaceRepository) -> dict[str, int]:
+    """Qué hay en `export/` y cuándo se escribió: `export/` no se vacía nunca, ni con `novela
+    cambio`, así que solo cuenta lo que escribe la sesión de auditoría (docs/formal/tla.md, H-3)."""
+    export = ws.raiz / "export"
+    return {p.name: p.stat().st_mtime_ns for p in export.iterdir()} if export.is_dir() else {}
+
+
 def _cerrados(ws: WorkspaceRepository) -> int:
     """Solo para la etiqueta del paso: lo que cuenta lo decide `novela pendiente`."""
     try:
@@ -98,9 +105,10 @@ def producir(ws: WorkspaceRepository, nueva: str | None, p: Puertos) -> tuple[Fi
             return "fallido", f"la sesión del capítulo {capitulo:02d} no avanzó el checkpoint"
 
     p.informar("auditoria", "pistas huérfanas, hilos sin cerrar y exportación")
+    previo = _export(ws)
     if parada := _sesion(ws, p, f"/novela-auditar {ws.slug}"):
         return parada
     export = ws.raiz / "export"
-    if not export.is_dir() or not any(export.iterdir()):
+    if _export(ws) in ({}, previo):
         return "fallido", "la auditoría encontró hallazgos y no exportó: mira `novela auditar`"
     return "terminado", f"escrita, auditada y exportada en {export}"
