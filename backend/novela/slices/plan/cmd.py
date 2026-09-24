@@ -9,7 +9,8 @@ from novela.plataforma.workspace import WorkspaceInvalido, WorkspaceRepository
 
 
 def validar_plan(slug: str) -> None:
-    """Escaleta y una ficha por capítulo contra sus modelos. 0 si valida; 1 y la causa si no."""
+    """Escaleta y fichas contra sus modelos, y cada personaje de una ficha con la suya en el
+    canon. 0 si valida; 1 y la causa si no."""
     ws = WorkspaceRepository.resolver(slug).exigir()
     with run.abrir(ws, 1, "arranque").registro("plan", "validar") as causas:
         errores: list[str] = []
@@ -17,12 +18,17 @@ def validar_plan(slug: str) -> None:
             ws.escaleta()
         except WorkspaceInvalido as exc:
             errores.append(str(exc))
+        canon = {p.stem for p in (ws.raiz / "canon" / "personajes").glob("per-*.md")}
         for n in range(1, ws.config().parametros_obra.num_capitulos + 1):
             ruta = ws.raiz / "plan" / "capitulos" / f"{ws.nn(n)}.md"
             try:
-                ws.leer_md(ruta, FichaCapitulo)
+                ficha = ws.leer_md(ruta, FichaCapitulo)
             except WorkspaceInvalido as exc:
                 errores.append(str(exc))
+                continue
+            usados = {ficha.pov, *(p for e in ficha.escenas for p in e.personajes)}
+            if sin_ficha := sorted(usados - canon):
+                errores.append(f"{ruta}: sin ficha en canon/personajes/: {', '.join(sin_ficha)}")
         if errores:
             causas.append("; ".join(errores))
             typer.echo("\n".join(errores), err=True)
