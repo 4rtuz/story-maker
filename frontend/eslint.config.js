@@ -88,6 +88,8 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   noUnsanitized.configs.recommended,
+  // Los scripts de build corren en Node, no en el navegador.
+  { files: ['scripts/**/*.mjs'], languageOptions: { globals: { process: 'readonly', console: 'readonly' } } },
   {
     files: ['src/**/*.ts'],
     plugins: { panel: { rules: reglas } },

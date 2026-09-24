@@ -10,12 +10,13 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 5173 --strictPort",
+    "tipos": "openapi-typescript ../backend/api/openapi.json -o src/shared/api/esquema.gen.ts",
+    "tipos:comprobar": "npm run tipos && git ls-files --error-unmatch src/shared/api/esquema.gen.ts && git diff --exit-code src/shared/api/esquema.gen.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "tipos": "openapi-typescript ../backend/api/openapi.json -o src/shared/api/esquema.gen.ts",
-    "tipos:comprobar": "npm run tipos && git ls-files --error-unmatch src/shared/api/esquema.gen.ts && git diff --exit-code src/shared/api/esquema.gen.ts",
-    "verificar": "npm run tipos:comprobar && npm run lint && npm run typecheck && npm run test"
+    "presupuesto": "node scripts/presupuesto.mjs",
+    "verificar": "npm run tipos:comprobar && npm run lint && npm run typecheck && npm run test && npm run build && npm run presupuesto"
   },
   "dependencies": {
     "markdown-it": "15.0.2",

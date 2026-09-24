@@ -23,3 +23,25 @@ jobs:
       # CA-15: ningún mutante vivo en los gates. El código de salida es una máscara: 1 fatal,
       # 2 supervivientes, 4 timeout, 8 sospechosos (mueren, pero tarde). Solo 1 y 2 fallan.
       - run: uv run mutmut run || test $(( $? & 3 )) -eq 0
+
+  # Spec 0004, RF-40: el panel, con los tipos contra el OpenAPI commiteado y los presupuestos.
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run tipos:comprobar
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run presupuesto
+      - run: npm audit --omit=dev --audit-level=high
