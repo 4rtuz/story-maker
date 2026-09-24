@@ -200,3 +200,15 @@ def test_cascara_deja_el_estado_final_y_respeta_el_cerrojo(
     assert final is not None and final.estado == "fallido" and "claude" in final.detalle
     with FileLock(lanzador.cerrojo()):
         assert CliRunner().invoke(app, ["producir", "demo", "--idea", "x"]).exit_code == 3
+
+
+def test_export_de_antes_no_cuenta_como_publicada(tmp_path: Path) -> None:
+    """Hallazgo H-3 de docs/formal/tla.md: `export/` no se vacía (ni con `novela cambio`), así
+    que un export que la sesión de auditoría no ha escrito no prueba que la auditoría pasara."""
+    h = Harness(tmp_path, lambda h, p: 0 if p.startswith("/novela-auditar") else h.bien(p))
+    (h.ws.raiz / "export").mkdir(parents=True)
+    (h.ws.raiz / "export" / "demo.epub").write_bytes(b"epub de una version anterior")
+    (h.ws.raiz / "plan").mkdir()
+    (h.ws.raiz / "plan" / "escaleta.md").write_text("escaleta", encoding="utf-8")
+    estado, detalle = h.producir(None)
+    assert estado == "fallido" and "export" in detalle
