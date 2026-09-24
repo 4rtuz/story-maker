@@ -1,6 +1,6 @@
 // Lo común a todos los e2e: un espía de cada petición del contexto, registrado antes de la primera
 // navegación, y la escucha de console.error y pageerror (RNF-16, D54), que falla el test al final.
-import { test as base, expect, type ConsoleMessage } from '@playwright/test';
+import { test as base, expect, type ConsoleMessage, type Page } from '@playwright/test';
 
 export { expect };
 
@@ -61,3 +61,25 @@ export const test = base.extend<{
 /** Las peticiones a la API, como `GET /novelas/demo-24/estado`. */
 export const aLaApi = (red: Peticion[]): string[] =>
   red.filter((p) => p.url.startsWith(API)).map((p) => `${p.metodo} ${p.url.slice(API.length)}`);
+
+/** POST /lanzamientos respondido en el navegador: con `reuseExistingServer`, la API podría ser la
+ * del operador sobre las novelas de verdad, y un e2e no lanza nunca `claude`. */
+export async function lanzamientoSimulado(page: Page): Promise<void> {
+  await page.route(`${API}/lanzamientos`, (ruta) =>
+    ruta.request().method() === 'POST'
+      ? ruta.fulfill({
+          status: 202,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            slug: 'nueva-prueba',
+            estado: 'en_marcha',
+            paso: 'entorno',
+            detalle: 'arrancando',
+            actualizado: '2026-09-24T10:00:00Z',
+            detener_pedido: false,
+            registro: [],
+          }),
+        })
+      : ruta.fallback(),
+  );
+}

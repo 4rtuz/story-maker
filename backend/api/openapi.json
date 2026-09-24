@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "novela",
-    "summary": "Estado, capítulos y manifiestos, en solo lectura",
+    "summary": "Estado, capítulos y manifiestos; lanzamiento de novelas",
     "version": "0.1.0"
   },
   "paths": {
@@ -460,6 +460,200 @@
               "text/markdown": {
                 "schema": {
                   "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lanzamientos": {
+      "get": {
+        "tags": [
+          "lanzamientos"
+        ],
+        "summary": "Lanzamientos",
+        "operationId": "lanzamientos_lanzamientos_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Lanzamiento"
+                  },
+                  "type": "array",
+                  "title": "Response Lanzamientos Lanzamientos Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "lanzamientos"
+        ],
+        "summary": "Crear",
+        "operationId": "crear_lanzamientos_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PeticionDeLanzamiento"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lanzamiento"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lanzamientos/{slug}/reanudar": {
+      "post": {
+        "tags": [
+          "lanzamientos"
+        ],
+        "summary": "Reanudar",
+        "operationId": "reanudar_lanzamientos__slug__reanudar_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lanzamiento"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lanzamientos/{slug}/detener": {
+      "post": {
+        "tags": [
+          "lanzamientos"
+        ],
+        "summary": "Detener",
+        "description": "Para tras el capítulo en curso: matar una sesión a medias dejaría el capítulo sin cerrar.",
+        "operationId": "detener_lanzamientos__slug__detener_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lanzamiento"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lanzamientos/{slug}": {
+      "get": {
+        "tags": [
+          "lanzamientos"
+        ],
+        "summary": "Lanzamiento",
+        "operationId": "lanzamiento_lanzamientos__slug__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lanzamiento"
                 }
               }
             }
@@ -1226,6 +1420,62 @@
         ],
         "title": "Hilo"
       },
+      "Lanzamiento": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$",
+            "title": "Slug"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "en_marcha",
+              "terminado",
+              "fallido",
+              "detenido",
+              "interrumpido"
+            ],
+            "title": "Estado"
+          },
+          "paso": {
+            "type": "string",
+            "title": "Paso"
+          },
+          "detalle": {
+            "type": "string",
+            "title": "Detalle"
+          },
+          "actualizado": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Actualizado"
+          },
+          "detener_pedido": {
+            "type": "boolean",
+            "title": "Detener Pedido",
+            "default": false
+          },
+          "registro": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Registro",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "slug",
+          "estado",
+          "paso",
+          "detalle",
+          "actualizado"
+        ],
+        "title": "Lanzamiento"
+      },
       "Manifest": {
         "properties": {
           "schema_version": {
@@ -1534,6 +1784,55 @@
           "presupuesto"
         ],
         "title": "ParametrosSistema"
+      },
+      "PeticionDeLanzamiento": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$",
+            "title": "Slug"
+          },
+          "idea": {
+            "type": "string",
+            "maxLength": 4000,
+            "pattern": "\\S",
+            "title": "Idea"
+          },
+          "capitulos": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 999.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capitulos"
+          },
+          "palabras": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2000000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Palabras"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "slug",
+          "idea"
+        ],
+        "title": "PeticionDeLanzamiento",
+        "description": "Los argumentos de `/novela-nueva`, con los mismos límites que el formulario del panel."
       },
       "PoliticaReintentos": {
         "properties": {

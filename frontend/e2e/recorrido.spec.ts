@@ -1,7 +1,7 @@
 // El recorrido del panel contra la API real: Inicio, Lanzar, Progreso y Lectura, con la red, el
 // almacenamiento y la consola vigilados (CA-08, CA-10, CA-16, CA-19; RNF-05, RNF-06, RNF-08,
 // RNF-09; CA-56 y CA-61 en su parte e2e).
-import { aLaApi, API, expect, PANEL, test } from './comun';
+import { aLaApi, API, expect, lanzamientoSimulado, PANEL, test } from './comun';
 
 test('Inicio: una entrada por novela con su cursor y sus enlaces (CA-08)', async ({ page, request }) => {
   const novelas = (await (await request.get(`${API}/novelas`)).json()) as { slug: string }[];
@@ -29,22 +29,22 @@ test('recarga con /lectura/3 reabre el capítulo 3 (CA-10)', async ({ page }) =>
   await expect(page.getByRole('dialog').locator('.q-lector__texto')).toContainText('Capítulo 3');
 });
 
-test('Lanzar: rellenar, generar y copiar, sin descargas y solo GET /novelas (CA-16)', async ({ page, red, context, browserName }) => {
-  if (browserName === 'chromium') await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test('Lanzar: un clic lo envía al backend, sin órdenes que copiar ni descargas (CA-16)', async ({ page, red }) => {
   const descargas: string[] = [];
   page.on('download', (d) => descargas.push(d.suggestedFilename()));
+  await lanzamientoSimulado(page);
   await page.goto('/#/lanzar');
+  await expect(page.getByText('todavía no se ha lanzado ninguna novela desde el panel')).toBeVisible();
   await page.getByRole('textbox', { name: 'Slug' }).fill('nueva-prueba');
   await page.getByRole('textbox', { name: 'Idea' }).fill('Un faro apagado.');
   await page.getByLabel('Capítulos (opcional)').fill('3');
   await page.getByLabel('Palabras totales (opcional)').fill('9000');
-  await page.getByRole('button', { name: 'Generar orden' }).click();
-  const orden = "/novela-nueva nueva-prueba --idea 'Un faro apagado.' --capitulos 3 --palabras 9000";
-  await expect(page.locator('.q-orden__texto').first()).toHaveText(orden);
-  await page.getByRole('button', { name: /^Copiar/ }).first().click();
-  await expect(page.locator('.q-orden__estado').first()).not.toBeEmpty();
+  await page.getByRole('button', { name: 'Lanzar novela' }).click();
+  await expect(page.locator('.q-lanzar__resultado-envio')).toContainText('nueva-prueba: lanzada');
+  await expect(page.locator('.q-lanzamiento').first()).toContainText('en marcha');
+  await expect(page.getByRole('button', { name: /^Copiar/ })).toHaveCount(0);
   expect(descargas).toEqual([]);
-  expect(new Set(aLaApi(red))).toEqual(new Set(['GET /novelas']));
+  expect(new Set(aLaApi(red))).toEqual(new Set(['GET /novelas', 'GET /lanzamientos', 'POST /lanzamientos']));
 });
 
 test('recien-creada: tensión sin escaleta y sin aviso de error (CA-19)', async ({ page }) => {

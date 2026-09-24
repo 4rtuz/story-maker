@@ -1,5 +1,5 @@
-// La cáscara de Lanzar: formulario, orden, copiar con alternativa y estados de GET /novelas
-// (CA-11, CA-13, CA-58 en su parte unitaria, RF-16). Ningún control ejecuta nada.
+// Lanzar: el formulario lanza la novela en el backend, sin órdenes que copiar, y la lista de
+// lanzamientos permite detener y reanudar (CA-11 a CA-13, CA-58 en su parte unitaria).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { arrancar } from '../../app/rutas';
 import { lanzar } from './vista';
@@ -23,11 +23,32 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const novelas = (slugs: string[]) =>
-  new Response(JSON.stringify(slugs.map((slug) => ({ slug, cursor: { capitulo: 1, fase: 'escritura', ultimo_paso: null, intento: 1 } }))));
+const cursor = { capitulo: 1, fase: 'escritura', ultimo_paso: null, intento: 1 };
+const lanz = (slug: string, estado: string, extra: object = {}) => ({
+  slug,
+  estado,
+  paso: 'capitulo 02',
+  detalle: 'escritura, revisión y registro',
+  actualizado: '2026-09-24T18:00:00Z',
+  detener_pedido: false,
+  registro: ['[18:00:00] /novela-continuar · sesión x'],
+  ...extra,
+});
+const respuesta = (cuerpo: unknown, status = 200) => new Response(JSON.stringify(cuerpo), { status });
 
-async function montar(respuesta: Promise<Response> | Response = novelas(['demo-24'])): Promise<void> {
-  fetchEspia.mockReturnValue(Promise.resolve(respuesta));
+/** Una API falsa por ruta y método; devuelve las peticiones que recibió. */
+function api(rutas: Record<string, () => Response | Promise<Response>>) {
+  fetchEspia.mockImplementation((url, opciones) => {
+    const clave = `${opciones?.method ?? 'GET'} ${String(url).replace('http://127.0.0.1:8000', '')}`;
+    const r = rutas[clave];
+    return r ? Promise.resolve(r()) : Promise.resolve(respuesta({ detail: `sin ruta ${clave}` }, 500));
+  });
+}
+
+const pedidas = () =>
+  fetchEspia.mock.calls.map(([url, o]) => `${o?.method} ${String(url).replace('http://127.0.0.1:8000', '')}`);
+
+async function montar(): Promise<void> {
   parar = arrancar(raiz, () => lanzar()).detener;
   await vi.advanceTimersByTimeAsync(0);
 }
@@ -43,60 +64,81 @@ function rellenar(campos: Record<string, string>): void {
 
 const boton = (texto: string) =>
   [...raiz.querySelectorAll('button')].find((b) => b.textContent?.startsWith(texto)) as HTMLButtonElement;
-const orden = () => raiz.querySelector('.q-orden__texto')?.textContent ?? '';
+
+const BASE = { 'GET /novelas': () => respuesta([{ slug: 'demo-24', cursor }]), 'GET /lanzamientos': () => respuesta([]) };
 
 describe('Lanzar', () => {
-  it('genera la orden, con las de la sesión debajo, y Copiar la escribe (CA-11, CA-15)', async () => {
-    const escribir = vi.fn(() => Promise.resolve());
-    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText: escribir } });
+  it('lanza en el backend con un clic, sin nada que copiar', async () => {
+    api({ ...BASE, 'POST /lanzamientos': () => respuesta(lanz('nueva-prueba', 'en_marcha', { paso: 'entorno' }), 202) });
     await montar();
-    expect(boton('Copiar').disabled).toBe(true);
     rellenar({ 'lanzar-slug': 'nueva-prueba', 'lanzar-idea': 'Un faro apagado.', 'lanzar-capitulos': '3', 'lanzar-palabras': '9000' });
-    boton('Generar orden').click();
-    expect(orden()).toBe("/novela-nueva nueva-prueba --idea 'Un faro apagado.' --capitulos 3 --palabras 9000");
-    expect(raiz.textContent).toContain('/novela-continuar nueva-prueba');
-    expect(boton('Copiar').disabled).toBe(false);
-    boton('Copiar').click();
+    boton('Lanzar novela').click();
     await vi.advanceTimersByTimeAsync(0);
-    expect(escribir).toHaveBeenCalledWith(orden());
+    const post = fetchEspia.mock.calls.find(([, o]) => o?.method === 'POST');
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ slug: 'nueva-prueba', idea: 'Un faro apagado.', capitulos: 3, palabras: 9000 });
+    expect(raiz.querySelector('.q-lanzamiento')?.textContent).toContain('nueva-prueba');
+    expect(raiz.querySelector('.q-lanzamiento')?.textContent).toContain('en marcha');
+    expect(boton('Copiar')).toBeUndefined();
+    expect(raiz.textContent).not.toContain('/novela-nueva');
   });
 
-  it('con el portapapeles denegado, el texto queda seleccionado con «pulsa Ctrl+C para copiar»', async () => {
-    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText: () => Promise.reject(new Error('denegado')) } });
+  it('sin capítulos ni palabras, el cuerpo no los lleva', async () => {
+    api({ ...BASE, 'POST /lanzamientos': () => respuesta(lanz('nueva-prueba', 'en_marcha'), 202) });
     await montar();
     rellenar({ 'lanzar-slug': 'nueva-prueba', 'lanzar-idea': 'Un faro apagado.' });
-    boton('Generar orden').click();
-    boton('Copiar').click();
+    boton('Lanzar novela').click();
     await vi.advanceTimersByTimeAsync(0);
-    const campo = raiz.querySelector<HTMLTextAreaElement>('textarea[readonly]');
-    expect(campo?.value).toBe(orden());
-    expect(document.activeElement).toBe(campo);
-    expect([campo?.selectionStart, campo?.selectionEnd]).toEqual([0, orden().length]);
-    expect(raiz.textContent).toContain('pulsa Ctrl+C para copiar');
+    const post = fetchEspia.mock.calls.find(([, o]) => o?.method === 'POST');
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ slug: 'nueva-prueba', idea: 'Un faro apagado.' });
   });
 
-  it('un campo inválido da su motivo y no hay orden (CA-12)', async () => {
+  it('un campo inválido da su motivo y no lanza nada (CA-12)', async () => {
+    api(BASE);
     await montar();
     rellenar({ 'lanzar-slug': 'Nueva_Prueba', 'lanzar-idea': '   ' });
-    boton('Generar orden').click();
-    expect(orden()).toBe('');
+    boton('Lanzar novela').click();
+    await vi.advanceTimersByTimeAsync(0);
     expect(raiz.querySelectorAll('[aria-invalid="true"]')).toHaveLength(2);
+    expect(pedidas().some((p) => p.startsWith('POST'))).toBe(false);
   });
 
-  it('un slug existente no da orden (CA-13)', async () => {
+  it('un slug existente no lanza (CA-13)', async () => {
+    api(BASE);
     await montar();
     rellenar({ 'lanzar-slug': 'demo-24', 'lanzar-idea': 'Un faro apagado.' });
-    boton('Generar orden').click();
-    expect(orden()).toBe('');
-    expect(raiz.textContent).toContain('ya existe una novela demo-24: novela nueva saldrá con 1 sin tocar nada');
+    boton('Lanzar novela').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(raiz.textContent).toContain('ya existe una novela demo-24');
+    expect(pedidas().some((p) => p.startsWith('POST'))).toBe(false);
   });
 
-  it('sin respuesta de GET /novelas, la orden sale con el aviso de D43', async () => {
-    await montar(new Promise(() => {}));
-    rellenar({ 'lanzar-slug': 'demo-24', 'lanzar-idea': 'Un faro apagado.' });
-    boton('Generar orden').click();
-    expect(orden()).toContain('/novela-nueva demo-24');
-    expect(raiz.textContent).toContain('no se ha podido comprobar si el slug ya existe');
+  it('si el backend lo rechaza, se ve su motivo', async () => {
+    api({ ...BASE, 'POST /lanzamientos': () => respuesta({ detail: 'ya hay un lanzamiento en marcha: espera o detenlo' }, 409) });
+    await montar();
+    rellenar({ 'lanzar-slug': 'nueva-prueba', 'lanzar-idea': 'Un faro apagado.' });
+    boton('Lanzar novela').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(raiz.querySelector('.q-lanzar__resultado-envio')?.textContent).toContain('ya hay un lanzamiento en marcha');
+    expect(boton('Lanzar novela').disabled).toBe(false);
+  });
+
+  it('en marcha se detiene; parado, fallido o interrumpido se reanuda', async () => {
+    api({
+      ...BASE,
+      'GET /lanzamientos': () => respuesta([lanz('uno', 'en_marcha'), lanz('dos', 'fallido', { detalle: 'necesita una decisión humana' })]),
+      'POST /lanzamientos/uno/detener': () => respuesta(lanz('uno', 'en_marcha', { detener_pedido: true }), 202),
+      'POST /lanzamientos/dos/reanudar': () => respuesta(lanz('dos', 'en_marcha', { paso: 'entorno' }), 202),
+    });
+    await montar();
+    const [uno, dos] = [...raiz.querySelectorAll('.q-lanzamiento')];
+    expect(uno?.textContent).toContain('capitulo 02');
+    expect(dos?.textContent).toContain('necesita una decisión humana');
+    expect(dos?.querySelector('.q-lanzamiento__registro')?.textContent).toContain('/novela-continuar');
+    boton('Detener').click();
+    boton('Reanudar').click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(pedidas()).toEqual(expect.arrayContaining(['POST /lanzamientos/uno/detener', 'POST /lanzamientos/dos/reanudar']));
+    expect(raiz.textContent).toContain('se detendrá tras el capítulo en curso');
   });
 
   it('esqueleto, vacío y error de GET /novelas (CA-58)', async () => {
@@ -104,24 +146,14 @@ describe('Lanzar', () => {
     parar = arrancar(raiz, () => lanzar()).detener;
     expect(raiz.querySelectorAll('.q-esqueleto').length).toBeGreaterThan(0);
     parar();
-    await montar(novelas([]));
+    api({ 'GET /novelas': () => respuesta([]), 'GET /lanzamientos': () => respuesta([]) });
+    await montar();
     expect(raiz.textContent).toContain('todavía no hay novelas: lanza la primera');
     parar();
+    fetchEspia.mockReset();
     fetchEspia.mockRejectedValue(new TypeError('Failed to fetch'));
     parar = arrancar(raiz, () => lanzar()).detener;
     await vi.advanceTimersByTimeAsync(0);
     expect(raiz.querySelector('[role="alert"]')?.textContent).toContain('API no disponible');
-  });
-
-  it('solo pide GET /novelas y ningún control envía nada (RF-16)', async () => {
-    await montar();
-    rellenar({ 'lanzar-slug': 'nueva-prueba', 'lanzar-idea': 'Un faro apagado.' });
-    boton('Generar orden').click();
-    await vi.advanceTimersByTimeAsync(30_000);
-    expect(new Set(fetchEspia.mock.calls.map(([url]) => String(url)))).toEqual(
-      new Set(['http://127.0.0.1:8000/novelas']),
-    );
-    expect(raiz.querySelector('form[action], a[download]')).toBeNull();
-    expect([...raiz.querySelectorAll('button')].every((b) => b.type === 'button')).toBe(true);
   });
 });

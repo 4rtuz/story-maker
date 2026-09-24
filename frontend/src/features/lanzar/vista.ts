@@ -1,57 +1,25 @@
-// Lanzar (RF-11 a RF-16): el formulario prepara la orden /novela-nueva y las de la sesión del
-// harness para copiarlas. No escribe ficheros ni pide a la API nada más que GET /novelas (D5).
+// Lanzar: el formulario lanza la novela en el backend (POST /lanzamientos), que la escribe de
+// principio a fin con `novela producir`. No hay órdenes que copiar. Debajo, cada lanzamiento con su
+// paso, su motivo y las últimas líneas de sus sesiones, y los botones para detenerlo o reanudarlo.
 import type { Vista } from '../../app/rutas';
 import * as api from '../../shared/api/cliente';
-import { CADA_DATOS } from '../../shared/sondeo';
-import { boton, campo, el, esqueleto, estadoVacio, etiqueta, tarjeta, type Campo } from '../../shared/ui/componentes';
-import { ordenesDeSesion, ordenNovelaNueva } from './orden';
+import type { Esquemas } from '../../shared/api/cliente';
+import { ErrorDeApi } from '../../shared/api/errores';
+import { CADA_DATOS, CADA_LOG } from '../../shared/sondeo';
+import { boton, campo, el, esqueleto, estadoVacio, etiqueta, tarjeta, vacio, type Campo } from '../../shared/ui/componentes';
 import { comprobarSlug, validar, type Campos } from './validacion';
 
-/** Un bloque de órdenes en monoespaciada con su botón «Copiar» y la alternativa de RF-11. */
-function bloqueDeOrden(titulo: string, detalle: string) {
-  const texto = el('pre', 'q-orden__texto');
-  const estado = el('p', 'q-orden__estado');
-  estado.setAttribute('role', 'status');
-  const copiar = boton('Copiar', { variante: 'secundario', icono: 'copy', deshabilitado: true });
-  copiar.append(el('span', 'q-oculto-visual', ` ${detalle}`));
-  const raiz = el(
-    'div',
-    'q-orden',
-    el('div', 'q-orden__cabecera', el('h3', 'q-orden__titulo', titulo), copiar),
-    texto,
-    estado,
-  );
+type Fila = Esquemas['Lanzamiento'];
 
-  copiar.addEventListener('click', async () => {
-    const valor = texto.textContent ?? '';
-    raiz.querySelector('.q-orden__manual')?.remove();
-    try {
-      await navigator.clipboard.writeText(valor);
-      estado.textContent = 'copiada al portapapeles';
-    } catch {
-      // Sin portapapeles, o denegado: el texto seleccionado en un campo de solo lectura.
-      const manual = el('textarea', 'q-campo__control q-orden__manual');
-      manual.readOnly = true;
-      manual.value = valor;
-      manual.rows = Math.min(8, valor.split('\n').length + 1);
-      manual.setAttribute('aria-label', `${titulo}, para copiar`);
-      raiz.insertBefore(manual, estado);
-      manual.focus();
-      manual.setSelectionRange(0, valor.length);
-      estado.textContent = 'pulsa Ctrl+C para copiar';
-    }
-  });
+const ESTADOS: Record<Fila['estado'], string> = {
+  en_marcha: 'en marcha',
+  terminado: 'terminada',
+  fallido: 'fallida',
+  detenido: 'detenida',
+  interrumpido: 'interrumpida',
+};
 
-  return {
-    raiz,
-    poner(valor: string) {
-      texto.textContent = valor;
-      copiar.disabled = !valor;
-      estado.textContent = '';
-      raiz.querySelector('.q-orden__manual')?.remove();
-    },
-  };
-}
+const motivo = (error: unknown): string => (error instanceof ErrorDeApi ? error.detalle : String(error));
 
 export function lanzar(): Vista {
   const campos = {
@@ -62,19 +30,70 @@ export function lanzar(): Vista {
   } satisfies Record<keyof Campos, Campo>;
   campos.slug.control.setAttribute('autocomplete', 'off');
   let existentes: string[] | null = null;
+  let actuales: Fila[] = [];
 
-  const orden = bloqueDeOrden('Orden', 'la orden de /novela-nueva');
-  const sesion = bloqueDeOrden('Sesión del harness', 'las órdenes de la sesión del harness');
-  const aviso = el('p', 'q-lanzar__aviso');
-  aviso.hidden = true;
-  // Aparte y a todo el ancho: las órdenes caben en una línea y no se parten dentro de un flag.
-  const salida = tarjeta({ titulo: 'Órdenes para copiar', icono: 'terminal', tono: 'cian', clase: 'q-lanzar__salida' });
-  salida.cuerpo.classList.add('q-lanzar__resultado');
-  salida.cuerpo.append(aviso, orden.raiz, sesion.raiz);
-  salida.raiz.hidden = true;
+  const envio = el('p', 'q-lanzar__aviso q-lanzar__resultado-envio');
+  envio.setAttribute('role', 'status');
+  envio.hidden = true;
+  const avisar = (texto: string): void => {
+    envio.textContent = texto;
+    envio.hidden = !texto;
+  };
 
-  const generar = boton('Generar orden', { icono: 'rocket' });
-  generar.addEventListener('click', () => {
+  const lista = tarjeta({ titulo: 'Lanzamientos', icono: 'terminal', tono: 'cian', clase: 'q-lanzar__salida' });
+  lista.cuerpo.classList.add('q-lanzar__resultado');
+  lista.cuerpo.append(esqueleto('q-esqueleto--slugs'));
+
+  /** Una petición de un botón: deshabilitado mientras dura, y su resultado en la lista al volver. */
+  async function accion(b: HTMLButtonElement, pedir: () => Promise<Fila>, exito: string): Promise<void> {
+    b.disabled = true;
+    try {
+      const nuevo = await pedir();
+      pintar([nuevo, ...actuales.filter((l) => l.slug !== nuevo.slug)]);
+      avisar(exito);
+    } catch (error) {
+      avisar(motivo(error));
+    } finally {
+      b.disabled = false;
+    }
+  }
+
+  function fila(l: Fila): HTMLElement {
+    const acciones = el('div', 'q-lanzamiento__acciones');
+    if (l.estado === 'en_marcha' && !l.detener_pedido) {
+      const b = boton('Detener', { variante: 'secundario' });
+      b.append(el('span', 'q-oculto-visual', ` ${l.slug}`));
+      b.addEventListener('click', () => void accion(b, () => api.detener(l.slug), `${l.slug}: se detendrá tras el capítulo en curso`));
+      acciones.append(b);
+    } else if (l.estado !== 'en_marcha' && l.estado !== 'terminado') {
+      const b = boton('Reanudar', { variante: 'secundario', icono: 'rocket' });
+      b.append(el('span', 'q-oculto-visual', ` ${l.slug}`));
+      b.addEventListener('click', () => void accion(b, () => api.reanudar(l.slug), `${l.slug}: reanudada`));
+      acciones.append(b);
+    }
+    const estado = l.detener_pedido && l.estado === 'en_marcha' ? 'en marcha · se detendrá tras el capítulo en curso' : ESTADOS[l.estado];
+    const registro = el('pre', 'q-lanzamiento__registro', (l.registro ?? []).join('\n'));
+    registro.hidden = !l.registro?.length;
+    return el(
+      'article',
+      `q-lanzamiento q-lanzamiento--${l.estado}`,
+      el('div', 'q-lanzamiento__cabecera', el('h3', 'q-lanzamiento__titulo', l.slug), etiqueta(estado), acciones),
+      el('p', 'q-lanzamiento__detalle', `${l.paso} · ${l.detalle}`),
+      registro,
+    );
+  }
+
+  function pintar(lanzamientos: Fila[]): void {
+    actuales = lanzamientos;
+    lista.contar(lanzamientos.length);
+    lista.cuerpo.replaceChildren(
+      envio,
+      ...(lanzamientos.length ? lanzamientos.map(fila) : [vacio('todavía no se ha lanzado ninguna novela desde el panel')]),
+    );
+  }
+
+  const lanzarBoton = boton('Lanzar novela', { icono: 'rocket' });
+  lanzarBoton.addEventListener('click', () => {
     const valores: Campos = {
       slug: campos.slug.control.value,
       idea: campos.idea.control.value,
@@ -85,30 +104,29 @@ export function lanzar(): Vista {
     const slug = errores.slug ? {} : comprobarSlug(valores.slug, existentes);
     if (slug.error) errores.slug = slug.error;
     for (const [clave, c] of Object.entries(campos)) c.mostrarError(errores[clave as keyof Campos] ?? null);
-    const valido = Object.keys(errores).length === 0;
-    orden.poner(valido ? ordenNovelaNueva(valores) : '');
-    sesion.poner(valido ? ordenesDeSesion(valores.slug).join('\n') : '');
-    aviso.textContent = slug.aviso ?? '';
-    aviso.hidden = !valido || !slug.aviso;
-    salida.raiz.hidden = !valido;
-    if (!valido) {
-      const primero = (Object.keys(campos) as (keyof Campos)[]).find((c) => errores[c]);
-      if (primero) campos[primero].control.focus();
+    const primero = (Object.keys(campos) as (keyof Campos)[]).find((c) => errores[c]);
+    if (primero) {
+      campos[primero].control.focus();
+      return;
     }
+    const peticion: Esquemas['PeticionDeLanzamiento'] = { slug: valores.slug, idea: valores.idea };
+    if (valores.capitulos) peticion.capitulos = Number(valores.capitulos);
+    if (valores.palabras) peticion.palabras = Number(valores.palabras);
+    void accion(lanzarBoton, () => api.lanzar(peticion), `${valores.slug}: lanzada; el backend la escribe de principio a fin`);
   });
 
   const formulario = tarjeta({ titulo: 'Nueva novela', icono: 'rocket', tono: 'naranja', clase: 'q-lanzar__formulario' });
   formulario.cuerpo.append(
     el('div', 'q-lanzar__campos', campos.slug.raiz, campos.idea.raiz, el('div', 'q-lanzar__numeros', campos.capitulos.raiz, campos.palabras.raiz)),
-    el('div', 'q-lanzar__acciones', generar),
+    el('div', 'q-lanzar__acciones', lanzarBoton),
   );
 
-  const lista = tarjeta({ titulo: 'Slugs en uso', icono: 'library', tono: 'cian', clase: 'q-lanzar__slugs' });
-  lista.cuerpo.append(esqueleto('q-esqueleto--slugs'));
+  const slugs = tarjeta({ titulo: 'Slugs en uso', icono: 'library', tono: 'cian', clase: 'q-lanzar__slugs' });
+  slugs.cuerpo.append(esqueleto('q-esqueleto--slugs'));
 
   return {
     titulo: 'Lanzar',
-    nodo: el('div', 'q-vista q-vista--lanzar', formulario.raiz, lista.raiz, salida.raiz),
+    nodo: el('div', 'q-vista q-vista--lanzar', formulario.raiz, slugs.raiz, lista.raiz),
     recursos: [
       {
         clave: 'novelas',
@@ -117,11 +135,11 @@ export function lanzar(): Vista {
           try {
             existentes = (await api.novelas(senal)).map((n) => n.slug);
           } catch (error) {
-            existentes = null; // no ha respondido o ha fallado: la orden sale con el aviso (D43)
+            existentes = null; // no ha respondido o ha fallado: se lanza y el backend decide (D43)
             throw error;
           }
-          lista.contar(existentes.length);
-          lista.cuerpo.replaceChildren(
+          slugs.contar(existentes.length);
+          slugs.cuerpo.replaceChildren(
             existentes.length
               ? el('div', 'q-lanzar__etiquetas', ...existentes.map(etiqueta))
               : estadoVacio({
@@ -130,6 +148,15 @@ export function lanzar(): Vista {
                   pista: 'Un slug nuevo no puede coincidir con ninguno de esta lista.',
                 }),
           );
+        },
+      },
+      {
+        clave: 'lanzamientos',
+        cada: CADA_LOG,
+        async pedir(senal) {
+          const texto = envio.textContent ?? '';
+          pintar(await api.lanzamientos(senal));
+          avisar(texto);
         },
       },
     ],

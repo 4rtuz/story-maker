@@ -719,6 +719,38 @@ El principio de §4.17 sigue valiendo: cada barrera necesita un control negativo
 
 Siguen en **propuesto** catorce filas: F-88, F-90, F-100, F-103, F-108, F-112, F-131, F-132, F-133, F-149, F-158, F-163, F-165 y F-168. Otras dieciocho tienen una parte en **propuesto**: F-83, F-86, F-89, F-96, F-99, F-106, F-109, F-116, F-118, F-123, F-134, F-138, F-139, F-143, F-151, F-152, F-166 y F-167. Entran en la spec 0002 por enmienda antes de implementarse la tarea que tocan, no se improvisan al implementarla. Las más caras de descubrir tarde son F-163, que deja pasar un capítulo sin validar hasta que la custodia lo para con un 5, y F-165 y F-166, que dejan una frontera de acto sin salida o sin su sonda y su auditoría.
 
+### 4.19 Lanzamiento desde el panel (`/lanzamientos`, `novela producir`) — T + A + D
+
+`POST /lanzamientos` es la única superficie de la API que ejecuta algo, y lo que ejecuta es `claude --permission-mode dontAsk`. Una petición que pase las guardas equivale a ejecutar código en la máquina del operador, así que cada guarda tiene un test que la ve fallar.
+
+**Validadores** (¿se construye lo correcto?):
+
+| Id | Qué se comprueba | Test |
+|---|---|---|
+| LAN-V1 | Un clic en Lanzar hace un `POST` con los campos del formulario y ninguna orden que copiar; `capitulos` y `palabras` solo si se rellenan | `vista.test.ts` «lanza en el backend con un clic», «sin capítulos ni palabras»; e2e `recorrido.spec.ts` CA-16 |
+| LAN-V2 | `producir` hace la novela entera en orden: entorno, `/novela-nueva`, un `/novela-continuar` por capítulo, `/novela-auditar` | `test_producir.py::test_de_principio_a_fin` |
+| LAN-V3 | Reanudar no repite `/novela-nueva`; detener para antes del siguiente capítulo, nunca a mitad de uno | `test_reanudar_no_repite_novela_nueva`, `test_detener_para_antes_del_siguiente_capitulo`, `test_lanzamientos.py::test_detener_…` |
+| LAN-V4 | Un fallo se ve en el panel con su motivo y las últimas líneas de la sesión | `vista.test.ts` «si el backend lo rechaza», «en marcha se detiene…»; `test_consultar` |
+
+**Verificadores** (¿se construye bien?):
+
+| Id | Riesgo | Guarda | Test |
+|---|---|---|---|
+| LAN-1 | Otra máquina de la red lanza | cliente de loopback | `test_guardas_de_origen` (192.168.1.20) |
+| LAN-2 | Una web abierta en el navegador lanza (CSRF) | `Origin` del panel o ausente; `null` se rechaza | `test_guardas_de_origen` (evil.example, null) |
+| LAN-3 | DNS rebinding: un dominio que resuelve a 127.0.0.1 | `Host` local | `test_guardas_de_origen` (Host evil.example) |
+| LAN-4 | Formulario HTML sin preflight | cuerpo JSON obligatorio | `test_cuerpo_que_no_es_json_no_lanza` |
+| LAN-5 | Inyección por slug o idea: ruta, argv o shell | slug con `SLUG_PATRON`, idea ≤ 4 000 sin controles, `extra="forbid"`, argumentos en lista sin shell, `claude.exe` y nunca un `.cmd` | `test_cuerpo_invalido_no_lanza`, `test_crear_lanza_producir_con_argumentos_en_lista`, `test_orden_nueva_entrecomilla_como_el_panel` |
+| LAN-6 | Dos bucles a la vez gastan cuota y pisan workspaces | `activo.lock` sostenido por el proceso; la API lo sondea bajo un `threading.Lock`; `producir` sale con 3 si no lo toma | `test_uno_a_la_vez`, `test_cascara_deja_el_estado_final_y_respeta_el_cerrojo` |
+| LAN-7 | Lanzar sobre un slug que existe rompe `/novela-nueva` | 409 | `test_slug_existente_es_409` |
+| LAN-8 | La API sirve otro directorio que el harness y el panel miente | 409 salvo que `NOVELAS_DIR` resuelva a `<repo>/novelas`; `producir` lo repite en su entorno | `test_raiz_distinta_del_harness_es_409` |
+| LAN-9 | El bucle insiste sobre un fallo | para con código ≠ 0, sin avance del checkpoint, con `intervencion.md` vivo o sin export | `test_codigo_distinto_…`, `test_sesion_que_no_avanza_…`, `test_intervencion_viva_…`, `test_auditoria_sin_exportar_falla` |
+| LAN-10 | Un proceso muerto aparece «en marcha» para siempre | sin cerrojo tomado se sirve `interrumpido` | `test_consultar` |
+| LAN-11 | Un e2e con `reuseExistingServer` lanza `claude` de verdad | el `POST` se responde en el navegador (`lanzamientoSimulado`) | `recorrido.spec.ts`, `accesibilidad.spec.ts` |
+| LAN-12 | Solo `/lanzamientos` acepta verbos distintos de GET | inventario del OpenAPI | `test_api.py::test_solo_lanzamientos_acepta_post` |
+
+Humo manual (D): `lanzador.lanzar` real con `NOVELAS_DIR` en un temporal arranca `producir` separado de la API, se para en LAN-8 y deja `<slug>.json` en `fallido` y el motivo en `<slug>.log`. Comprobado en Windows el 2026-09-24. Una novela entera lanzada desde el panel no se ha ejecutado: consume cuota (§5.29).
+
 ---
 
 ## 5. Riesgos aceptados (U)
@@ -782,6 +814,8 @@ Cada uno con su condición de revisión: un riesgo aceptado sin criterio para re
 
 **5.28 El juicio estético del panel solo tiene inspección.** Si el panel «se ve profesional» lo decide la revisión visual manual de la spec 0004 (T-22); las comprobaciones de `marca.spec.ts` y `visual.spec.ts` reducen lo que queda a juicio, no lo eliminan. *Revisar si la revisión visual encuentra desviaciones que ninguna comprobación automática había detectado.*
 ---
+
+**5.29 `/lanzamientos` confía en cualquier proceso local.** Sin `Origin`, un cliente de loopback lanza: curl o un script del mismo usuario, que ya podría ejecutar `novela producir` por su cuenta. No hay token ni autenticación, y la idea entra en el prompt de `/novela-nueva` tal cual, así que quien escribe la idea dirige al `arquitecto`. Tampoco se ha ejecutado una novela completa desde el panel: los tests prueban el bucle con sesiones falsas. *Revisar si la API deja de correr solo en la máquina del operador, o si el panel se sirve desde otro origen que `localhost:5173`.*
 
 ## 6. Qué corre en cada punto
 

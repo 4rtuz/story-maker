@@ -2,7 +2,7 @@
 // recorrido completo solo con teclado.
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
-import { expect, test } from './comun';
+import { expect, lanzamientoSimulado, test } from './comun';
 
 async function graves(page: Page): Promise<string[]> {
   const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
@@ -13,7 +13,7 @@ async function graves(page: Page): Promise<string[]> {
 
 const VISTAS: [string, string, (page: Page) => Promise<void>][] = [
   ['Inicio', '/#/', (p) => expect(p.locator('.q-entrada').first()).toBeVisible()],
-  ['Lanzar', '/#/lanzar', (p) => expect(p.getByRole('button', { name: 'Generar orden' })).toBeVisible()],
+  ['Lanzar', '/#/lanzar', (p) => expect(p.getByRole('button', { name: 'Lanzar novela' })).toBeVisible()],
   ['Progreso', '/#/novelas/demo-24/progreso', (p) => expect(p.locator('.q-tension').first()).toBeVisible()],
   ['Lectura con el lector', '/#/novelas/demo-24/lectura/3', (p) => expect(p.locator('.q-lector__texto')).toBeVisible()],
 ];
@@ -35,8 +35,8 @@ async function tabularHasta(page: Page, condicion: string, maximo = 60): Promise
   throw new Error(`el foco no llega a ${condicion} en ${maximo} pulsaciones de Tab`);
 }
 
-test('recorrido completo solo con teclado (RNF-13, CA-28)', async ({ page, context, browserName }) => {
-  if (browserName === 'chromium') await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test('recorrido completo solo con teclado (RNF-13, CA-28)', async ({ page }) => {
+  await lanzamientoSimulado(page);
   await page.goto('/#/');
   await expect(page.locator('.q-entrada').first()).toBeVisible();
   // Abrir una novela y ver su progreso.
@@ -55,7 +55,7 @@ test('recorrido completo solo con teclado (RNF-13, CA-28)', async ({ page, conte
   await expect(page.getByRole('dialog').locator('.q-lector__texto')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.locator('[data-capitulo="3"]')).toBeFocused();
-  // Copiar una orden.
+  // Lanzar una novela.
   await tabularHasta(page, 'a[href="#/lanzar"]', 80);
   await page.keyboard.press('Enter');
   await tabularHasta(page, '#lanzar-slug');
@@ -64,8 +64,5 @@ test('recorrido completo solo con teclado (RNF-13, CA-28)', async ({ page, conte
   await page.keyboard.type('Un faro apagado.');
   await tabularHasta(page, 'button.q-boton--primario');
   await page.keyboard.press('Enter');
-  await expect(page.locator('.q-orden__texto').first()).toContainText('/novela-nueva nueva-prueba');
-  await tabularHasta(page, '.q-orden button:not([disabled])');
-  await page.keyboard.press('Enter');
-  await expect(page.locator('.q-orden__estado').first()).not.toBeEmpty();
+  await expect(page.locator('.q-lanzar__resultado-envio')).not.toBeEmpty();
 });

@@ -36,7 +36,7 @@ Este documento describe **cómo se implementa** la ontología definida en `docs/
 | Concurrencia | `filelock` | Un solo proceso por workspace |
 | Observabilidad | Hook Stop de Claude Code + Langfuse SDK 4.x | Trazado nativo, sin proxy |
 | Tests | pytest + `jsonschema` | Contratos verificados sin consumir cuota |
-| Backend | Python 3.12 + FastAPI | API de solo lectura sobre el workspace; reutiliza los modelos Pydantic del CLI |
+| Backend | Python 3.12 + FastAPI | API de lectura sobre el workspace y lanzamiento de `novela producir`; reutiliza los modelos Pydantic del CLI |
 | Frontend | Vite + TypeScript + Three.js | Consume la API del backend; sin lógica de negocio |
 | Export | `markdown-it-py` + `ebooklib` | Salida a `.md` único y `.epub` (markdown-it solo convierte a XHTML para el epub) |
 
@@ -212,7 +212,7 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   ├── pyproject.toml
 │   ├── uv.lock
 │   │
-│   ├── api/                      # FastAPI; solo lectura, ver §11.1
+│   ├── api/                      # FastAPI; lectura y /lanzamientos, ver §11.1
 │   │   ├── main.py               # app + CORS para el dev server de Vite
 │   │   └── routers/
 │   │       ├── novelas.py
@@ -265,7 +265,7 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │       ├── test_contratos.py     # Pydantic ↔ schemas/
 │       └── fixtures/             # workspaces sintéticos, sin llamadas a modelo
 │
-├── frontend/                     # Vite + TypeScript + Three.js, solo lectura (spec 0004)
+├── frontend/                     # Vite + TypeScript + Three.js; lee y lanza por la API
 │   ├── package.json              # dependencias de ejecución: three y markdown-it
 │   ├── vite.config.ts            # 5173 fijo; /@fs/ limitado a frontend/
 │   ├── eslint.config.js          # imports de fuera de src/, HTML sin sanear
@@ -830,9 +830,13 @@ El evaluador de sesión (LLM como juez) compara ejecuciones completas y devuelve
 Python 3.12. Dos caras sobre el mismo código:
 
 - **CLI `novela`** (Typer): lo que invoca el orquestador. Es quien escribe en el workspace.
-- **API FastAPI** (`backend/api/`): solo lectura, para el frontend. Sirve el estado, los capítulos, los manifiestos y lo que el panel necesita de la configuración, del plan y de los checkpoints. Los capítulos y los manifiestos salen del disco tal cual; el estado se serializa desde `estado.db` con los mismos modelos Pydantic, abriendo la base en modo lectura.
+- **API FastAPI** (`backend/api/`): lectura para el frontend, y el lanzamiento de novelas. Sirve el estado, los capítulos, los manifiestos y lo que el panel necesita de la configuración, del plan y de los checkpoints. Los capítulos y los manifiestos salen del disco tal cual; el estado se serializa desde `estado.db` con los mismos modelos Pydantic, abriendo la base en modo lectura.
 
-La API **no lanza agentes ni escribe en el workspace**. No hay verbo de escritura: mutar una novela es trabajo del orquestador a través del CLI. Si un endpoint pareciera necesitar escribir, lo correcto es añadir un subcomando al CLI, no un `POST` a la API.
+La API **no escribe en ningún workspace**. Lo único que hace fuera de leer es `/lanzamientos`: arranca `python -m novela producir` en segundo plano (grupo de procesos propio, sin ventana), y es ese subcomando del CLI el que escribe. `producir` repite el bucle desatendido de `AGENTS.md` § Proceso: ejecución —`comprobar-entorno`, `/novela-nueva`, un `/novela-continuar <slug> --capitulos 1` por capítulo mientras `novela pendiente` salga con 0, y `/novela-auditar`—, cada paso en su `claude -p` con `--setting-sources project,local --permission-mode dontAsk --model opus`, un `NOVELA_SESSION_ID` nuevo y el prompt como argumento de `claude.exe`, sin shell. Para con un código distinto de 0, con una sesión que no avanza `checkpoints/latest.json`, con un `intervencion.md` sin `resuelto:` o si la auditoría no exporta; nunca insiste.
+
+Su estado vive en `novelas/.lanzador/`, fuera de todo workspace: `<slug>.json` (estado, paso, detalle), `<slug>.log` (la salida de las sesiones) y `<slug>.detener` (el panel pidió parar, y `producir` para antes del siguiente capítulo). `activo.lock` lo sostiene el proceso mientras vive: hay uno a la vez en la máquina, y un `en_marcha` sin cerrojo tomado se sirve como `interrumpido`. Como el directorio empieza por punto, ningún slug lo alcanza.
+
+Los `POST` pasan por cuatro guardas antes de leer el cuerpo: cliente de loopback, `Host` local (contra DNS rebinding), `Origin` del panel o ninguno (contra CSRF) y cuerpo JSON validado contra `PeticionDeLanzamiento` (slug con la regex del CLI, idea de hasta 4 000 caracteres sin controles, sin campos de más). Además responden 409 si hay un lanzamiento en marcha, si el slug ya existe o si la API no sirve `<repo>/novelas`, que es donde trabajan las sesiones.
 
 Los modelos de respuesta son los mismos Pydantic de `backend/novela/dominio/`. Una sola ontología, un solo sitio donde cambiarla.
 
@@ -847,11 +851,16 @@ GET /novelas/{slug}/escaleta              Escaleta de plan/escaleta.md; 404 si f
 GET /novelas/{slug}/checkpoint            checkpoints/latest.json, o null
 GET /novelas/{slug}/runs                  manifiestos por run_id ascendente
 GET /novelas/{slug}/runs/{run_id}/log     TramoDeLog de harness.log desde ?desde=<byte>
+POST /lanzamientos                        PeticionDeLanzamiento → 202 Lanzamiento
+POST /lanzamientos/{slug}/reanudar        producir sin idea; 404 si no existe
+POST /lanzamientos/{slug}/detener         para tras el capítulo en curso; 409 si no está en marcha
+GET /lanzamientos                         Lanzamiento de cada slug lanzado
+GET /lanzamientos/{slug}                  Lanzamiento con las últimas 40 líneas de su registro
 ```
 
 `…/escaleta` se valida con el `num_capitulos` de `config.yaml` y se devuelve ya serializada: la validación de respuesta de FastAPI no lleva ese contexto y rechazaría el modelo. `…/log` salta a `desde` y lee como mucho 1 MiB: devuelve líneas completas desde el primer límite de línea igual o posterior, hasta 65 536 bytes salvo una línea sola mayor, y `hasta` es el siguiente `desde`. Responde 422 a un `desde` negativo o no entero, 416 si pasa del tamaño del log, 404 si el run no existe, y un tramo vacío con `modificado: null` si el run aún no tiene log.
 
-Se arranca desde `backend/` con `uv run uvicorn api.main:app --reload`.
+Se arranca desde `backend/` con `NOVELAS_DIR=../novelas uv run uvicorn api.main:app --reload`: sin `NOVELAS_DIR`, lee `backend/novelas` y se niega a lanzar.
 
 **Puesta en marcha del harness**, una vez por máquina. Cada paso tiene su comprobación, porque si falla en silencio el síntoma aparece más tarde con otra cara:
 
@@ -868,9 +877,9 @@ Si `python` no resuelve, se desactiva el alias en «Alias de ejecución de aplic
 
 ### 11.2 Frontend (`frontend/`)
 
-Vite + TypeScript + Three.js. Es **solo lectura**: no lanza agentes ni escribe en el workspace.
+Vite + TypeScript + Three.js. No escribe en el workspace: lee de la API y lanza novelas a través de ella.
 
-- **Lanzar novela**: formulario que prepara la orden `/novela-nueva` —la idea entre comillas simples, con cada `'` como `'\''`, y capítulos y palabras solo si se rellenan— y las órdenes que abren la sesión del harness, para copiarlas. No escribe ningún fichero ni pide a la API nada distinto de `GET /novelas`: el `config.yaml` lo escribe `novela nueva` desde `config/default.yaml` y los flags.
+- **Lanzar novela**: formulario con slug, idea, capítulos y palabras que, con un clic, hace `POST /lanzamientos`; no hay ninguna orden que copiar. Debajo, cada lanzamiento con su estado, su paso, su motivo y las últimas líneas de sus sesiones, refrescados cada 3 s, con «Detener» si está en marcha y «Reanudar» si está parado, fallido o interrumpido. El `config.yaml` lo sigue escribiendo `novela nueva` desde `config/default.yaml` y los flags.
 - **Progreso**: consulta la API por *polling*; muestra cursor, capítulos cerrados según el checkpoint, palabras, curva de tensión real contra objetivo con actos y puntos de giro —y su tabla—, hilos abiertos y runs.
 - **Lectura**: una estantería 3D con un volumen por capítulo —cerrado, en curso o pendiente según el checkpoint y el índice—, y su lista HTML equivalente, con el estado también como texto y el mismo teclado; sin WebGL queda solo la lista. Solo se leen los capítulos cerrados: el lector quita el frontmatter y muestra el markdown sin HTML, enlaces ni imágenes, que quedan como texto.
 

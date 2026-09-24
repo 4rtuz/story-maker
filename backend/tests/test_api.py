@@ -1,4 +1,5 @@
-"""API de solo lectura (spec 0001 §5.5): cinco GET, ningún verbo de escritura."""
+"""`/novelas` en solo lectura (spec 0001 §5.5): ningún verbo de escritura. `/lanzamientos`, lo
+único que acepta POST, tiene sus guardas en test_lanzamientos.py."""
 
 import builtins
 import io
@@ -20,6 +21,22 @@ from tests.fixtures import fabrica
 
 BACKEND = Path(__file__).resolve().parents[1]  # código y .venv
 cliente = TestClient(app)
+
+
+def _metodos_de_novelas() -> set[str]:
+    rutas = app.openapi()["paths"]
+    assert {r for r in rutas if not r.startswith(("/novelas", "/lanzamientos"))} == set()
+    return {m for ruta, ops in rutas.items() if ruta.startswith("/novelas") for m in ops}
+
+
+def test_solo_lanzamientos_acepta_post() -> None:
+    rutas = app.openapi()["paths"]
+    escritura = {r for r, ops in rutas.items() if set(ops) - {"get"}}
+    assert escritura == {
+        "/lanzamientos",
+        "/lanzamientos/{slug}/reanudar",
+        "/lanzamientos/{slug}/detener",
+    }
 
 
 def test_app_arranca() -> None:
@@ -95,7 +112,7 @@ def solo_lectura(
 def test_cinco_get_en_solo_lectura(solo_lectura: WorkspaceRepository) -> None:
     """CA-25: los cinco GET sobre el fixture montado en solo lectura, y ningún verbo más."""
     ws = solo_lectura
-    assert {m for ops in app.openapi()["paths"].values() for m in ops} == {"get"}
+    assert _metodos_de_novelas() == {"get"}
 
     novelas = cliente.get("/novelas")
     assert novelas.status_code == 200
@@ -390,7 +407,7 @@ def test_get_del_panel_en_solo_lectura(solo_lectura: WorkspaceRepository) -> Non
         f"{base}/runs",
         f"{base}/runs/{run}/log",
     ]
-    assert {m for ops in app.openapi()["paths"].values() for m in ops} == {"get"}
+    assert _metodos_de_novelas() == {"get"}
     for ruta in rutas:
         assert cliente.get(ruta).status_code == 200, ruta
         for metodo in ("POST", "PUT", "PATCH", "DELETE"):

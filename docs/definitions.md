@@ -294,6 +294,8 @@ El contexto persiste como ficheros, no como historial de conversación. Cada sub
 
 **`runs/<run_id>/`** — `manifest.json`, la procedencia del run, y `harness.log`, una línea por subcomando que el CLI añade al terminar cada uno. La API sirve el log por tramos como `TramoDeLog`: `desde`, `hasta` (el siguiente `desde`), `tamano`, `modificado` (ISO 8601 con zona, o `null` si el run aún no tiene log) y `lineas`, completas y sin `\r\n` ni `\n` finales. No es contrato de ningún agente.
 
+**`novelas/.lanzador/`** — Fuera de todo workspace; no es rama de contexto. Lo escribe `novela producir`, que lanza el panel. `<slug>.json` es un `Lanzamiento`: `slug`, `estado` (`en_marcha`, `terminado`, `fallido`, `detenido` o `interrumpido`, este último si no hay proceso que sostenga `activo.lock`), `paso` (`entorno`, `nueva`, `capitulo NN`, `auditoria`), `detalle`, `actualizado` y, solo en la API, `detener_pedido` y `registro`, las últimas 40 líneas de `<slug>.log`. La petición es `PeticionDeLanzamiento`: `slug`, `idea` y, opcionales, `capitulos` y `palabras`.
+
 **`CLAUDE.md`** — Convenciones del repositorio. Todo agente lo lee antes de actuar, de modo que las reglas no se repiten en cada prompt.
 
 ---

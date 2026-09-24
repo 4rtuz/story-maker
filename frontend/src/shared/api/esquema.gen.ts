@@ -179,6 +179,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/lanzamientos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lanzamientos */
+        get: operations["lanzamientos_lanzamientos_get"];
+        put?: never;
+        /** Crear */
+        post: operations["crear_lanzamientos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lanzamientos/{slug}/reanudar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reanudar */
+        post: operations["reanudar_lanzamientos__slug__reanudar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lanzamientos/{slug}/detener": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Detener
+         * @description Para tras el capítulo en curso: matar una sesión a medias dejaría el capítulo sin cerrar.
+         */
+        post: operations["detener_lanzamientos__slug__detener_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/lanzamientos/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lanzamiento */
+        get: operations["lanzamiento_lanzamientos__slug__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -485,6 +557,35 @@ export interface components {
             /** Descripcion */
             descripcion: string;
         };
+        /** Lanzamiento */
+        Lanzamiento: {
+            /** Slug */
+            slug: string;
+            /**
+             * Estado
+             * @enum {string}
+             */
+            estado: "en_marcha" | "terminado" | "fallido" | "detenido" | "interrumpido";
+            /** Paso */
+            paso: string;
+            /** Detalle */
+            detalle: string;
+            /**
+             * Actualizado
+             * Format: date-time
+             */
+            actualizado: string;
+            /**
+             * Detener Pedido
+             * @default false
+             */
+            detener_pedido: boolean;
+            /**
+             * Registro
+             * @default []
+             */
+            registro: string[];
+        };
         /**
          * Manifest
          * @description `runs/<run_id>/manifest.json`: lo que permite atribuir un cambio de calidad a un cambio
@@ -623,6 +724,20 @@ export interface components {
              * @constant
              */
             politica_checkpoint: "por_capitulo";
+        };
+        /**
+         * PeticionDeLanzamiento
+         * @description Los argumentos de `/novela-nueva`, con los mismos límites que el formulario del panel.
+         */
+        PeticionDeLanzamiento: {
+            /** Slug */
+            slug: string;
+            /** Idea */
+            idea: string;
+            /** Capitulos */
+            capitulos?: number | null;
+            /** Palabras */
+            palabras?: number | null;
         };
         /** PoliticaReintentos */
         PoliticaReintentos: {
@@ -1010,6 +1125,152 @@ export interface operations {
                 };
                 content: {
                     "text/markdown": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lanzamientos_lanzamientos_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lanzamiento"][];
+                };
+            };
+        };
+    };
+    crear_lanzamientos_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PeticionDeLanzamiento"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lanzamiento"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reanudar_lanzamientos__slug__reanudar_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lanzamiento"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    detener_lanzamientos__slug__detener_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lanzamiento"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lanzamiento_lanzamientos__slug__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lanzamiento"];
                 };
             };
             /** @description Validation Error */
