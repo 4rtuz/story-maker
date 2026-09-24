@@ -81,7 +81,16 @@ de arranque. El retorno del agente se lee y no se pasa a ningún otro prompt.
      `novelas/<slug>/runs/<run_id>/intervencion.md` con el gate, los intentos y la ruta del
      briefing, y para.
    - Cualquier otro código, o un 4 sin esa línea → tabla de códigos.
-4. Devuelve el retorno del `arquitecto`, tal cual, y la orden siguiente:
+4. `novela validar-plan <slug>`, el **gate del `trazador`**: la escaleta y todas las fichas contra
+   sus modelos.
+   - Sale con 0 → paso 5.
+   - Sale con 1 → reintento del `trazador` con su mismo briefing y `causa:` = el texto tras `·` en
+     la última línea `plan validar -> 1` del `harness.log` del run de arranque, y repite 4.
+   - **Cuenta de intentos**: las líneas `plan validar -> 1` de ese log. Con dos reintentos
+     consumidos, el siguiente fallo escribe `novelas/<slug>/runs/<run_id>/intervencion.md` con el
+     gate `trazador`, los intentos y la causa, y para.
+   - Cualquier otro código → tabla de códigos.
+5. Devuelve el retorno del `arquitecto`, tal cual, y la orden siguiente:
    `/novela-continuar <slug>`.
 
 Nunca cuentes en la conversación: la cuenta sale del log.

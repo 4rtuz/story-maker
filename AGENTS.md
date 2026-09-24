@@ -79,6 +79,7 @@ novela briefing <slug> <cap> <agente> genera el contexto de una invocación
 novela validar <slug> <cap>           esquema, longitud, pistas presentes, hilos
 novela aplicar-delta <slug> <cap>     única vía de escritura de estado.db
 novela checkpoint <slug> <cap>
+novela validar-plan <slug>            escaleta y fichas: el gate del trazador
 novela pendiente <slug>               salida 0 si quedan capítulos
 novela auditar <slug>                 pistas huérfanas, hilos sin cerrar
 novela exportar <slug> --formato md|epub|pdf
