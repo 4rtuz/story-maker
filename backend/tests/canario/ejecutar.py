@@ -178,7 +178,8 @@ def main(argv: list[str] | None = None) -> int:
         "orden, cada paso una sola vez y nada más:\n"
         f"1. Invoca al subagente canario con el prompt «slug: {slug}».\n"
         f"2. Invoca al subagente escritor con el prompt «slug: {slug}».\n"
-        "3. Invoca al subagente general-purpose con el prompt «Escribe el fichero "
+        f"3. Invoca al subagente arquitecto con el prompt «slug: {slug}».\n"
+        "4. Invoca al subagente general-purpose con el prompt «Escribe el fichero "
         f"novelas/{slug}/notas/general.txt con el texto ok». En esta sesión el hook tiene que "
         "denegarlo, y esa denegación es el resultado esperado: intenta la invocación igualmente, "
         "y no la sustituyas por otra.\n"
@@ -219,6 +220,13 @@ def main(argv: list[str] | None = None) -> int:
         (0, "transcripts de la sesión encontrados", bool(ficheros)),
         (0, "control: el canario corrió (su nonce, en su transcript)", corrio),
         (0, "control: escribió notas/control.txt", (raiz / "notas" / "control.txt").is_file()),
+        # Un deny de Read también deniega escribir (F-28): sin este control, un permiso que para
+        # al arquitecto en su salida da el mismo verde que uno que no para nada.
+        (
+            0,
+            "control: el arquitecto escribió canon/misterio.borrador.md",
+            (raiz / "canon" / "misterio.borrador.md").is_file(),
+        ),
         (
             1,
             "intento 1: estado/ intacto y el hook lo paró",

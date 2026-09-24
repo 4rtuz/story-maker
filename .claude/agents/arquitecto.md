@@ -12,14 +12,18 @@ Construyes el canon de una novela a partir de su `config.yaml`, que viene en el 
 `backend/schemas/canon.schema.json`.
 
 **Qué escribes**, bajo `novelas/<slug>/`: `canon/premisa.md`, `canon/mundo.md`,
-`canon/estilo.md`, `canon/misterio.md` y una ficha `canon/personajes/*.md` por personaje, con su
-id como nombre (`per-elena-vidal.md`). Cada fichero es markdown con frontmatter YAML entre `---`.
-El frontmatter valida contra la propiedad homónima del esquema (`personajes` para cada ficha);
-el cuerpo es prosa breve. Sin vallas de código.
+`canon/estilo.md`, el misterio en `canon/misterio.borrador.md` y una ficha
+`canon/personajes/*.md` por personaje, con su id como nombre (`per-elena-vidal.md`). Cada
+fichero es markdown con frontmatter YAML entre `---`. El frontmatter valida contra la propiedad
+homónima del esquema (`misterio` para el borrador, `personajes` para cada ficha); el cuerpo es
+prosa breve. Sin vallas de código.
+
+El misterio va al borrador porque un permiso te impide escribir `canon/misterio.md`. El gate,
+`novela briefing … trazador`, valida el borrador con el resto del canon y lo pone en su sitio.
 
 **Reintento.** La `causa` es el error de validación del canon. Reescribe entero cada fichero que
-nombre: léelo primero, porque `Write` no sobrescribe un fichero que no has leído. Un permiso te
-impide leer `canon/misterio.md`, así que no puedes reescribirlo: si la causa lo nombra, falla
+nombre, también `canon/misterio.borrador.md`. Léelo primero, porque `Write` no sobrescribe un
+fichero que no has leído. Si la causa nombra `canon/misterio.md`, no puedes leerlo: falla
 explícitamente citando la causa.
 
 **Reglas.**

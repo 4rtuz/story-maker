@@ -59,9 +59,11 @@ de arranque. El retorno del agente se lee y no se pasa a ningún otro prompt.
 1. `novela nueva <slug> --idea "..."`, con `--capitulos` y `--palabras` tal como llegaron. Con un
    código distinto de 0, para e informa de su salida.
 2. `novela briefing <slug> 1 arquitecto` → Task `arquitecto`, con salidas `canon/premisa.md`,
-   `canon/mundo.md`, `canon/estilo.md`, `canon/misterio.md` y `canon/personajes/*.md`.
+   `canon/mundo.md`, `canon/estilo.md`, `canon/misterio.borrador.md` y `canon/personajes/*.md`.
+   El misterio va al borrador: un permiso impide escribir `canon/misterio.md`.
 3. `novela briefing <slug> 1 trazador`. Es también el **gate del `arquitecto`**: el briefing valida
-   el canon contra sus modelos al cargarlo.
+   el canon contra sus modelos al cargarlo, exige que esté completo y, si todo valida, pone el
+   borrador del misterio en su sitio.
    - Sale con 0 → Task `trazador`, con salidas `plan/escaleta.md` y `plan/capitulos/NN.md` para
      cada capítulo, de 1 al número de capítulos de la novela.
    - Sale con 4 **y** la última línea del `harness.log` del run de arranque contiene

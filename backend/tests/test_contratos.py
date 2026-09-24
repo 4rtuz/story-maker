@@ -170,7 +170,9 @@ CONTRATO = {
             "canon/premisa.md",
             "canon/mundo.md",
             "canon/estilo.md",
-            "canon/misterio.md",
+            # El deny de Read del misterio también deniega escribirlo: el gate promueve el
+            # borrador (spec 0003 v0.5, F-28).
+            "canon/misterio.borrador.md",
             "canon/personajes/*.md",
         ],
     ),

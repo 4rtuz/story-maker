@@ -161,6 +161,17 @@ def test_salidas_por_rol(rol: str, datos: st.DataObject) -> None:
         assert resultado.returncode == esperado, (rol, ruta, resultado.stderr)
 
 
+def test_arquitecto_escribe_el_borrador(tmp_path: Path) -> None:
+    """CA-27 (RF-37, F-28): el arquitecto escribe el borrador del misterio, no el misterio, que
+    solo escribe el CLI al promoverlo. Sin esto, el deny y el hook dirían cosas distintas."""
+    for ruta, esperado in (
+        ("novelas/demo/canon/misterio.borrador.md", 0),
+        ("novelas/demo/canon/misterio.md", 2),
+    ):
+        resultado = _hook(_escritura(ruta, tmp_path, agente="arquitecto"), tmp_path)
+        assert resultado.returncode == esperado, (ruta, resultado.stderr)
+
+
 def test_sin_rol_fuera_del_workspace(tmp_path: Path) -> None:
     """CA-05, la otra mitad: los agentes de desarrollo y la sesión principal escriben en el repo."""
     for agente in ("Explore", None):

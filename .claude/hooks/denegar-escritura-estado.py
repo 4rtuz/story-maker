@@ -20,7 +20,12 @@ _INTERVENCION = r"runs/[^/]+/intervencion\.md"
 # spec 0003 §5.1, relativas a novelas/<slug>/. test_hook comprueba que casa con CONTRATO de
 # test_contratos (D-2): el hook no puede importar backend/, así que es una copia vigilada.
 SALIDAS = {
-    "arquitecto": [r"canon/(premisa|mundo|estilo|misterio)\.md", r"canon/personajes/[^/]+\.md"],
+    # El misterio, al borrador: el deny de Read también deniega escribirlo, y lo promueve el CLI.
+    "arquitecto": [
+        r"canon/(premisa|mundo|estilo)\.md",
+        r"canon/misterio\.borrador\.md",
+        r"canon/personajes/[^/]+\.md",
+    ],
     "trazador": [r"plan/escaleta\.md", rf"plan/capitulos/{_NN}\.md"],
     "escritor": [rf"capitulos/{_NN}\.md"],
     "continuista": [rf"qa/{_NN}-continuidad\.json"],
@@ -63,6 +68,7 @@ def _relativas(ruta: str) -> list[str]:
     principal vea el repo entero como workspace; se mueve el repo si llega a pasar."""
     s = ruta.split("/")
     return ["/".join(s[i + 2 :]) for i in range(len(s) - 2) if s[i] == "novelas" and s[i + 1]]
+
 
 # Solo estos campos, nunca tool_input entero (regla 7): una regla sobre todo el tool_input
 # bloqueó en el experimento un Agent cuyo prompt mencionaba la ruta prohibida.
