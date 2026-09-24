@@ -8,7 +8,7 @@ todo lo que se lee de `cambios/` y `versiones/`.
 from datetime import datetime
 from typing import Literal, Self
 
-from pydantic import Field, model_validator
+from pydantic import AwareDatetime, Field, model_validator
 
 from novela.dominio.base import SCHEMA_VERSION, ColeccionAppendOnly, Modelo, SchemaVersion
 from novela.dominio.ids import CambioId, CapituloNum, HechoId, Sha256
@@ -38,7 +38,7 @@ class PeticionDeCambio(Modelo):
     version_nueva: int
     plan: PlanDeRegeneracion
     estado: Literal["preparando", "en_curso"]
-    creado: datetime
+    creado: AwareDatetime  # lo compara run._run_id con el `creado` de cada manifiesto
 
 
 class Version(Modelo):

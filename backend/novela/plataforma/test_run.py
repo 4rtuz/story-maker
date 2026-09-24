@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 
 from novela.cli import app
 from novela.dominio.artefactos import Manifest
-from novela.plataforma import run
+from novela.plataforma import run, test_versiones, versiones
 from novela.plataforma.workspace import CONFIG_DIR, WorkspaceRepository
 
 Novelas = Callable[[str], WorkspaceRepository]
@@ -131,3 +131,32 @@ def test_manifiesto_registra_los_prompts(novelas: Novelas) -> None:
     agentes = {k for k in hashes if k.startswith(".claude/agents/")}
     assert len(agentes) == 7
     assert {"CLAUDE.md", "AGENTS.md", ".claude/settings.json"} <= set(hashes)
+
+
+def test_version_nueva_no_reutiliza_runs(novelas: Novelas) -> None:
+    """P1 y D4 del plan de la 0007: con un cambio, los runs anteriores a él son de la versión
+    anterior. run.abrir no reutiliza el del capítulo 1 aunque no haya checkpoint, y un
+    NOVELA_RUN_ID que apunte a uno de ellos sale con 2."""
+    ws = novelas("demo-cambio")
+    viejo = ws.raiz / "runs" / "r-20260101-0900" / "manifest.json"
+    manifiesto = Manifest.model_validate_json(viejo.read_bytes())
+    ws.escribir(
+        viejo,
+        manifiesto.model_copy(update={"creado": "2026-01-01T09:00:00+01:00"}).model_dump_json(
+            indent=2
+        ),
+    )
+    peticion = test_versiones._peticion(ws).model_copy(
+        update={"creado": datetime.now().astimezone().replace(microsecond=0)}
+    )
+    versiones.registrar_peticion(ws, peticion)
+    versiones.preparar(ws, peticion)
+    assert ws.ultimo_checkpoint() is None
+
+    nuevo = run.abrir(ws, 1, entorno={}, ahora=LAS_DIEZ)
+    assert nuevo.id == "r-20260923-1000"
+    assert run.abrir(ws, 1, entorno={}, ahora=datetime(2026, 9, 23, 10, 7)).id == nuevo.id
+    with pytest.raises(run.RunInvalido, match="versión anterior"):
+        run.abrir(ws, 1, entorno={"NOVELA_RUN_ID": "r-20260101-0900"}, ahora=LAS_DIEZ)
+    fijado = run.abrir(ws, 1, entorno={"NOVELA_RUN_ID": nuevo.id}, ahora=LAS_DIEZ)
+    assert fijado.id == nuevo.id

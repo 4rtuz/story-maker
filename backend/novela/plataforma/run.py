@@ -21,6 +21,7 @@ import typer
 
 from novela.dominio.artefactos import Manifest
 from novela.dominio.ids import RUN_ID_PATRON
+from novela.plataforma import versiones
 from novela.plataforma.workspace import CONFIG_DIR, WorkspaceRepository, huella, sha256
 
 Fase = Literal["arranque", "capitulo"]
@@ -136,29 +137,40 @@ class Run:
             self.registrar(" ".join(linea.splitlines()))
 
 
-def _de(ws: WorkspaceRepository, directorio: Path) -> tuple[int, Fase] | None:
+def _de(
+    ws: WorkspaceRepository, directorio: Path, desde: datetime | None
+) -> tuple[int, Fase] | Literal["anterior"] | None:
+    """`(capitulo, fase)` del run, o None si no tiene manifiesto. Un run anterior a `desde` —el
+    último cambio— es de otra versión: devolverlo lo mezclaría con esta (spec 0007, D4)."""
     ruta = directorio / "manifest.json"
     if not ruta.exists():
         return None
     manifiesto = ws.leer_json(ruta, Manifest)
+    if desde is not None and datetime.fromisoformat(manifiesto.creado) < desde:
+        return "anterior"
     return manifiesto.capitulo, manifiesto.fase
 
 
 def _run_id(
     ws: WorkspaceRepository, capitulo: int, fase: Fase, entorno: Mapping[str, str], ahora: datetime
 ) -> str:
+    cambio = versiones.ultimo_cambio(ws)
+    desde = cambio.creado if cambio else None
     fijado = entorno.get("NOVELA_RUN_ID")
     if fijado is not None:
         if not re.fullmatch(RUN_ID_PATRON, fijado):
             raise RunInvalido(f"NOVELA_RUN_ID={fijado!r} no casa {RUN_ID_PATRON}")
+        de = _de(ws, ws.raiz / "runs" / fijado, desde)
+        if de == "anterior":
+            raise RunInvalido(f"NOVELA_RUN_ID={fijado} es un run de una versión anterior")
         # RF-27: sin esto, la variable mezclaría el arranque con el capítulo 1 por otra vía.
-        if (de := _de(ws, ws.raiz / "runs" / fijado)) not in (None, (capitulo, fase)):
+        if de not in (None, (capitulo, fase)):
             raise RunInvalido(f"NOVELA_RUN_ID={fijado} es un run de otro capítulo o fase: {de}")
         return fijado
     punto = ws.ultimo_checkpoint()
     if not (punto and punto.capitulo >= capitulo):
         for directorio in sorted((ws.raiz / "runs").glob("r-*"), reverse=True):
-            if _de(ws, directorio) == (capitulo, fase):
+            if _de(ws, directorio, desde) == (capitulo, fase):
                 return directorio.name
     nuevo = ahora.strftime("r-%Y%m%d-%H%M")
     if (ws.raiz / "runs" / nuevo).exists():
