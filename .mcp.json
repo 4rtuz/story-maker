@@ -4,6 +4,20 @@
       "command": "uv",
       "args": ["run", "--directory", "backend", "python", "-m", "api.mcp"],
       "env": { "NOVELAS_DIR": "../novelas" }
+    },
+    "playwright": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "@playwright/mcp@latest",
+        "--browser",
+        "chromium",
+        "--headless",
+        "--isolated",
+        "--output-dir",
+        ".playwright-mcp"
+      ]
     }
   }
 }

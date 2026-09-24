@@ -14,12 +14,11 @@ from typing import Annotated
 
 import typer
 
-from novela.dominio import frontmatter
-from novela.dominio.artefactos import Checkpoint, FrontmatterCapitulo, Manifest
-from novela.dominio.canon import Mundo, Personaje
-from novela.plataforma import estado_db
-from novela.plataforma.workspace import WorkspaceInvalido, WorkspaceRepository
-from novela.slices.export import epub, ficha, markdown, pdf
+from novela.dominio.artefactos import Checkpoint, Manifest
+from novela.plataforma.libro import capitulo as _capitulo
+from novela.plataforma.libro import ficha as _ficha
+from novela.plataforma.workspace import WorkspaceRepository
+from novela.slices.export import epub, markdown, pdf
 
 TITULO_MAX = 120
 
@@ -30,16 +29,6 @@ class Formato(StrEnum):
     PDF = "pdf"
 
 
-def _capitulo(ws: WorkspaceRepository, capitulo: int) -> tuple[str, str]:
-    """Título del frontmatter y cuerpo."""
-    ruta = ws.raiz / "capitulos" / f"{ws.nn(capitulo)}.md"
-    try:
-        texto = ruta.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise WorkspaceInvalido(f"{ruta}: {exc}") from exc
-    return ws.modelo_de_md(ruta, texto, FrontmatterCapitulo).titulo, frontmatter.partir(texto)[1]
-
-
 def _titulo(titulo: str | None, slug: str) -> str:
     if titulo is None:
         return slug
@@ -47,28 +36,6 @@ def _titulo(titulo: str | None, slug: str) -> str:
     if not titulo or len(titulo) > TITULO_MAX:
         raise typer.BadParameter(f"--titulo: entre 1 y {TITULO_MAX} caracteres sin contar espacios")
     return titulo
-
-
-def _ficha(ws: WorkspaceRepository, n: int) -> ficha.Ficha:
-    with estado_db.abrir(ws.estado_db, solo_lectura=True) as conn:
-        filas = estado_db.apariciones(conn, n)
-    sin = [c for c in range(1, n + 1) if c not in {f.capitulo for f in filas}]
-    if sin:
-        raise WorkspaceInvalido(
-            f"capítulos cerrados sin apariciones en estado.db: {', '.join(map(str, sin))}"
-        )
-    personajes = {}
-    for id_ in {f.entidad for f in filas if f.tipo == "personaje"}:
-        ruta = ws.raiz / "canon" / "personajes" / f"{id_}.md"
-        if ruta.is_file():  # los que falten los nombra SinCanon, todos a la vez
-            identidad = ws.leer_md(ruta, Personaje).identidad
-            personajes[id_] = (identidad.nombre, tuple(identidad.alias))
-    mundo = ws.leer_md(ws.raiz / "canon" / "mundo.md", Mundo)
-    escenarios = {e.id: (e.nombre, e.descripcion) for e in mundo.escenarios}
-    try:
-        return ficha.construir(filas, personajes, escenarios)
-    except ficha.SinCanon as exc:
-        raise WorkspaceInvalido(str(exc)) from exc
 
 
 def _creado(ws: WorkspaceRepository, punto: Checkpoint) -> datetime:

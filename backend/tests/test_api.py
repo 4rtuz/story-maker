@@ -442,16 +442,23 @@ def _rutas(rutas: list[Any], prefijo: str = "") -> list[str]:
         camino = prefijo + getattr(ruta, "path", "")
         caminos.append(camino)
         caminos += _rutas(getattr(ruta, "routes", []), camino)
+        # FastAPI monta cada include_router como un _IncludedRouter sin `path` ni `routes`: sin
+        # esto, este recorrido no veía ninguna ruta de /novelas y los dos tests eran vacuos.
+        original = getattr(ruta, "original_router", None)
+        caminos += _rutas(getattr(original, "routes", []), prefijo)
     return caminos
 
 
 def test_sin_rutas_de_libro() -> None:
-    """CA-32 (RF-32), VAL-34: el libro de regalo no se sirve por la API (ADR 0003)."""
+    """CA-32 (RF-32), VAL-34: el PDF de regalo no se sirve por la API (ADR 0003). La única ruta es
+    la de la lectura web complementaria, en JSON y sin cuerpo (docs/lectura-web.md)."""
     prohibidas = ("libro", "pdf", "ficha", "portada", "apariciones")
-    assert [c for c in _rutas(app.routes) if any(p in c for p in prohibidas)] == []
+    assert [c for c in _rutas(app.routes) if any(p in c for p in prohibidas)] == [
+        "/novelas/{slug:path}/libro"
+    ]
 
 
 def test_sin_rutas_de_brief() -> None:
     """CA-29 (spec 0005, RF-29): el brief lleva datos personales y la API no lo sirve."""
-    rutas = [getattr(r, "path", "") for r in app.routes]
-    assert rutas and [r for r in rutas if "brief" in r] == []
+    rutas = _rutas(app.routes)
+    assert "/novelas/{slug:path}/estado" in rutas and [r for r in rutas if "brief" in r] == []

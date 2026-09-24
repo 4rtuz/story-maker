@@ -18,7 +18,7 @@ from fontTools.ttLib import TTFont
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
 
-from novela.slices.export.ficha import EntradaFicha, Ficha
+from novela.dominio.ficha import EntradaFicha, Ficha
 
 FUENTES = Path(__file__).parent / "fuentes"
 _VARIANTES = {"": "DejaVuSerif", "B": "DejaVuSerif-Bold", "I": "DejaVuSerif-Italic"}

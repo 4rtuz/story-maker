@@ -16,6 +16,7 @@ from novela.dominio.estado import Delta, Estado
 from novela.dominio.juicio import Juicio
 from novela.dominio.plan import Escaleta, FichaCapitulo
 from novela.dominio.qa import InformeQA
+from novela.dominio.visual import InformeVisual
 
 MODELOS: dict[str, type[BaseModel]] = {
     "config.schema.json": Config,
@@ -30,6 +31,7 @@ MODELOS: dict[str, type[BaseModel]] = {
     "brief-borrador.schema.json": BorradorBrief,
     "brief-informe.schema.json": InformeBrief,
     "juicio.schema.json": Juicio,
+    "qa-visual.schema.json": InformeVisual,
 }
 
 

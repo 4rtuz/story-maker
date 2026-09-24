@@ -194,6 +194,7 @@ def download_novel(slug: Slug) -> File:
     recurso embebido en base64. Se construye en memoria: no escribe en el workspace."""
     # Import diferido: la API no carga slices/ (test_api_no_importa_slices). De export solo se
     # usan lectores y `pdf.construir`, que devuelve bytes; test_ninguna_tool_escribe lo cubre.
+    from novela.plataforma import libro as libros
     from novela.slices.export import cmd as export
     from novela.slices.export import pdf
 
@@ -201,13 +202,13 @@ def download_novel(slug: Slug) -> File:
     punto = ws.ultimo_checkpoint()
     if punto is None:
         raise ValueError("no hay capítulos cerrados que exportar")
-    capitulos = [export._capitulo(ws, c) for c in range(1, punto.capitulo + 1)]
+    capitulos = [libros.capitulo(ws, c) for c in range(1, punto.capitulo + 1)]
     libro = pdf.Libro(
         titulo=slug,
         idioma=ws.config().parametros_obra.idioma,
-        dedicatoria=None,
+        dedicatoria=libros.libro(ws).dedicatoria,
         capitulos=tuple(pdf.Capitulo(n, t, c) for n, (t, c) in enumerate(capitulos, 1)),
-        ficha=export._ficha(ws, punto.capitulo),
+        ficha=libros.ficha(ws, punto.capitulo),
         creado=export._creado(ws, punto),
     )
     return File(data=pdf.construir(libro), format="pdf", name=f"{slug}.pdf")

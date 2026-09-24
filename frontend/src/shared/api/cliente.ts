@@ -81,6 +81,8 @@ export const manifiesto = (slug: string, runId: string, s?: AbortSignal) =>
 export const config = (slug: string, s?: AbortSignal) => json<E['Config']>(`${novela(slug)}/config`, s);
 export const checkpoint = (slug: string, s?: AbortSignal) =>
   json<E['Checkpoint'] | null>(`${novela(slug)}/checkpoint`, s);
+/** Portada, índice y ficha de la lectura web (docs/lectura-web.md). */
+export const libro = (slug: string, s?: AbortSignal) => json<E['Libro']>(`${novela(slug)}/libro`, s);
 export const runs = (slug: string, s?: AbortSignal) => json<E['Manifest'][]>(`${novela(slug)}/runs`, s);
 
 /** null si la novela todavía no tiene escaleta: el 404 que RF-19 trata sin aviso. */
