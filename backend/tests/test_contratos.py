@@ -475,3 +475,40 @@ def test_adr_de_entrega() -> None:
         assert opcion in secciones["Opciones"], opcion
     for consecuencia in ("revisión humana", "LGPL"):  # VER-1
         assert consecuencia.lower() in secciones["Consecuencias"].lower(), consecuencia
+
+
+CONTINUAR = RAIZ_REPO / ".claude" / "commands" / "novela-continuar.md"
+# La tabla de códigos de la spec 0003: la regeneración no añade ninguno (spec 0007, CA-31).
+CODIGOS = """| Código | Qué haces |
+|---|---|
+| 0 | Sigues |
+| 1 | Gate fallido: reintento según el paso, con la regla de lectura 1. Un 1 de `novela briefing` o de `novela checkpoint` no tiene reintento: `intervencion.md` y para |
+| 2 | Uso incorrecto: el procedimiento está mal. Para sin `intervencion.md` |
+| 3 | Lock ocupado: otro proceso trabaja en la novela. Para sin `intervencion.md` |
+| 4 | Workspace inválido: `intervencion.md` y para. No es un gate y no se reintenta |
+"""  # noqa: E501
+
+
+def test_procedimiento_regeneracion() -> None:
+    """CA-31 (spec 0007, RF-34): «Situación» pregunta al CLI qué toca, reaplica sin agentes y un 1
+    de --reaplicar para con gate: regeneracion; la tabla de códigos no cambia."""
+    texto = CONTINUAR.read_text(encoding="utf-8")
+    situacion = texto.split("1. **Situación.**", 1)[1].split("\n2. ", 1)[0]
+    for orden in (
+        "novela cambio <slug> --siguiente",
+        "aplicar-delta <slug> <cap> --reaplicar",
+        "gate: regeneracion",
+    ):
+        assert orden in situacion, orden
+    assert CODIGOS in texto
+
+
+def test_agentes_nombran_el_cambio() -> None:
+    """CA-32 (spec 0007, RF-35): el cronista nombra hechos_usados y la cita literal; los tres
+    roles con capa cambio la nombran. tools y model los cubre test_agentes_de_claude."""
+    _, cronista = _agente("cronista")
+    assert "hechos_usados" in cronista
+    assert re.search(r"`hechos_usados`[^\n]*\n?[^\n]*literal", cronista), "cita literal"
+    for rol in ("cronista", "escritor", "continuista"):
+        _, cuerpo = _agente(rol)
+        assert "capa `cambio`" in cuerpo, rol
