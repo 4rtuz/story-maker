@@ -15,3 +15,9 @@ fi
 if [ -f backend/pyproject.toml ]; then
   uv run --project backend ruff check backend || exit 1
 fi
+
+# 3. eslint sobre el frontend, si el commit lo toca (spec 0004, RF-41). Sin npm o sin
+#    node_modules, npm falla y el commit se aborta igual.
+if [ -n "$(git diff --cached --name-only -- frontend/)" ]; then
+  npm --prefix frontend run lint || exit 1
+fi

@@ -263,13 +263,16 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │       ├── test_contratos.py     # Pydantic ↔ schemas/
 │       └── fixtures/             # workspaces sintéticos, sin llamadas a modelo
 │
-├── frontend/                     # Vite + TypeScript + Three.js, solo lectura
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── src/                      # package by feature, ver §3.0
+├── frontend/                     # Vite + TypeScript + Three.js, solo lectura (spec 0004)
+│   ├── package.json              # dependencias de ejecución: three y markdown-it
+│   ├── vite.config.ts            # 5173 fijo; /@fs/ limitado a frontend/
+│   ├── eslint.config.js          # imports de fuera de src/, HTML sin sanear
+│   ├── index.html
+│   ├── test/fixtures/            # usos prohibidos para lint.test.ts, fuera de `eslint .`
+│   └── src/                      # package by feature, ver §3.0; tests junto a su módulo
 │       ├── features/
-│       │   ├── lanzar/           # formulario, generación de config.yaml
-│       │   ├── progreso/         # cursor, curva de tensión, hilos abiertos, cuota
+│       │   ├── lanzar/           # formulario y orden /novela-nueva para copiar
+│       │   ├── progreso/         # cursor, curva de tensión, hilos abiertos, runs y actividad
 │       │   └── lectura/          # escena Three.js, navegación 3D del libro
 │       ├── shared/               # cliente de la API, tipos, componentes base
 │       └── app/                  # routing, layout

@@ -57,6 +57,44 @@ def test_sin_claves_versionadas(tmp_path: Path) -> None:
     assert "clave" in resultado.stderr
 
 
+def test_pre_commit_frontend(tmp_path: Path) -> None:
+    """CA-41 (RF-41): con ficheros de frontend/ en el índice, el pre-commit pasa eslint y aborta si
+    falla; sin ellos, no invoca npm. El npm falso deja registro: sin comprobarlo, el test pasaría
+    también con el npm real, que en el repositorio temporal falla igual (VER-9)."""
+    repo = tmp_path / "repo"
+    (repo / ".githooks").mkdir(parents=True)
+    shutil.copy(RAIZ_REPO / ".githooks" / "pre-commit", repo / ".githooks" / "pre-commit")
+    _git(repo, "init", "-q")
+    _git(repo, "config", "core.hooksPath", ".githooks")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    _git(repo, "config", "user.name", "test")
+    falsos, registro = tmp_path / "bin", tmp_path / "npm.log"
+    falsos.mkdir()
+    npm = falsos / "npm"
+    npm.write_text(f'#!/bin/sh\necho "$@" >> "{registro.as_posix()}"\nexit 1\n', newline="\n")
+    npm.chmod(0o755)
+    entorno = {**os.environ, "PATH": str(falsos) + os.pathsep + os.environ["PATH"]}
+
+    def commit(mensaje: str) -> subprocess.CompletedProcess[str]:
+        _git(repo, "add", "-A")
+        return subprocess.run(  # noqa: S603
+            [GIT, "-C", str(repo), "commit", "-qm", mensaje],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=entorno,
+        )
+
+    (repo / "otro.md").write_text("sin frontend\n")
+    assert commit("sin frontend").returncode == 0
+    assert not registro.exists()
+
+    (repo / "frontend").mkdir()
+    (repo / "frontend" / "x.ts").write_text("export {};\n")
+    assert commit("con frontend").returncode != 0
+    assert registro.read_text().split() == ["--prefix", "frontend", "run", "lint"]
+
+
 def test_state_schema_al_dia() -> None:
     """CA-06 y RF-26: el JSON Schema commiteado es el que genera Pydantic ahora mismo. Si cambias
     un modelo y no regeneras, esto se pone rojo."""

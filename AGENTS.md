@@ -110,7 +110,7 @@ Ciclo obligatorio. No hay excepción por «es un cambio pequeño».
 2. **Rojo.** Escribe el test y **ejecútalo para verlo fallar**. Un test que nunca has visto en rojo no prueba nada.
 3. **Verde.** El mínimo código que lo pasa.
 4. **Refactor** con la suite en verde.
-5. `uv run pytest` completo, `mypy --strict` y `ruff` antes de commitear.
+5. `uv run pytest` completo, `mypy --strict` y `ruff` antes de commitear; en `frontend/`, `npm run verificar`.
 
 Reglas propias del proyecto:
 
