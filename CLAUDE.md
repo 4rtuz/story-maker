@@ -38,7 +38,7 @@ Máximo dos reintentos por gate. Al tercero, escribe `runs/<run_id>/intervencion
 
 Están en `.claude/agents/`, uno por rol. Invócalos con Task por su nombre exacto; no improvises roles nuevos ni hagas tú el trabajo de uno de ellos «para ahorrar una llamada».
 
-El campo `model` del frontmatter ya está fijado por rol (opus para `arquitecto`, `trazador` y `escritor`; sonnet para los de revisión; haiku para `cronista`; sonnet para `entrevistador`, que solo corre en la fase de brief). No lo cambies sobre la marcha.
+El campo `model` del frontmatter ya está fijado por rol (opus para `arquitecto` y `escritor`; haiku para `trazador`, `continuista`, `editor-estilo` y `lector-suspense`; sonnet para `cronista`, `juez` y `entrevistador`). El porqué de cada cambio está en `docs/proceso/iteraciones.md`. No lo cambies sobre la marcha.
 
 Si modificas el prompt de un agente, hazlo en su fichero y commitea: el sha del commit es lo que permite atribuir un cambio de calidad en las trazas.
 

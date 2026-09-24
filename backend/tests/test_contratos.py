@@ -318,7 +318,7 @@ CONTRATO = {
         ["capitulos/NN.md", "qa/NN-estilo.json"],
     ),
     "lector-suspense": (["Read", "Write"], "haiku", ["qa/NN-suspense.json"]),
-    "cronista": (["Read", "Write"], "haiku", ["estado/deltas/NN.json"]),
+    "cronista": (["Read", "Write"], "sonnet", ["estado/deltas/NN.json"]),
     "entrevistador": (["Read", "Write"], "sonnet", ["brief/borrador.json"]),
     "juez": (["Read", "Write"], "sonnet", ["qa/juicio.json"]),
 }

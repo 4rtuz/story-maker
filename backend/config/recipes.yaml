@@ -61,6 +61,8 @@ lector-suspense:
 cronista:
   presupuesto_tokens: 70000
   capas:
+    - permanente: [canon/mundo]
+    - plan: capitulo_actual
     - estado: [personajes, conocimiento, hilos_abiertos, objetos, relaciones, libro_de_hechos]
     - objetivo: capitulo_recien_escrito
     - cambio: capitulo_afectado
