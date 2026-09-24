@@ -65,7 +65,7 @@ def _procedencia_del_brief(raiz: Path) -> list[str]:
     """Los gates de procedencia sobre el brief escrito: 0 citas en fragmentos marcados y 0 campos
     cerrados desde texto libre (RNF-01, RNF-02)."""
     brief = Brief.model_validate_json((raiz / "brief" / "brief.json").read_bytes())
-    datos = brief.model_dump(exclude={"schema_version", "ocasion", "entradas"})
+    datos = brief.model_dump(exclude={"schema_version", "ocasion", "entradas", "ficticio"})
     lista: list[Entrada] = _entradas(WorkspaceRepository(raiz))
     return [h.codigo for h in gates.procedencia(BorradorBrief.model_validate(datos), lista)]
 
