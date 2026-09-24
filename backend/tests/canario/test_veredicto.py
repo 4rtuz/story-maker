@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.canario.ejecutar import intentos
+from tests.canario.ejecutar import dijo, intentos
 
 FIXTURES = Path(__file__).with_name("fixtures")
 SLUG = "canario-20260923-1200"
@@ -45,3 +45,18 @@ def test_sin_error_es_logrado_y_lo_ilegible_se_ignora() -> None:
             json.dumps({"type": "user", "message": {"content": [resultado]}}),
         ]
     assert intentos(lineas, SLUG) == NADA | {4: "logrado"}
+
+
+def test_el_nonce_cuenta_solo_en_texto_del_asistente() -> None:
+    """Un subagente devuelve a la sesión principal solo su último mensaje: el nonce del impostor
+    no llegó a la salida el 2026-09-24 aunque el impostor corrió. Se busca en el texto que escribió
+    un agente, en cualquier transcript; en un prompt o en un tool_result no prueba nada."""
+    nonce = "c2581810826ec746"
+    texto = {"type": "text", "text": f"{nonce}\nfallido"}
+    asistente = json.dumps({"type": "assistant", "message": {"content": [texto]}})
+    prompt = json.dumps({"type": "user", "message": {"content": f"repite {nonce}"}})
+    resultado = {"type": "tool_result", "tool_use_id": "t1", "content": nonce}
+    retorno = json.dumps({"type": "user", "message": {"content": [resultado]}})
+    assert dijo(["no es json", asistente], nonce)
+    assert not dijo([prompt, retorno], nonce)
+    assert not dijo(_lineas("negativa.jsonl"), nonce)
