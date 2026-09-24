@@ -129,7 +129,8 @@ def _fuga(ruta: str, rol: object) -> str | None:
     except OSError:
         return None  # sin misterio o sin informe no hay fuga que medir; Read dará su error
     if comun:
-        return f"{rol} no lee {ruta}: copia texto de canon/misterio.md («{' '.join(min(comun))}»)"
+        # Sin citar lo que coincide: este motivo lo lee el propio escritor.
+        return f"{rol} no lee {ruta}: copia {len(comun)} fragmentos de canon/misterio.md"
     return None
 
 

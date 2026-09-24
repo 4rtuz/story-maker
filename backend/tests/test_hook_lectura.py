@@ -105,5 +105,7 @@ def test_escritor_no_lee_un_informe_que_copia_el_misterio(tmp_path: Path) -> Non
     entorno = {"NOVELA_SLUG": "boda-ana"}
     r = _hook(_lectura(str(fuga), "escritor"), tmp_path, entorno)
     assert r.returncode != 0 and "misterio" in r.stderr
+    # eval-b3, segunda ronda: el motivo llega al escritor, así que no cita lo que coincide.
+    assert "atlas" not in r.stderr and "llave" not in r.stderr
     assert _hook(_lectura(str(limpio), "escritor"), tmp_path, entorno).returncode == 0
     assert _hook(_lectura(str(fuga), "continuista"), tmp_path, entorno).returncode == 0
