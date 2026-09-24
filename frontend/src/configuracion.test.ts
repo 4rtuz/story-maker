@@ -36,3 +36,11 @@ describe('imágenes versionadas (CA-60)', () => {
     expect(versionados.filter((f) => !permitidas(f))).toEqual([]);
   });
 });
+
+describe('imagen de Playwright del CI (RNF-14, D30)', () => {
+  it('su versión es la de @playwright/test fijada en package.json', () => {
+    const ci = fs.readFileSync(path.join(FRONTEND, '..', '.github', 'workflows', 'ci.yml'), 'utf8');
+    const imagenes = [...ci.matchAll(/mcr\.microsoft\.com\/playwright:v([\d.]+)/g)].map((m) => m[1]);
+    expect(imagenes).toEqual([paquete.devDependencies?.['@playwright/test']]);
+  });
+});

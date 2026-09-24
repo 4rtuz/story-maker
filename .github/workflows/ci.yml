@@ -45,3 +45,33 @@ jobs:
       - run: npm run build
       - run: npm run presupuesto
       - run: npm audit --omit=dev --audit-level=high
+
+  # Spec 0004, RF-40 y RNF-14: los e2e del panel en la imagen de Playwright de la versión fijada en
+  # package-lock.json, que trae Chromium y Firefox (D30, D35). La API real corre sobre los
+  # workspaces que genera e2e/preparar.ts con tests.fixtures.panel, y el panel se sirve con el build
+  # de vite preview: los dos los levanta playwright.config.ts.
+  frontend-e2e:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+    env:
+      HOME: /root # Firefox no arranca como root con otro HOME
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+        working-directory: backend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run e2e
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
