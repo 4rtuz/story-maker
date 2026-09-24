@@ -1,13 +1,22 @@
 /*
- * Componentes del panel (spec 0004 §8.4). Solo roles y medidas de tokens.css: ningún color literal
- * ni primitivo (tokens.test.ts). Foco con outline, no con box-shadow, para que siga visible con
+ * Componentes del panel (spec 0004 §8.4). Solo roles y medidas de tokens.css: ningún color literal,
+ * ningún primitivo y ninguna familia tipográfica declarada aquí (tokens.test.ts); las familias
+ * llegan con el atajo font y su rol. Foco con outline, no con box-shadow, para que siga visible con
  * forced-colors: active (RF-57).
+ *
+ * Radios: tarjetas y banner, --q-radio-tarjeta; botones, campos, ítems y subtarjetas,
+ * --q-radio-control; chips y etiquetas, --q-radio-pildora. No hay otra escala.
  */
 
 *,
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+/* `hidden` manda sobre el display de cualquier componente. */
+[hidden] {
+  display: none !important;
 }
 
 html,
@@ -54,4 +63,421 @@ body {
   width: var(--q-tamano-icono);
   height: var(--q-tamano-icono);
   stroke-width: var(--q-trazo-icono);
+}
+
+/* --- Botones ------------------------------------------------------------------------------- */
+
+.q-boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 18px;
+  border: 1px solid transparent; /* con forced-colors el sistema la pinta: el botón se ve */
+  border-radius: var(--q-radio-control);
+  font: 600 var(--q-texto-meta) / 1.2 var(--q-fuente-cuerpo);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    filter var(--q-transicion),
+    box-shadow var(--q-transicion),
+    transform var(--q-transicion);
+}
+
+.q-boton--primario {
+  background: var(--q-primario);
+  color: var(--q-texto-sobre-primario);
+}
+
+.q-boton--primario:hover {
+  filter: brightness(0.9);
+}
+
+.q-boton--secundario {
+  background: var(--q-secundario-fondo);
+  color: var(--q-texto);
+  box-shadow: var(--q-sombra-boton);
+}
+
+.q-boton--secundario:hover {
+  filter: brightness(0.92);
+  box-shadow: var(--q-sombra-tarjeta);
+}
+
+.q-boton__flecha {
+  transition: transform var(--q-transicion);
+}
+
+.q-boton:hover .q-boton__flecha {
+  transform: translateX(2px);
+}
+
+.q-boton:active {
+  transform: translateY(1px);
+}
+
+.q-boton:focus-visible {
+  outline: var(--q-contorno-foco) solid var(--q-foco);
+  outline-offset: var(--q-separacion-foco);
+}
+
+.q-boton:disabled {
+  opacity: 0.5;
+  filter: none;
+  box-shadow: none;
+  transform: none;
+  cursor: not-allowed;
+}
+
+.q-boton .q-icono {
+  width: 18px;
+  height: 18px;
+}
+
+/* --- Campo de formulario: etiqueta encima, error debajo ------------------------------------ */
+
+.q-campo {
+  display: grid;
+  gap: 8px;
+}
+
+.q-campo__etiqueta {
+  font-size: var(--q-texto-meta);
+  font-weight: 600;
+  color: var(--q-texto);
+}
+
+.q-campo__control {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--q-borde-campo);
+  border-radius: var(--q-radio-control);
+  background: var(--q-fondo-tarjeta);
+  color: var(--q-texto);
+  font: inherit;
+  transition: border-color var(--q-transicion);
+}
+
+textarea.q-campo__control {
+  min-height: 132px;
+  resize: vertical;
+}
+
+.q-campo__control:hover {
+  border-color: var(--q-texto);
+}
+
+.q-campo__control:focus-visible {
+  outline: var(--q-contorno-foco) solid var(--q-foco);
+  outline-offset: var(--q-separacion-foco);
+}
+
+.q-campo__control:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.q-campo__control[aria-invalid="true"] {
+  border-color: var(--q-icono-naranja);
+  box-shadow: inset 0 0 0 1px var(--q-icono-naranja);
+}
+
+.q-campo__error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--q-texto-meta);
+  color: var(--q-texto);
+}
+
+.q-campo__error .q-icono {
+  width: 16px;
+  height: 16px;
+  color: var(--q-icono-naranja);
+}
+
+/* --- Tarjetas ------------------------------------------------------------------------------ */
+
+.q-tarjeta {
+  min-width: 0;
+  padding: var(--q-relleno-tarjeta);
+  border: 1px solid var(--q-borde-tarjeta);
+  border-radius: var(--q-radio-tarjeta);
+  background: var(--q-fondo-tarjeta);
+  box-shadow: var(--q-sombra-tarjeta);
+}
+
+.q-tarjeta__cabecera {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.q-tarjeta__titulo {
+  flex: 1;
+  margin: 0;
+  font-size: var(--q-texto-titulo-tarjeta);
+  font-weight: var(--q-peso-titulo-tarjeta);
+  line-height: 1.2;
+}
+
+.q-cuadro-icono {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--q-cuadro-icono);
+  height: var(--q-cuadro-icono);
+  border-radius: var(--q-radio-cuadro-icono);
+}
+
+.q-cuadro-icono--naranja {
+  background: var(--q-tinte-naranja);
+  color: var(--q-icono-naranja);
+}
+
+.q-cuadro-icono--cian {
+  background: var(--q-tinte-cian);
+  color: var(--q-icono-cian);
+}
+
+.q-metrica {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 24px var(--q-relleno-tarjeta);
+}
+
+.q-metrica__texto {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.q-metrica__etiqueta {
+  margin: 0;
+  font-size: var(--q-texto-meta);
+  font-weight: 500;
+  color: var(--q-texto-secundario);
+}
+
+.q-metrica__valor {
+  margin: 0;
+  font-size: var(--q-texto-metrica);
+  font-weight: var(--q-peso-metrica);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.q-metrica__detalle {
+  margin: 0;
+  font-size: var(--q-texto-meta);
+  color: var(--q-texto-secundario);
+}
+
+.q-subtarjeta {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--q-borde-tarjeta);
+  border-radius: var(--q-radio-control);
+  background: var(--q-fondo-tarjeta);
+}
+
+/* --- Chips y etiquetas --------------------------------------------------------------------- */
+
+.q-chip,
+.q-etiqueta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--q-radio-pildora);
+  white-space: nowrap;
+}
+
+.q-chip--contador {
+  min-width: 28px;
+  justify-content: center;
+  padding: 2px 10px;
+  border: 1px solid var(--q-borde-tarjeta);
+  background: var(--q-fondo-tarjeta);
+  color: var(--q-texto);
+  font-size: var(--q-texto-meta);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.q-chip--banner {
+  padding: 5px 12px;
+  border: 1px solid var(--q-chip-borde);
+  background: var(--q-chip-fondo);
+  color: var(--q-banner-texto);
+  font-size: var(--q-texto-meta);
+}
+
+.q-chip--banner .q-icono {
+  width: 16px;
+  height: 16px;
+}
+
+.q-etiqueta {
+  padding: 2px 10px;
+  background: var(--q-secundario-fondo);
+  color: var(--q-texto);
+  font-size: var(--q-texto-etiqueta);
+  font-weight: var(--q-peso-etiqueta);
+}
+
+/* --- Banner: degradado que mantiene el inicio hasta la mitad y teselas a la derecha -------- */
+
+.q-banner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 188px;
+  overflow: hidden;
+  border-radius: var(--q-radio-tarjeta);
+  background: linear-gradient(90deg, var(--q-deco-banner-inicio) 50%, var(--q-deco-banner-fin));
+}
+
+.q-banner__texto {
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 32px 40px;
+}
+
+.q-banner__titular {
+  margin: 0;
+  font: var(--q-peso-banner) var(--q-texto-banner) / 1.1 var(--q-fuente-display);
+  color: var(--q-banner-texto);
+  overflow-wrap: anywhere; /* un slug largo se parte en su mitad, sin truncar */
+}
+
+.q-banner__subtitulo {
+  margin: 0;
+  font-size: var(--q-texto-banner-subtitulo);
+  font-weight: 600;
+  letter-spacing: var(--q-espaciado-banner-subtitulo);
+  text-transform: uppercase;
+  color: var(--q-banner-subtitulo);
+}
+
+.q-banner__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.q-banner__teselas {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-auto-rows: 1fr;
+}
+
+.q-tesela {
+  background: var(--q-deco-teselas);
+}
+
+.q-tesela--curva.q-tesela--giro-0 {
+  border-top-left-radius: 100%;
+}
+
+.q-tesela--curva.q-tesela--giro-1 {
+  border-top-right-radius: 100%;
+}
+
+.q-tesela--curva.q-tesela--giro-2 {
+  border-bottom-right-radius: 100%;
+}
+
+.q-tesela--curva.q-tesela--giro-3 {
+  border-bottom-left-radius: 100%;
+}
+
+.q-tesela--cuadro:nth-child(3n) {
+  background: transparent;
+}
+
+/* --- Esqueleto, vacío, aviso y tabla ------------------------------------------------------- */
+
+.q-esqueleto {
+  border-radius: var(--q-radio-control);
+  background: var(--q-secundario-fondo);
+  animation: q-latido 1.4s ease-in-out infinite;
+}
+
+@keyframes q-latido {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .q-esqueleto {
+    animation: none;
+  }
+}
+
+.q-vacio {
+  margin: 0;
+  padding: 18px 0;
+  color: var(--q-texto-secundario);
+}
+
+.q-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: var(--q-radio-control);
+  background: var(--q-tinte-naranja);
+  color: var(--q-texto);
+}
+
+.q-aviso .q-icono {
+  color: var(--q-icono-naranja);
+}
+
+.q-aviso__texto {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.q-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--q-texto-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.q-tabla__titulo {
+  padding-bottom: 8px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--q-texto);
+}
+
+.q-tabla th {
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--q-texto-secundario);
+  border-bottom: 1px solid var(--q-borde-tarjeta);
+}
+
+.q-tabla td {
+  padding: 7px 10px;
+  color: var(--q-texto);
+}
+
+.q-tabla tbody tr + tr td {
+  border-top: 1px solid var(--q-borde-tarjeta);
 }
