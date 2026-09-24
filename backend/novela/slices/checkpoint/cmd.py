@@ -11,7 +11,7 @@ from novela.dominio import frontmatter
 from novela.dominio.artefactos import Checkpoint, contar_palabras
 from novela.dominio.estado import Cursor
 from novela.dominio.qa import InformeQA
-from novela.plataforma import estado_db, langfuse, run
+from novela.plataforma import estado_db, langfuse, run, versiones
 from novela.plataforma.salida import USO_INCORRECTO, WORKSPACE_INVALIDO
 from novela.plataforma.workspace import WorkspaceRepository, huella, sha256
 
@@ -76,6 +76,7 @@ def checkpoint(slug: str, capitulo: int) -> None:
 
             with estado_db.abrir(ws.estado_db, solo_lectura=True) as conn:
                 cursor = estado_db.leer(conn).cursor
+                version = versiones.version_vigente(conn)
             if (cursor.capitulo, cursor.ultimo_paso) != (capitulo, "aplicar-delta"):
                 parar(1, f"el delta del capítulo {nn} no está aplicado: nunca checkpoint antes")
 
@@ -111,7 +112,7 @@ def checkpoint(slug: str, capitulo: int) -> None:
                 obra.palabras_por_capitulo.objetivo,
             )
             sink = langfuse.desde_entorno(langfuse.entorno_efectivo(run.RAIZ_REPO))
-            fallos = sink.emitir(slug, capitulo, abierto.id, scores)
+            fallos = sink.emitir(slug, capitulo, abierto.id, scores, version)
             causas.extend(fallos)
             for fallo in fallos:
                 typer.echo(f"aviso: {fallo}", err=True)

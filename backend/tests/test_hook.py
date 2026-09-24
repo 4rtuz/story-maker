@@ -214,6 +214,18 @@ def test_sesion_principal(tmp_path: Path) -> None:
         assert resultado.returncode == esperado, (ruta, resultado.stderr)
 
 
+def test_versiones_y_cambios_denegados(tmp_path: Path) -> None:
+    """CA-21 (RF-23): versiones/ y cambios/ solo los escribe `novela cambio`; ningún rol ni la
+    sesión principal."""
+    for agente in (*sorted(CONTRATO), None):
+        for ruta in (
+            "novelas/demo/versiones/v1/capitulos/01.md",
+            "novelas/demo/cambios/cam-001.json",
+        ):
+            resultado = _hook(_escritura(ruta, tmp_path, agente=agente), tmp_path)
+            assert resultado.returncode == 2, (agente, ruta, resultado.stderr)
+
+
 # --- Regla 4: órdenes Bash y PowerShell ------------------------------------------------------
 
 

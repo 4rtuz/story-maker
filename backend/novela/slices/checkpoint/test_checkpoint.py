@@ -4,7 +4,7 @@ import socket
 import tempfile
 import urllib.error
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -213,3 +213,36 @@ def test_env_ilegible_no_rompe_ni_se_imprime(
     resultado = _cli(ws, "checkpoint")
     assert resultado.exit_code == 0
     assert not any(linea in resultado.output for linea in basura)
+
+
+def test_id_de_score_versionado(novelas: Novelas, monkeypatch: pytest.MonkeyPatch) -> None:
+    """CA-40 (RF-43): con la versión 1, los ids de siempre; con la 2, los mismos con v2. Un sink
+    falso registra el id que calcula `langfuse.id_de_score` con la versión que recibe."""
+    ids: list[str] = []
+
+    class Espia:
+        def emitir(
+            self,
+            slug: str,
+            capitulo: int,
+            run_id: str,
+            scores: Mapping[str, float],
+            version: int = 1,
+        ) -> list[str]:
+            ids.extend(langfuse.id_de_score(slug, run_id, capitulo, n, version) for n in scores)
+            return []
+
+    monkeypatch.setattr(langfuse, "desde_entorno", lambda _: Espia())
+    ws = _cerrar_hasta_delta(novelas)
+    assert _cli(ws, "checkpoint").exit_code == 0
+    assert ids and all(i.startswith(f"{ws.slug}-{fabrica.run_id(8)}-08-") for i in ids)
+    assert not any(i.endswith("-v1") for i in ids)
+
+    ws = novelas("demo-cambio")
+    assert fabrica.pedir_cambio(ws.raiz.parent, ws.slug).exit_code == 0
+    fabrica.reaplicar(ws.raiz, 1)
+    ids.clear()
+    texto, delta = fabrica.regenerado(ws.raiz, fabrica.CAMBIO, 2)
+    fabrica.cerrar_regenerado(ws.raiz, fabrica.CAMBIO, 2, texto, delta)
+    prefijo = f"{ws.slug}-{fabrica.run_v2(2)}-02-"
+    assert ids and all(i.startswith(prefijo) and i.endswith("-v2") for i in ids)

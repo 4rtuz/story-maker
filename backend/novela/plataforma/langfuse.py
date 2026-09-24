@@ -21,9 +21,21 @@ from typing import Protocol
 TIMEOUT_S = 5.0
 
 
+def id_de_score(slug: str, run_id: str, capitulo: int, nombre: str, version: int) -> str:
+    """Determinista: reemitir el capítulo sustituye el score en vez de duplicarlo. Con una versión
+    mayor que 1 lleva `-vN`, para no pisar los de la anterior (spec 0007, D20)."""
+    base = f"{slug}-{run_id}-{capitulo:02d}-{nombre}"
+    return base if version == 1 else f"{base}-v{version}"
+
+
 class ScoreSink(Protocol):
     def emitir(
-        self, slug: str, capitulo: int, run_id: str, scores: Mapping[str, float]
+        self,
+        slug: str,
+        capitulo: int,
+        run_id: str,
+        scores: Mapping[str, float],
+        version: int = 1,
     ) -> list[str]:
         """Devuelve los fallos, vacío si todo llegó."""
         ...
@@ -31,7 +43,12 @@ class ScoreSink(Protocol):
 
 class SinkNulo:
     def emitir(
-        self, slug: str, capitulo: int, run_id: str, scores: Mapping[str, float]
+        self,
+        slug: str,
+        capitulo: int,
+        run_id: str,
+        scores: Mapping[str, float],
+        version: int = 1,
     ) -> list[str]:
         return []
 
@@ -43,13 +60,17 @@ class SinkLangfuse:
     secreta: str
 
     def emitir(
-        self, slug: str, capitulo: int, run_id: str, scores: Mapping[str, float]
+        self,
+        slug: str,
+        capitulo: int,
+        run_id: str,
+        scores: Mapping[str, float],
+        version: int = 1,
     ) -> list[str]:
         credencial = base64.b64encode(f"{self.publica}:{self.secreta}".encode()).decode()
         for nombre, valor in scores.items():
             cuerpo = {
-                # Id determinista: reemitir el capítulo sustituye el score en vez de duplicarlo.
-                "id": f"{slug}-{run_id}-{capitulo:02d}-{nombre}",
+                "id": id_de_score(slug, run_id, capitulo, nombre, version),
                 "sessionId": run_id,
                 "name": nombre,
                 "value": valor,

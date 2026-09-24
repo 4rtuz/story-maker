@@ -131,3 +131,13 @@ def test_manda_el_entorno(entorno: dict[str, str], fichero: dict[str, str]) -> N
     fusion = langfuse.fusionar(entorno, "".join(f"{k}={v}\n" for k, v in fichero.items()))
     assert all(fusion[k] == v for k, v in entorno.items())
     assert set(fusion) == set(entorno) | {k for k in fichero if k != "OTRA"}
+
+
+def test_id_de_score() -> None:
+    """D9 (RF-43): con la versión 1, el id de siempre; con otra, el mismo con `-vN`."""
+    assert langfuse.id_de_score("demo", "r-20260923-1000", 8, "tension", 1) == (
+        "demo-r-20260923-1000-08-tension"
+    )
+    assert langfuse.id_de_score("demo", "r-20260923-1000", 8, "tension", 2) == (
+        "demo-r-20260923-1000-08-tension-v2"
+    )
