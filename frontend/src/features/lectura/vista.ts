@@ -5,9 +5,12 @@
 import type { Ruta, Vista } from '../../app/rutas';
 import * as api from '../../shared/api/cliente';
 import { ErrorDeApi } from '../../shared/api/errores';
+import { lectorDelNavegador } from '../../shared/marca/lector-de-tokens';
 import { CADA_DATOS, type Recurso } from '../../shared/sondeo';
 import { banner, datosDeBanner } from '../../shared/ui/banner';
-import { aviso, boton, el, esqueleto, etiqueta, tarjeta, vacio } from '../../shared/ui/componentes';
+import { aviso, boton, el, esqueleto, estadoVacio, etiqueta, tarjeta, vacio } from '../../shared/ui/componentes';
+import { disposicion } from './disposicion';
+import type { Escena, FabricaDeRenderer } from './escena';
 import { estadosDeVolumen, TEXTO_DE_ESTADO, type EstadoDeVolumen } from './estados';
 import { tecla } from './navegacion';
 
@@ -22,15 +25,22 @@ interface Datos {
 
 const FOCUSABLES = 'button, [href], [tabindex]:not([tabindex="-1"])';
 
+const reducirMovimiento = (): boolean =>
+  typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 export function lectura(
   { slug, capitulo }: { slug: string; capitulo?: number },
   navegar: (ruta: Ruta) => void,
+  opciones: { crearRenderer?: FabricaDeRenderer } = {},
 ): Vista {
   const datos: Datos = {};
   let seleccion = capitulo ?? 1;
   let abierto: number | null = capitulo ?? null;
   let texto: { n: number; markdown: string } | { n: number; error: string } | null = null;
   let peticion: { n: number; control: AbortController } | null = null;
+  let escena3d: Escena | null = null;
+  let estadoEscena: 'sin-empezar' | 'cargando' | 'lista' | 'no-disponible' = 'sin-empezar';
+  let montada = true;
 
   const cabecera = el('div', 'q-progreso__banner', banner(datosDeBanner(slug, undefined, undefined)));
   const tarjetaEscena = tarjeta({ titulo: 'Estantería', icono: 'library', tono: 'naranja', clase: 'q-lectura__estanteria' });
@@ -52,6 +62,7 @@ export function lectura(
   const cerrar = (): void => navegar({ vista: 'lectura', slug });
 
   function seleccionar(n: number, enfocar = false): void {
+    if (n !== seleccion) escena3d?.seleccionar(n);
     seleccion = n;
     escena.dataset.seleccion = String(n);
     for (const b of lista.querySelectorAll<HTMLButtonElement>('[data-capitulo]')) {
@@ -103,11 +114,50 @@ export function lectura(
     seleccionar(seleccion);
   }
 
+  /** Three.js y la escena llegan en su propio chunk al entrar en Lectura (RNF-02). */
+  async function iniciarEscena(): Promise<void> {
+    estadoEscena = 'cargando';
+    const modulo = await import('./escena');
+    if (!montada) return;
+    escena.replaceChildren();
+    escena3d = modulo.crearEscena({
+      contenedor: escena,
+      lector: lectorDelNavegador(),
+      crearRenderer: opciones.crearRenderer ?? modulo.rendererWebGL,
+      reducirMovimiento,
+      alSeleccionar: (n) => seleccionar(n),
+      alAbrir: abrir,
+      alFallar: sinEscena,
+    });
+    if (!escena3d) return sinEscena();
+    estadoEscena = 'lista';
+    pintarEscena();
+  }
+
+  /** Sin WebGL, o con el contexto perdido: queda la lista, que tiene lo mismo (RF-29). */
+  function sinEscena(): void {
+    escena3d = null;
+    estadoEscena = 'no-disponible';
+    escena.replaceChildren(
+      estadoVacio({
+        icono: 'library',
+        texto: 'vista 3D no disponible',
+        pista: 'La lista de capítulos tiene los mismos volúmenes y abre el lector.',
+      }),
+    );
+  }
+
+  function pintarEscena(): void {
+    escena3d?.actualizar(estados(), disposicion(total(), datos.escaleta?.actos ?? null), seleccion);
+  }
+
   function pintar(): void {
     cabecera.replaceChildren(banner(datosDeBanner(slug, datos.config, undefined)));
     if (!datos.config) return;
     escena.dataset.volumenes = String(total());
     pintarLista();
+    if (estadoEscena === 'sin-empezar') void iniciarEscena();
+    pintarEscena();
     if (datos.checkpoint === undefined || datos.capitulos === undefined) return;
     const sinCerrados = !estados().includes('cerrado');
     tarjetaLista.cuerpo.replaceChildren(...(sinCerrados ? [vacio('ningún capítulo cerrado todavía')] : []), lista);
@@ -236,7 +286,9 @@ export function lectura(
       return true;
     },
     desmontar() {
+      montada = false;
       peticion?.control.abort();
+      escena3d?.liberar();
     },
   };
 }
