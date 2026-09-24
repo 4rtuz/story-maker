@@ -17,6 +17,7 @@ from novela.slices.export.cmd import exportar
 from novela.slices.formal.cmd import verificar_lean
 from novela.slices.juicio.cmd import comparar_juicios, juicio
 from novela.slices.nueva.cmd import nueva
+from novela.slices.observabilidad import cmd as observabilidad
 from novela.slices.plan.cmd import validar_plan
 from novela.slices.producir.cmd import producir
 from novela.slices.prosa.cmd import lint_prosa
@@ -51,6 +52,9 @@ app.command("verificar-lean")(con_codigos(verificar_lean))
 app.command("lint-prosa")(con_codigos(lint_prosa))
 app.command()(con_codigos(juicio))
 app.command("comparar-juicios")(con_codigos(comparar_juicios))
+app.command()(con_codigos(observabilidad.costes))
+app.command()(con_codigos(observabilidad.traza))
+app.add_typer(observabilidad.prompts_app, name="prompts")
 
 brief_app = typer.Typer(no_args_is_help=True, help="Fase de brief de una novela de regalo.")
 brief_app.command()(con_codigos(brief.iniciar))

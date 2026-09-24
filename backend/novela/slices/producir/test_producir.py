@@ -12,7 +12,6 @@ from typer.testing import CliRunner
 from novela.cli import app
 from novela.plataforma import lanzador
 from novela.plataforma.workspace import WorkspaceRepository
-from novela.slices.producir.cmd import entorno_de_sesion
 from novela.slices.producir.flujo import Puertos, orden_nueva, producir
 
 NUM = 3
@@ -215,9 +214,41 @@ def test_export_de_antes_no_cuenta_como_publicada(tmp_path: Path) -> None:
     assert estado == "fallido" and "export" in detalle
 
 
-def test_la_sesion_exporta_el_slug_para_el_hook() -> None:
+def test_la_sesion_exporta_el_slug_para_el_hook(tmp_path: Path) -> None:
     """security-report.md S-02: la regla 6 del hook limita las lecturas de los roles a la novela
     de NOVELA_SLUG."""
-    entorno = entorno_de_sesion("boda-ana", "0f8fad5b-d9cb-469f-a165-70867728950e")
-    assert entorno["NOVELA_SLUG"] == entorno["CC_LANGFUSE_TRACE_TAGS"] == "boda-ana"
-    assert entorno["NOVELA_SESSION_ID"] == "0f8fad5b-d9cb-469f-a165-70867728950e"
+    from novela.slices.producir import cmd
+
+    h = Harness(tmp_path)
+    entorno = cmd.entorno_sesion(h.ws, "/novela-auditar demo", "0f8fad5b", {}, {})
+    assert entorno["NOVELA_SLUG"] == entorno["CC_LANGFUSE_TRACE_TAGS"] == "demo"
+
+
+def test_cada_sesion_cuelga_de_la_traza_de_su_paso(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Una traza por paso en la sesión de la novela (docs/observabilidad.md §1), y el SessionEnd
+    del plugin con tiempo de enviar el último turno de un `claude -p`."""
+    from novela.slices.observabilidad import traza
+    from novela.slices.producir import cmd
+
+    abiertas: list[tuple[str, str]] = []
+
+    def abrir(_entorno: object, slug: str, paso: str, metadatos: dict[str, str]) -> str:
+        abiertas.append((slug, paso))
+        assert "sha_commit" in metadatos and "prompt_escritor" in metadatos
+        return "00-" + "a" * 32 + "-" + "b" * 16 + "-01"
+
+    monkeypatch.setattr(traza, "abrir", abrir)
+    h = Harness(tmp_path)
+    h.cerrados = 1
+    (h.ws.raiz / "checkpoints").mkdir(parents=True)
+    (h.ws.raiz / "checkpoints" / "latest.json").write_text('{"capitulo": 1}', encoding="utf-8")
+    uuid = "12345678-1234-1234-1234-123456789abc"
+    entorno = cmd.entorno_sesion(h.ws, "/novela-continuar demo --capitulos 1", uuid, {}, {})
+    assert abiertas == [("demo", "capitulo 02")]
+    assert entorno["CC_LANGFUSE_TRACEPARENT"].startswith("00-aaaa")
+    assert entorno["NOVELA_SESSION_ID"] == uuid
+    assert int(entorno["CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS"]) >= 30000
+    cmd.entorno_sesion(h.ws, "/novela-auditar demo", uuid, {}, {})
+    assert abiertas[-1] == ("demo", "auditoria")

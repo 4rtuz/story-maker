@@ -200,10 +200,12 @@ Desatendido, una sesión por capítulo para acotar el contexto y el daño de un 
 ```bash
 export MSYS_NO_PATHCONV=1                 # sin esto, "/novela-continuar" llega como ruta de Windows
 export CC_LANGFUSE_TRACE_TAGS=<slug>
+export CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS=30000   # sin esto, -p pierde el último turno
 novela comprobar-entorno || exit 1
 while novela pendiente <slug>; do
   antes=$(cat novelas/<slug>/checkpoints/latest.json 2>/dev/null)
   export NOVELA_SESSION_ID=$(python -c "import uuid; print(uuid.uuid4())")
+  export CC_LANGFUSE_TRACEPARENT=$(novela traza <slug> /novela-continuar)   # docs/observabilidad.md
   claude -p "/novela-continuar <slug> --capitulos 1" --session-id "$NOVELA_SESSION_ID" \
     --setting-sources project,local --permission-mode dontAsk --model opus || break
   [ "$(cat novelas/<slug>/checkpoints/latest.json 2>/dev/null)" != "$antes" ] || break

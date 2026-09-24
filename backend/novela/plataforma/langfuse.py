@@ -19,6 +19,18 @@ from pathlib import Path
 from typing import Protocol
 
 TIMEOUT_S = 5.0
+_TRACEPARENT = re.compile(r"00-([0-9a-f]{32})-[0-9a-f]{16}-[0-9a-f]{2}")
+
+
+def sesion_de(slug: str) -> str:
+    """La sesión de Langfuse de una novela: una sola para el brief, cada paso y cada cambio."""
+    return f"novela-{slug}"
+
+
+def traza_de(entorno: Mapping[str, str]) -> str | None:
+    """La traza del paso en curso, si `producir` o `novela traza` la abrieron."""
+    casa = _TRACEPARENT.fullmatch(entorno.get("CC_LANGFUSE_TRACEPARENT", "").strip())
+    return casa.group(1) if casa else None
 
 
 class ScoreSink(Protocol):
@@ -51,6 +63,7 @@ class SinkLangfuse:
     base_url: str
     publica: str
     secreta: str
+    traza: str | None = None  # la del capítulo; sin ella, la sesión de la novela
 
     def emitir(
         self,
@@ -65,7 +78,9 @@ class SinkLangfuse:
             cuerpo = {
                 # Id determinista: reemitir el capítulo sustituye el score en vez de duplicarlo.
                 "id": f"{slug}-{run_id}-{capitulo:02d}-{nombre}",
-                "sessionId": run_id,
+                # Langfuse admite uno solo: la traza del capítulo ya está en la sesión de la novela.
+                **({"traceId": self.traza} if self.traza else {"sessionId": sesion_de(slug)}),
+                "metadata": {"run_id": run_id, "capitulo": capitulo},
                 "name": nombre,
                 "value": valor,
                 "dataType": "NUMERIC",
@@ -125,4 +140,5 @@ def desde_entorno(entorno: Mapping[str, str]) -> ScoreSink:
         base_url=base or "https://cloud.langfuse.com",
         publica=entorno.get("LANGFUSE_PUBLIC_KEY", ""),
         secreta=entorno.get("LANGFUSE_SECRET_KEY", ""),
+        traza=traza_de(entorno),
     )
