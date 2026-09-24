@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from novela.dominio.base import SCHEMA_VERSION, ColeccionAppendOnly
-from novela.dominio.estado import Estado
+from novela.dominio.estado import Estado, UsoDeHecho
 
 
 class EstadoIlegible(Exception):
@@ -73,6 +73,54 @@ def transaccion(conn: sqlite3.Connection) -> Iterator[None]:
         conn.execute("ROLLBACK")
         raise
     conn.execute("COMMIT")
+
+
+_MARCA_USOS = "-- usos_de_hecho:"
+
+
+def asegurar_usos(conn: sqlite3.Connection) -> None:
+    """RF-05: crea `usos_de_hecho`, su índice y sus triggers si faltan. Va dentro de la
+    transacción de quien llama, así que ejecuta sentencia a sentencia: `executescript` haría un
+    COMMIT implícito."""
+    ddl = resources.files(__package__).joinpath("esquema.sql").read_text(encoding="utf-8")
+    sentencia = ""
+    for linea in ddl[ddl.index(_MARCA_USOS) :].splitlines(keepends=True):
+        sentencia += linea
+        if sqlite3.complete_statement(sentencia):
+            conn.execute(sentencia)
+            sentencia = ""
+
+
+def registrar_usos(conn: sqlite3.Connection, usos: Iterable[UsoDeHecho]) -> None:
+    """Append-only e idempotente: un uso ya registrado se ignora, nunca se reescribe (RF-04)."""
+    conn.executemany(
+        "INSERT OR IGNORE INTO usos_de_hecho VALUES (?, ?, ?)",
+        ((u.hecho, u.capitulo, u.via) for u in usos),
+    )
+
+
+def _de_usos(conn: sqlite3.Connection, sql: str, hecho: str) -> list[Any]:
+    try:
+        return conn.execute(sql, (hecho,)).fetchall()
+    except sqlite3.OperationalError as exc:
+        if "no such table" not in str(exc):
+            raise
+        raise EstadoIlegible(f"estado.db sin tabla usos_de_hecho: {exc}") from exc
+
+
+def usos(conn: sqlite3.Connection, hecho: str) -> list[UsoDeHecho]:
+    """Por capítulo y, dentro de cada uno, en el orden en que se registraron."""
+    filas = _de_usos(
+        conn,
+        "SELECT hecho, capitulo, via FROM usos_de_hecho WHERE hecho = ? ORDER BY capitulo, rowid",
+        hecho,
+    )
+    return [UsoDeHecho(hecho=h, capitulo=c, via=v) for h, c, v in filas]
+
+
+def capitulos_que_usan(conn: sqlite3.Connection, hecho: str) -> list[int]:
+    sql = "SELECT DISTINCT capitulo FROM usos_de_hecho WHERE hecho = ? ORDER BY capitulo"
+    return [c for (c,) in _de_usos(conn, sql, hecho)]
 
 
 class HistoriaReescrita(ValueError):

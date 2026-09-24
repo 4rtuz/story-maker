@@ -137,3 +137,19 @@ CREATE TRIGGER tension_real_no_update BEFORE UPDATE ON tension_real
 BEGIN SELECT RAISE(ABORT, 'tension_real es append-only'); END;
 CREATE TRIGGER tension_real_no_delete BEFORE DELETE ON tension_real
 BEGIN SELECT RAISE(ABORT, 'tension_real es append-only'); END;
+
+-- usos_de_hecho: índice hecho→capítulo (spec 0007), derivado de los deltas por aplicar-delta.
+-- Aditivo sobre bases anteriores: asegurar_usos ejecuta desde la línea anterior hasta el final,
+-- sentencia a sentencia y dentro de la transacción de quien llama, así que todo lo de aquí abajo
+-- lleva IF NOT EXISTS. La clave empieza por `hecho`: la consulta hecho→capítulos usa su índice.
+CREATE TABLE IF NOT EXISTS usos_de_hecho (
+    hecho    TEXT NOT NULL,
+    capitulo INTEGER NOT NULL,
+    via      TEXT NOT NULL CHECK (via IN ('origen', 'conocimiento', 'lector', 'cita')),
+    PRIMARY KEY (hecho, capitulo, via)
+) STRICT;
+CREATE INDEX IF NOT EXISTS usos_por_capitulo ON usos_de_hecho (capitulo);
+CREATE TRIGGER IF NOT EXISTS usos_de_hecho_no_update BEFORE UPDATE ON usos_de_hecho
+BEGIN SELECT RAISE(ABORT, 'usos_de_hecho es append-only'); END;
+CREATE TRIGGER IF NOT EXISTS usos_de_hecho_no_delete BEFORE DELETE ON usos_de_hecho
+BEGIN SELECT RAISE(ABORT, 'usos_de_hecho es append-only'); END;

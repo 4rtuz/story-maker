@@ -1,7 +1,10 @@
 import sqlite3
 from importlib import resources
+from pathlib import Path
 
 import pytest
+
+from novela.plataforma import estado_db
 
 FILAS = {
     "libro_de_hechos": "INSERT INTO libro_de_hechos VALUES ('hec-001', 't', 1, 'c')",
@@ -28,3 +31,20 @@ def test_append_only_por_trigger(base: sqlite3.Connection, tabla: str, operacion
     with pytest.raises(sqlite3.IntegrityError, match=f"{tabla} es append-only"):
         base.execute(operacion.format(t=tabla))
     assert base.execute(f"SELECT count(*) FROM {tabla}").fetchone() == (1,)  # noqa: S608
+
+
+def test_usos_append_only(tmp_path: Path) -> None:
+    """CA-01 (RF-01): se inserta, no se actualiza ni se borra, y el motor rechaza una `via`
+    desconocida y un capítulo que no es entero."""
+    ruta = tmp_path / "estado.db"
+    estado_db.crear(ruta)
+    with estado_db.abrir(ruta) as conn:
+        conn.execute("INSERT INTO usos_de_hecho VALUES ('hec-001', 1, 'origen')")
+        for orden in ("UPDATE usos_de_hecho SET capitulo = 2", "DELETE FROM usos_de_hecho"):
+            with pytest.raises(sqlite3.IntegrityError, match="usos_de_hecho es append-only"):
+                conn.execute(orden)
+        with pytest.raises(sqlite3.IntegrityError, match="CHECK"):
+            conn.execute("INSERT INTO usos_de_hecho VALUES ('hec-001', 2, 'menciona')")
+        with pytest.raises(sqlite3.IntegrityError, match="cannot store TEXT"):
+            conn.execute("INSERT INTO usos_de_hecho VALUES ('hec-001', 'dos', 'cita')")
+        assert conn.execute("SELECT * FROM usos_de_hecho").fetchall() == [("hec-001", 1, "origen")]

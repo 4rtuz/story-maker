@@ -1,10 +1,11 @@
 import sqlite3
+import time
 from pathlib import Path
 
 import pytest
 from hypothesis import given
 
-from novela.dominio.estado import Estado, Hecho
+from novela.dominio.estado import Estado, Hecho, UsoDeHecho
 from novela.plataforma import estado_db
 from tests import estrategias
 
@@ -100,3 +101,77 @@ def test_leer_filtrado_por_personajes(estado: Estado) -> None:
     assert all(o.poseedor is None or o.poseedor in elegidos for o in filtrado.objetos)
     assert filtrado.libro_de_hechos == estado.libro_de_hechos
     assert filtrado.hilos == estado.hilos
+
+
+def _quitar_usos(ruta: Path) -> None:
+    """Una base anterior a la spec 0007: sin la tabla, que se lleva su índice y sus triggers."""
+    with sqlite3.connect(ruta) as conn:
+        conn.execute("DROP TABLE usos_de_hecho")
+
+
+def test_capitulos_que_usan(tmp_path: Path) -> None:
+    """CA-06 (RF-06, RNF-01): capítulos distintos en orden, en solo lectura; < 50 ms sobre la base
+    sintética de 99 capítulos, 300 hechos y 20 usos por hecho; sin tabla, EstadoIlegible."""
+    ruta = tmp_path / "estado.db"
+    estado_db.crear(ruta)
+    usos = [
+        UsoDeHecho(hecho="hec-002", capitulo=c, via=v)
+        for c, v in ((6, "cita"), (2, "origen"), (2, "lector"), (4, "cita"), (2, "conocimiento"))
+    ]
+    with estado_db.abrir(ruta) as conn, estado_db.transaccion(conn):
+        estado_db.registrar_usos(conn, usos)
+        estado_db.registrar_usos(conn, usos)  # repetir no duplica ni falla
+    with estado_db.abrir(ruta, solo_lectura=True) as conn:
+        assert estado_db.capitulos_que_usan(conn, "hec-002") == [2, 4, 6]
+        assert estado_db.capitulos_que_usan(conn, "hec-900") == []
+        assert sorted(estado_db.usos(conn, "hec-002"), key=str) == sorted(usos, key=str)
+
+    sintetica = tmp_path / "sintetica.db"
+    estado_db.crear(sintetica)
+    vias = ("origen", "conocimiento", "lector", "cita")
+    with estado_db.abrir(sintetica) as conn, estado_db.transaccion(conn):
+        conn.executemany(
+            "INSERT INTO usos_de_hecho VALUES (?, ?, ?)",
+            (
+                (f"hec-{h:03d}", (h + 5 * i) % 99 + 1, vias[i % 4])
+                for h in range(1, 301)
+                for i in range(20)
+            ),
+        )
+    with estado_db.abrir(sintetica, solo_lectura=True) as conn:
+        assert conn.execute("SELECT count(*) FROM usos_de_hecho").fetchone() == (6000,)
+        inicio = time.perf_counter()
+        capitulos = estado_db.capitulos_que_usan(conn, "hec-150")
+        assert time.perf_counter() - inicio < 0.05
+        assert capitulos == sorted({(150 + 5 * i) % 99 + 1 for i in range(20)})
+
+    _quitar_usos(ruta)
+    for solo_lectura in (True, False):
+        with estado_db.abrir(ruta, solo_lectura=solo_lectura) as conn:
+            with pytest.raises(estado_db.EstadoIlegible, match="usos_de_hecho"):
+                estado_db.usos(conn, "hec-002")
+            with pytest.raises(estado_db.EstadoIlegible, match="usos_de_hecho"):
+                estado_db.capitulos_que_usan(conn, "hec-002")
+
+
+def test_asegurar_usos_dentro_de_la_transaccion(tmp_path: Path) -> None:
+    """RF-05, la mitad de plataforma: sobre una base sin la tabla, la crea con sus triggers sin
+    cerrar la transacción de quien llama; sobre una que ya la tiene, no hace nada."""
+    ruta = tmp_path / "estado.db"
+    estado_db.crear(ruta)
+    _quitar_usos(ruta)
+    with estado_db.abrir(ruta) as conn:
+        with pytest.raises(RuntimeError):
+            with estado_db.transaccion(conn):
+                estado_db.asegurar_usos(conn)
+                assert conn.in_transaction
+                raise RuntimeError("corte")
+        with pytest.raises(estado_db.EstadoIlegible):  # el corte se llevó también el DDL
+            estado_db.usos(conn, "hec-001")
+        for _ in range(2):
+            with estado_db.transaccion(conn):
+                estado_db.asegurar_usos(conn)
+                assert conn.in_transaction
+        estado_db.registrar_usos(conn, [UsoDeHecho(hecho="hec-001", capitulo=1, via="origen")])
+        with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+            conn.execute("DELETE FROM usos_de_hecho")

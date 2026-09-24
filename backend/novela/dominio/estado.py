@@ -119,6 +119,18 @@ class Hecho(Modelo):
     cita: str
 
 
+Via = Literal["origen", "conocimiento", "lector", "cita"]
+
+
+class UsoDeHecho(Modelo):
+    """Una fila de `usos_de_hecho`: el capítulo `capitulo` usa el hecho `hecho` por `via`. Es un
+    índice derivado de los deltas y no forma parte de `Estado` (spec 0007, D19)."""
+
+    hecho: HechoId
+    capitulo: CapituloNum
+    via: Via
+
+
 class Hilo(Modelo):
     id: HiloId
     estado: Literal["abierto", "cerrado"]

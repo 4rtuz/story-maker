@@ -244,7 +244,10 @@ Lo que ya ocurrió. Fuente única de verdad sobre el texto existente. Vive en `e
 **`metricas`** — Palabras totales y desviación respecto al plan. `desviacion_vs_plan` es una fracción con signo, no un porcentaje. Alimenta la decisión de comprimir o expandir los capítulos restantes.
 `objeto` · **DERIVADO** · cronista → orquestador
 
-Los nombres de esta rama son los del documento serializado de `architecture.md` §7.1, que es el que valida `state.schema.json`, el que responde la API y el que nombra las tablas de `esquema.sql`. Un nombre por campo: no hay alias.
+**`usos_de_hecho`** — Índice hecho→capítulo, filas `UsoDeHecho {hecho, capitulo, via}` con `via` en `origen | conocimiento | lector | cita`: el capítulo `capitulo` introduce el hecho, lo da a saber a un personaje o al lector, o lo cita. Vive en `estado.db` pero no en la vista `Estado`, así que ni `novela estado` ni la API lo sirven; se escribe con `estado_db.registrar_usos`, que ignora un uso ya registrado, y se consulta con `estado_db.usos` y `estado_db.capitulos_que_usan`, que lanzan `EstadoIlegible` en una base anterior a la tabla.
+`tabla` · **APPEND-ONLY, DERIVADO** · estado_db.registrar_usos → estado_db.capitulos_que_usan
+
+Los nombres de esta rama son los del documento serializado de `architecture.md` §7.1, que es el que valida `state.schema.json`, el que responde la API y el que nombra las tablas de `esquema.sql`. Un nombre por campo: no hay alias. `usos_de_hecho` es la excepción: una tabla de `esquema.sql` que no está en el documento serializado.
 
 ---
 

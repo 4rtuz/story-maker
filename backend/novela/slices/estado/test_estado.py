@@ -1,3 +1,5 @@
+import json
+import sqlite3
 import time
 from collections.abc import Callable
 
@@ -48,3 +50,15 @@ def test_pendiente_codigos(novelas: Novelas) -> None:
     terminada = runner.invoke(app, ["pendiente", "demo-terminado"])
     assert (quedan.exit_code, quedan.stdout) == (0, "")
     assert (terminada.exit_code, terminada.stdout) == (1, "")
+
+
+def test_estado_sin_tabla_usos(novelas: Novelas) -> None:
+    """CA-07 (RF-07): una base anterior a la spec 0007 responde lo mismo que una con la tabla."""
+    ws = novelas("demo-24")
+    runner = CliRunner()
+    con_tabla = runner.invoke(app, ["estado", "demo-24", "--json"])
+    with sqlite3.connect(ws.raiz / "estado" / "estado.db") as conn:
+        conn.execute("DROP TABLE usos_de_hecho")
+    sin_tabla = runner.invoke(app, ["estado", "demo-24", "--json"])
+    assert (con_tabla.exit_code, sin_tabla.exit_code) == (0, 0), sin_tabla.output
+    assert json.loads(sin_tabla.stdout) == json.loads(con_tabla.stdout)
