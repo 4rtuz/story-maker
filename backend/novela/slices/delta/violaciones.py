@@ -65,17 +65,24 @@ def _cursor(estado: Estado, delta: Delta, fm: FrontmatterCapitulo) -> list[str]:
 
 
 def _citas(delta: Delta, cuerpo: str) -> list[str]:
-    """RF-33: toda cita presente, de las cuatro colecciones que la llevan, es literal del cuerpo."""
+    """RF-33: toda cita presente, de las cinco colecciones que la llevan, es literal del cuerpo."""
     texto = normalizar(cuerpo)
     citadas: list[tuple[str, str | None]] = [(h.id, h.cita) for h in delta.libro_de_hechos]
     citadas += [(e.escena, e.cita) for e in delta.linea_temporal]
     citadas += [(e.hecho, e.cita) for e in delta.conocimiento_lector]
     citadas += [(e.hecho, e.cita) for es in delta.conocimiento.values() for e in es]
+    citadas += [(u.hecho, u.cita) for u in delta.hechos_usados]
     return [
         f"la cita de {origen} no es literal del capítulo"
         for origen, cita in citadas
         if cita is not None and normalizar(cita) not in texto
     ]
+
+
+def _usos(estado: Estado, delta: Delta) -> list[str]:
+    """Spec 0007 RF-02: un hecho usado está en el libro vigente o lo introduce el propio delta."""
+    existen = {h.id for h in estado.libro_de_hechos} | {h.id for h in delta.libro_de_hechos}
+    return [f"hecho inexistente: {u.hecho}" for u in delta.hechos_usados if u.hecho not in existen]
 
 
 def _hilos(delta: Delta, fm: FrontmatterCapitulo) -> list[str]:
@@ -103,5 +110,6 @@ def violaciones(estado: Estado, delta: Delta, cuerpo: str, fm: FrontmatterCapitu
         + _reescrituras(estado, delta)
         + _cursor(estado, delta, fm)
         + _citas(delta, cuerpo)
+        + _usos(estado, delta)
         + _hilos(delta, fm)
     )

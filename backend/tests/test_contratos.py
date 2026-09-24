@@ -111,6 +111,14 @@ def test_state_schema_al_dia() -> None:
         assert "schema_version" in esquema["properties"], nombre
 
 
+def test_delta_schema_al_dia() -> None:
+    """RF-02: el esquema que lee el cronista trae `hechos_usados`, opcional y con cita."""
+    esquema = json.loads((SCHEMAS / "delta.schema.json").read_text(encoding="utf-8"))
+    assert "hechos_usados" in esquema["properties"]
+    assert "hechos_usados" not in esquema.get("required", [])
+    assert set(esquema["$defs"]["UsoCitado"]["required"]) == {"hecho", "cita"}
+
+
 def test_estado_json_valida_contra_el_esquema(
     novelas: Callable[[str], WorkspaceRepository],
 ) -> None:

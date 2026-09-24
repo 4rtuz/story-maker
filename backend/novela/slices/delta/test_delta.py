@@ -80,6 +80,30 @@ def test_aplica_y_es_idempotente_en_disco(novelas: Novelas) -> None:
         assert estado_db.leer(conn) == una
 
 
+@pytest.mark.parametrize(
+    ("uso", "causa"),
+    [
+        ({"hecho": "hec-002", "cita": "los escalones del faro por 8 vez"}, None),
+        ({"hecho": "hec-002", "cita": "Elena nunca subió al faro."}, "no es literal"),
+        ({"hecho": "hec-900", "cita": "los escalones del faro por 8 vez"}, "hecho inexistente"),
+    ],
+)
+def test_hechos_usados_cita(novelas: Novelas, uso: dict[str, str], causa: str | None) -> None:
+    """CA-02 (RF-02): un uso con cita literal de un hecho que existe aplica; una cita que no está
+    en el cuerpo o un hecho que no existe salen con 1 y la base intacta."""
+    ws, antes = _preparado(novelas)
+    ruta = ws.raiz / "estado" / "deltas" / "08.json"
+    delta = json.loads(ruta.read_text(encoding="utf-8"))
+    ruta.write_text(json.dumps(delta | {"hechos_usados": [uso]}), encoding="utf-8")
+    resultado = _aplicar(ws)
+    if causa is None:
+        assert resultado.exit_code == 0, resultado.output
+        return
+    assert resultado.exit_code == 1
+    assert causa in resultado.output
+    assert (ws.raiz / "estado" / "estado.db").read_bytes() == antes
+
+
 def test_renderiza_memoria(novelas: Novelas) -> None:
     """CA-19: memoria/resumenes/NN.md trae las tres granularidades del delta, con la escena por
     id; lo escribe aplicar-delta, no el cronista, y se reconstruye desde el delta sin cuota."""

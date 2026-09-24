@@ -287,6 +287,8 @@ El contexto persiste como ficheros, no como historial de conversación. Cada sub
 
 **`estado/estado.db`** — Rama 4 completa en SQLite. Cada escritura es una transacción y cada fila pasa por las restricciones del esquema: si alguna falla, la transacción se deshace entera y no se escribe estado corrupto. Se lee con `novela estado`; ningún agente la abre.
 
+**`estado/deltas/NN.json`** — El delta del `cronista`, única entrada de `novela aplicar-delta` (`architecture.md` §7.6). Además de las altas y el estado nuevo de las colecciones de la rama 4, trae `hechos_usados`, opcional: `UsoCitado {hecho, cita}` por cada hecho ya afirmado que el capítulo usa sin enseñarlo de nuevo, con cita literal del cuerpo y un `hecho` que exista en el `libro_de_hechos` vigente o en el propio delta.
+
 **`memoria/resumenes/NN.md`** — Resúmenes jerárquicos, un fichero por capítulo con las tres granularidades —`linea`, `parrafo` y `escena` por id de escena— en el frontmatter. Lo escribe `novela aplicar-delta` desde el `resumen` del delta, no el `cronista`: se reconstruye recorriendo `estado/deltas/*.json`, sin cuota.
 
 **`capitulos/NN.md`** — Salida final, con frontmatter que declara capítulo, pov, palabras y pistas tratadas.

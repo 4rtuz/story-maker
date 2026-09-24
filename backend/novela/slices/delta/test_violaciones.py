@@ -1,10 +1,10 @@
 import unicodedata
 
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from novela.dominio.base import ColeccionAppendOnly
-from novela.dominio.estado import Cursor, Delta, Estado, Hecho
+from novela.dominio.estado import Cursor, Delta, Estado, Hecho, UsoCitado
 from novela.slices.delta import violaciones
 from tests import estrategias
 
@@ -81,6 +81,47 @@ def test_citas_property(delta: Delta, datos: st.DataObject) -> None:
         hecho = delta.libro_de_hechos[0].model_copy(update={"cita": inventada + " inventada"})
         falsa = delta.model_copy(update={"libro_de_hechos": [hecho, *delta.libro_de_hechos[1:]]})
         assert any("cita" in v for v in _comprobar(falsa, cuerpo=cuerpo))
+
+
+@settings(max_examples=200)
+@given(estrategias.deltas(), estrategias.hechos, st.data())
+def test_hechos_usados_property(delta: Delta, previo: Hecho, datos: st.DataObject) -> None:
+    """RF-02: cada uso cita literal del cuerpo un hecho que existe en el estado vigente o en el
+    propio delta; si no, `cita no literal` o `hecho inexistente`."""
+    if previo.id in {h.id for h in delta.libro_de_hechos}:
+        return
+    estado = _estado(delta.capitulo).model_copy(
+        update={"libro_de_hechos": ColeccionAppendOnly([previo])}
+    )
+    cuerpo = estrategias.cuerpo_con_citas(delta) + "\n\n" + previo.cita
+    del_estado = delta.model_copy(
+        update={
+            "hechos_usados": [*delta.hechos_usados, UsoCitado(hecho=previo.id, cita=previo.cita)]
+        }
+    )
+    assert _comprobar(del_estado, estado, cuerpo) == []
+
+    fuera = datos.draw(
+        estrategias.id_("hec").filter(
+            lambda h: h != previo.id and h not in {x.id for x in delta.libro_de_hechos}
+        )
+    )
+    inexistente = del_estado.model_copy(
+        update={
+            "hechos_usados": [*del_estado.hechos_usados, UsoCitado(hecho=fuera, cita=previo.cita)]
+        }
+    )
+    assert _comprobar(inexistente, estado, cuerpo) == [f"hecho inexistente: {fuera}"]
+
+    inventada = datos.draw(estrategias.frase.filter(lambda c: c not in cuerpo)) + " inventada"
+    no_literal = del_estado.model_copy(
+        update={
+            "hechos_usados": [*del_estado.hechos_usados, UsoCitado(hecho=previo.id, cita=inventada)]
+        }
+    )
+    assert _comprobar(no_literal, estado, cuerpo) == [
+        f"la cita de {previo.id} no es literal del capítulo"
+    ]
 
 
 def test_hilos_contra_frontmatter() -> None:

@@ -698,6 +698,7 @@ Las dos asimetrías de la tabla son deliberadas: `trazador`, `continuista` y `le
   "libro_de_hechos": [
     { "id": "hec-007", "texto": "La puerta de la linterna estaba forzada.", "capitulo": 7, "cita": "..." }
   ],
+  "hechos_usados": [ { "hecho": "hec-002", "cita": "..." } ],
   "hilos": [
     { "id": "hil-003", "estado": "abierto", "abierto_en": 7, "cerrado_en": null, "descripcion": "..." }
   ],
@@ -713,7 +714,9 @@ Las colecciones append-only —`linea_temporal`, `conocimiento`, `conocimiento_l
 
 No vienen `pistas` ni `metricas`, que `aplicar-delta` deriva del frontmatter y de los capítulos; ni `tension_real`, que la puntúa el `lector-suspense` en `qa/NN-suspense.json`; ni el cursor, que avanza `aplicar-delta` desde `capitulo`. `resumen` es obligatorio y trae las tres granularidades, con `escena` indexado por id de escena. Es lo que `aplicar-delta` renderiza a `memoria/resumenes/NN.md`.
 
-Toda `cita` presente tiene que ser literal del cuerpo del capítulo tras normalizar a NFC y colapsar espacios (RF-33). En `libro_de_hechos` es obligatoria; en las otras tres, opcional.
+`hechos_usados` es opcional y lista los hechos ya afirmados que el capítulo usa sin enseñarlos de nuevo, cada uno con la cita que lo prueba (spec 0007, RF-02). El `hecho` tiene que existir en el `libro_de_hechos` vigente o en el propio delta; si no, `aplicar-delta` lo rechaza con `hecho inexistente`.
+
+Toda `cita` presente tiene que ser literal del cuerpo del capítulo tras normalizar a NFC y colapsar espacios (RF-33). En `libro_de_hechos` y `hechos_usados` es obligatoria; en las otras tres, opcional.
 
 ---
 
