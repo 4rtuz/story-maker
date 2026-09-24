@@ -171,8 +171,7 @@ export function metrica({ etiqueta: rotulo, icono: nombre, tono }: {
     raiz,
     poner(v, d = '') {
       valor.textContent = v;
-      detalle.textContent = d;
-      detalle.hidden = !d;
+      detalle.textContent = d; // vacío, guarda su línea: la tarjeta no crece al llegar (RNF-21)
     },
   };
 }

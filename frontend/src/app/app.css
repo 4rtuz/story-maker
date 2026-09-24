@@ -130,6 +130,7 @@
 }
 
 .q-api__url {
+  min-height: 1lh;
   overflow-wrap: anywhere;
 }
 

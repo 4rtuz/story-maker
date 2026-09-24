@@ -14,6 +14,9 @@ export interface DatosDeBanner {
   titular: string;
   subtitulo: string;
   chips: ChipDeBanner[];
+  /** Mientras no llega el cursor, chips invisibles con las medidas de los reales, para que nada se
+   * mueva al llegar (RNF-21). */
+  reservarChips?: ChipDeBanner[];
 }
 
 type Subgenero = Esquemas['ParametrosObra']['subgenero'];
@@ -25,6 +28,9 @@ const SUBGENEROS = {
   domestic_suspense: 'Suspense doméstico',
   procedural: 'Procedimental',
 } as const satisfies Record<Subgenero, string>;
+
+/** Un cursor de muestra, con valores de longitud típica, para reservar los chips de Progreso. */
+export const CURSOR_DE_MUESTRA: Esquemas['Cursor'] = { capitulo: 10, fase: 'revision', ultimo_paso: 'aplicar-delta', intento: 1 };
 
 /** Los datos del banner de Progreso y Lectura: lo que aún no ha llegado, no se muestra. */
 export function datosDeBanner(
@@ -57,14 +63,16 @@ const oculto = <T extends HTMLElement>(nodo: T, ocultar: boolean): T => {
   return nodo;
 };
 
-export function banner({ titular, subtitulo, chips }: DatosDeBanner): HTMLElement {
+export function banner({ titular, subtitulo, chips, reservarChips = [] }: DatosDeBanner): HTMLElement {
+  const reserva = !chips.length && reservarChips.length > 0;
   const lista = el(
     'ul',
-    'q-banner__chips',
-    ...chips.map((c) =>
+    reserva ? 'q-banner__chips q-banner__chips--reserva' : 'q-banner__chips',
+    ...(reserva ? reservarChips : chips).map((c) =>
       el('li', 'q-chip q-chip--banner', icono(c.icono), `${c.etiqueta}: `, el('b', '', c.valor)),
     ),
   );
+  if (reserva) lista.setAttribute('aria-hidden', 'true');
   const teselas = el(
     'div',
     'q-banner__teselas',
@@ -78,8 +86,8 @@ export function banner({ titular, subtitulo, chips }: DatosDeBanner): HTMLElemen
       'div',
       'q-banner__texto',
       el('h2', 'q-banner__titular', titular),
-      oculto(el('p', 'q-banner__subtitulo', subtitulo), !subtitulo),
-      oculto(lista, !chips.length),
+      el('p', 'q-banner__subtitulo', subtitulo), // vacío, guarda su línea hasta que llega la config
+      oculto(lista, !chips.length && !reserva),
     ),
     teselas,
   );

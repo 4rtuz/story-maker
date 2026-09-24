@@ -61,8 +61,7 @@ export function crearLayout(): Layout {
 
   function ponerApi(texto: string, url = ''): void {
     estadoApi.textContent = texto;
-    urlApi.textContent = url;
-    urlApi.hidden = !url;
+    urlApi.textContent = url; // vacía, guarda su línea (RNF-21)
   }
 
   return {

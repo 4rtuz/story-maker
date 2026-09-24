@@ -4,7 +4,7 @@
 import type { Vista } from '../../app/rutas';
 import * as api from '../../shared/api/cliente';
 import { CADA_DATOS, type Recurso } from '../../shared/sondeo';
-import { banner, datosDeBanner } from '../../shared/ui/banner';
+import { banner, CURSOR_DE_MUESTRA, datosDeBanner } from '../../shared/ui/banner';
 import { lectorDelNavegador } from '../../shared/marca/lector-de-tokens';
 import { el, esqueleto, estadoVacio, etiqueta, metrica, subtarjeta, tabla, tarjeta, vacio } from '../../shared/ui/componentes';
 import { hilosAbiertos, resumir } from './resumen';
@@ -31,6 +31,8 @@ function contenidoDeTension(real: (number | null)[], escaleta: E['Escaleta'] | n
 
 type E = api.Esquemas;
 
+const RESERVA = datosDeBanner('', undefined, CURSOR_DE_MUESTRA).chips;
+
 interface Datos {
   estado?: E['Estado'];
   config?: E['Config'];
@@ -42,7 +44,7 @@ interface Datos {
 
 export function progreso({ slug }: { slug: string }): Vista {
   const datos: Datos = {};
-  const cabecera = el('div', 'q-progreso__banner', banner(datosDeBanner(slug, undefined, undefined)));
+  const cabecera = el('div', 'q-progreso__banner', banner({ ...datosDeBanner(slug, undefined, undefined), reservarChips: RESERVA }));
 
   const cerrados = metrica({ etiqueta: 'Capítulos cerrados', icono: 'book-open', tono: 'naranja' });
   const palabras = metrica({ etiqueta: 'Palabras', icono: 'chart-line', tono: 'cian' });
@@ -59,7 +61,7 @@ export function progreso({ slug }: { slug: string }): Vista {
 
   function pintar(): void {
     const { estado, config, checkpoint, capitulos, runs } = datos;
-    cabecera.replaceChildren(banner(datosDeBanner(slug, config, estado?.cursor)));
+    cabecera.replaceChildren(banner({ ...datosDeBanner(slug, config, estado?.cursor), reservarChips: RESERVA }));
     if (estado && config && checkpoint !== undefined) {
       const r = resumir(estado, config, checkpoint);
       const enCurso = capitulos?.filter((c) => c.capitulo > (checkpoint?.capitulo ?? 0)).length;

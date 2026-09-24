@@ -275,6 +275,7 @@ textarea.q-campo__control {
 }
 
 .q-metrica__detalle {
+  min-height: 1lh;
   margin: 0;
   font-size: var(--q-texto-meta);
   color: var(--q-texto-secundario);
@@ -360,6 +361,7 @@ textarea.q-campo__control {
 }
 
 .q-banner__subtitulo {
+  min-height: 1lh;
   margin: 0;
   font-size: var(--q-texto-banner-subtitulo);
   font-weight: 600;
@@ -375,6 +377,10 @@ textarea.q-campo__control {
   margin: 6px 0 0;
   padding: 0;
   list-style: none;
+}
+
+.q-banner__chips--reserva {
+  visibility: hidden;
 }
 
 .q-banner__teselas {

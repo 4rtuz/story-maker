@@ -20,6 +20,8 @@ test('caída de 60 s: aviso con los datos conservados y, al volver, datos nuevos
   await page.clock.runFor(50_000);
   await expect(page.getByText('cerrados: 7 de 24')).toBeVisible();
 
+  // Las rondas de la caída terminan antes de que vuelva la API: RNF-15 cuenta desde ahí.
+  await page.waitForLoadState('networkidle');
   await page.unroute('http://127.0.0.1:8000/**');
   const actualizado = page.locator('.q-barra__actualizado');
   const antes = await actualizado.textContent();

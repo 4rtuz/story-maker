@@ -2,7 +2,7 @@
 // decoración aparte y oculta a los lectores. Los datos de la novela los pone Progreso (T-10).
 import { describe, expect, it } from 'vitest';
 import type { Esquemas } from '../api/cliente';
-import { banner, datosDeBanner } from './banner';
+import { banner, CURSOR_DE_MUESTRA, datosDeBanner } from './banner';
 
 describe('banner de la novela (CA-53, parte unitaria)', () => {
   it('slug de titular, subgénero y «24 CAPÍTULOS» en mayúsculas, y un chip por campo del cursor', () => {
@@ -54,4 +54,16 @@ describe('banner', () => {
     expect(decoracion?.closest('.q-banner__texto')).toBeNull();
   });
 
+});
+
+describe('banner con los chips aún por llegar (RNF-21)', () => {
+  it('reserva su sitio con chips invisibles y ocultos a los lectores', () => {
+    const reservarChips = datosDeBanner('demo-24', undefined, CURSOR_DE_MUESTRA).chips;
+    const b = banner({ titular: 'demo-24', subtitulo: '', chips: [], reservarChips });
+    const reserva = b.querySelector('.q-banner__chips');
+    expect(reserva?.classList.contains('q-banner__chips--reserva')).toBe(true);
+    expect(reserva?.getAttribute('aria-hidden')).toBe('true');
+    expect(reserva?.querySelectorAll('.q-chip')).toHaveLength(4);
+    expect(b.querySelector<HTMLElement>('.q-banner__subtitulo')?.hidden).toBe(false);
+  });
 });
