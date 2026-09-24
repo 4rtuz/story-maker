@@ -4,6 +4,9 @@ Escribe `qa/NN-validacion.json` siempre, pase o no, con el sha256 del fichero qu
 que la custodia de `aplicar-delta` compara (RF-31, RF-32).
 """
 
+from enum import StrEnum
+from typing import Annotated
+
 import typer
 
 from novela.dominio import frontmatter
@@ -47,7 +50,18 @@ def _contexto(ws: WorkspaceRepository, capitulo: int) -> gates.Contexto:
     )
 
 
-def validar(slug: str, capitulo: int) -> None:
+class Origen(StrEnum):
+    orquestador = "orquestador"
+    hook = "hook"
+
+
+def validar(
+    slug: str,
+    capitulo: int,
+    origen: Annotated[
+        Origen, typer.Option("--origen", help="hook: la línea no cuenta como intento (spec 0008)")
+    ] = Origen.orquestador,
+) -> None:
     """Esquema, longitud, pistas del plan, balance de hilos, ids y grafía de nombres. Sale con 1
     si hay hallazgos."""
     ws = WorkspaceRepository.resolver(slug).exigir()
@@ -58,7 +72,9 @@ def validar(slug: str, capitulo: int) -> None:
     with ws.bloquear():
         abierto = run.abrir(ws, capitulo)
         nn = ws.nn(capitulo)
-        with abierto.registro("validar", nn) as causas:
+        # `validar-hook NN` no contiene `validar NN -> `, que es lo que cuenta el procedimiento.
+        orden = "validar-hook" if origen is Origen.hook else "validar"
+        with abierto.registro(orden, nn) as causas:
             ctx = _contexto(ws, capitulo)
             ruta = ws.raiz / "capitulos" / f"{nn}.md"
             if ruta.is_file():

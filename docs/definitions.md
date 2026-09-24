@@ -244,7 +244,10 @@ Lo que ya ocurrió. Fuente única de verdad sobre el texto existente. Vive en `e
 **`metricas`** — Palabras totales y desviación respecto al plan. `desviacion_vs_plan` es una fracción con signo, no un porcentaje. Alimenta la decisión de comprimir o expandir los capítulos restantes.
 `objeto` · **DERIVADO** · cronista → orquestador
 
-Los nombres de esta rama son los del documento serializado de `architecture.md` §7.1, que es el que valida `state.schema.json`, el que responde la API y el que nombra las tablas de `esquema.sql`. Un nombre por campo: no hay alias.
+**`usos_de_hecho`** — Índice hecho→capítulo, filas `UsoDeHecho {hecho, capitulo, via}` con `via` en `origen | conocimiento | lector | cita`: el capítulo `capitulo` introduce el hecho, lo da a saber a un personaje o al lector, o lo cita. Vive en `estado.db` pero no en la vista `Estado`, así que ni `novela estado` ni la API lo sirven; lo escribe `novela aplicar-delta` en la misma transacción que el estado, desde el delta (`libro_de_hechos` → `origen`, `conocimiento`, `conocimiento_lector` → `lector`, `hechos_usados` → `cita`), creando la tabla si la base es anterior y sin rellenar los capítulos ya aplicados; un uso ya registrado se ignora. Se consulta con `estado_db.usos` y `estado_db.capitulos_que_usan`, que lanzan `EstadoIlegible` en una base anterior a la tabla.
+`tabla` · **APPEND-ONLY, DERIVADO** · aplicar-delta → estado_db.capitulos_que_usan
+
+Los nombres de esta rama son los del documento serializado de `architecture.md` §7.1, que es el que valida `state.schema.json`, el que responde la API y el que nombra las tablas de `esquema.sql`. Un nombre por campo: no hay alias. `usos_de_hecho` es la excepción: una tabla de `esquema.sql` que no está en el documento serializado.
 
 ---
 
@@ -283,6 +286,8 @@ El contexto persiste como ficheros, no como historial de conversación. Cada sub
 **`plan/`** — `escaleta.md` y `capitulos/NN.md`. La ficha de capítulo es el prompt de trabajo del escritor.
 
 **`estado/estado.db`** — Rama 4 completa en SQLite. Cada escritura es una transacción y cada fila pasa por las restricciones del esquema: si alguna falla, la transacción se deshace entera y no se escribe estado corrupto. Se lee con `novela estado`; ningún agente la abre.
+
+**`estado/deltas/NN.json`** — El delta del `cronista`, única entrada de `novela aplicar-delta` (`architecture.md` §7.6). Además de las altas y el estado nuevo de las colecciones de la rama 4, trae `hechos_usados`, opcional: `UsoCitado {hecho, cita}` por cada hecho ya afirmado que el capítulo usa sin enseñarlo de nuevo, con cita literal del cuerpo y un `hecho` que exista en el `libro_de_hechos` vigente o en el propio delta.
 
 **`memoria/resumenes/NN.md`** — Resúmenes jerárquicos, un fichero por capítulo con las tres granularidades —`linea`, `parrafo` y `escena` por id de escena— en el frontmatter. Lo escribe `novela aplicar-delta` desde el `resumen` del delta, no el `cronista`: se reconstruye recorriendo `estado/deltas/*.json`, sin cuota.
 

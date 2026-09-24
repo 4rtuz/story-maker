@@ -119,6 +119,18 @@ class Hecho(Modelo):
     cita: str
 
 
+Via = Literal["origen", "conocimiento", "lector", "cita"]
+
+
+class UsoDeHecho(Modelo):
+    """Una fila de `usos_de_hecho`: el capítulo `capitulo` usa el hecho `hecho` por `via`. Es un
+    índice derivado de los deltas y no forma parte de `Estado` (spec 0007, D19)."""
+
+    hecho: HechoId
+    capitulo: CapituloNum
+    via: Via
+
+
 class Hilo(Modelo):
     id: HiloId
     estado: Literal["abierto", "cerrado"]
@@ -156,6 +168,14 @@ class Resumen(Modelo):
     escena: dict[EscenaId, str] = Field(min_length=1)
 
 
+class UsoCitado(Modelo):
+    """Un hecho ya afirmado que el capítulo usa sin enseñarlo de nuevo, con la cita literal que
+    lo prueba. Es lo que deja rastro en `usos_de_hecho` por la vía `cita` (spec 0007, D4)."""
+
+    hecho: HechoId
+    cita: str = Field(min_length=1)
+
+
 class Delta(Modelo):
     """`estado/deltas/NN.json`: la salida del cronista y la única entrada de `aplicar-delta`.
 
@@ -174,6 +194,7 @@ class Delta(Modelo):
     relaciones: list[Relacion] = []
     objetos: list[Objeto] = []
     libro_de_hechos: list[Hecho] = []
+    hechos_usados: list[UsoCitado] = []
     hilos: list[Hilo] = []
     resumen: Resumen
 

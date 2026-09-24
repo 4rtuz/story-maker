@@ -37,6 +37,7 @@ from novela.dominio.estado import (
     Objeto,
     Relacion,
     Resumen,
+    UsoCitado,
 )
 from novela.slices.validacion.gates import plegar
 
@@ -255,6 +256,26 @@ def deltas(draw: st.DrawFn, capitulo: int | None = None) -> Delta:
                 descripcion=draw(frase),
             )
         )
+    hechos_delta = draw(
+        st.lists(
+            st.builds(Hecho, id=id_("hec"), texto=frase, capitulo=st.just(n), cita=frase),
+            max_size=3,
+            unique_by=lambda h: h.id,
+        )
+    )
+    # Usos de los hechos del propio delta: existen sin depender de ningún estado.
+    usados = (
+        draw(
+            st.lists(
+                st.builds(
+                    UsoCitado, hecho=st.sampled_from([h.id for h in hechos_delta]), cita=frase
+                ),
+                max_size=2,
+            )
+        )
+        if hechos_delta
+        else []
+    )
     return Delta(
         capitulo=n,
         linea_temporal=draw(
@@ -278,13 +299,8 @@ def deltas(draw: st.DrawFn, capitulo: int | None = None) -> Delta:
         conocimiento_lector=draw(st.lists(entradas_conocimiento, max_size=2)),
         relaciones=draw(st.lists(relaciones, max_size=2, unique_by=lambda r: (r.de, r.a))),
         objetos=draw(st.lists(objetos, max_size=2, unique_by=lambda o: o.id)),
-        libro_de_hechos=draw(
-            st.lists(
-                st.builds(Hecho, id=id_("hec"), texto=frase, capitulo=st.just(n), cita=frase),
-                max_size=3,
-                unique_by=lambda h: h.id,
-            )
-        ),
+        libro_de_hechos=hechos_delta,
+        hechos_usados=usados,
         hilos=hilos_delta,
         resumen=Resumen(
             linea=draw(frase),
@@ -299,6 +315,7 @@ def citas(delta: Delta) -> list[str]:
     todas += [e.cita for e in delta.linea_temporal if e.cita]
     todas += [e.cita for e in delta.conocimiento_lector if e.cita]
     todas += [e.cita for es in delta.conocimiento.values() for e in es if e.cita]
+    todas += [u.cita for u in delta.hechos_usados]
     return todas
 
 

@@ -1,4 +1,4 @@
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from novela.dominio.estado import Cursor, Delta, Estado
@@ -48,6 +48,31 @@ def test_append_only_solo_crecen(estado: Estado, datos: st.DataObject) -> None:
         assert nuevo.conocimiento[personaje].entradas[: len(entradas)] == entradas.entradas
     assert len(nuevo.tension_real) >= delta.capitulo
     assert nuevo.cursor.capitulo == delta.capitulo
+
+
+def _referencia(delta: Delta) -> set[tuple[str, int, str]]:
+    n = delta.capitulo
+    filas = {(h.id, n, "origen") for h in delta.libro_de_hechos}
+    filas |= {(e.hecho, n, "conocimiento") for es in delta.conocimiento.values() for e in es}
+    filas |= {(e.hecho, n, "lector") for e in delta.conocimiento_lector}
+    return filas | {(u.hecho, n, "cita") for u in delta.hechos_usados}
+
+
+@settings(max_examples=200)
+@given(st.lists(estrategias.deltas(), min_size=1, max_size=4))
+def test_usos_property(deltas: list[Delta]) -> None:
+    """CA-04 (RF-03, RF-04): los usos acumulados son origen ∪ conocimiento ∪ lector ∪ cita por
+    capítulo, cada delta los da sin duplicados, y repetir el último no quita ni añade filas."""
+    acumulado: set[tuple[str, int, str]] = set()
+    for delta in deltas:
+        usos = [(u.hecho, u.capitulo, u.via) for u in apply.usos(delta)]
+        assert len(usos) == len(set(usos))
+        antes = set(acumulado)
+        acumulado |= set(usos)
+        assert antes <= acumulado
+    assert acumulado == set().union(*map(_referencia, deltas))
+    repetido = acumulado | {(u.hecho, u.capitulo, u.via) for u in apply.usos(deltas[-1])}
+    assert repetido == acumulado
 
 
 def test_pistas_derivadas_del_frontmatter() -> None:

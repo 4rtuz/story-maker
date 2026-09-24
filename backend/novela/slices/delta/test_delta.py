@@ -80,6 +80,60 @@ def test_aplica_y_es_idempotente_en_disco(novelas: Novelas) -> None:
         assert estado_db.leer(conn) == una
 
 
+@pytest.mark.parametrize(
+    ("uso", "causa"),
+    [
+        ({"hecho": "hec-002", "cita": "los escalones del faro por 8 vez"}, None),
+        ({"hecho": "hec-002", "cita": "Elena nunca subió al faro."}, "no es literal"),
+        ({"hecho": "hec-900", "cita": "los escalones del faro por 8 vez"}, "hecho inexistente"),
+    ],
+)
+def test_hechos_usados_cita(novelas: Novelas, uso: dict[str, str], causa: str | None) -> None:
+    """CA-02 (RF-02): un uso con cita literal de un hecho que existe aplica; una cita que no está
+    en el cuerpo o un hecho que no existe salen con 1 y la base intacta."""
+    ws, antes = _preparado(novelas)
+    ruta = ws.raiz / "estado" / "deltas" / "08.json"
+    delta = json.loads(ruta.read_text(encoding="utf-8"))
+    ruta.write_text(json.dumps(delta | {"hechos_usados": [uso]}), encoding="utf-8")
+    resultado = _aplicar(ws)
+    if causa is None:
+        assert resultado.exit_code == 0, resultado.output
+        return
+    assert resultado.exit_code == 1
+    assert causa in resultado.output
+    assert (ws.raiz / "estado" / "estado.db").read_bytes() == antes
+
+
+def test_aplicar_registra_usos(novelas: Novelas) -> None:
+    """CA-03 (RF-03) y la primera mitad de CA-06: demo-cambio construido con el CLI deja los usos
+    de origen, conocimiento, lector y cita de cada hecho, y hec-002 lo usan 2, 4 y 6."""
+    ws = novelas("demo-cambio")
+    with estado_db.abrir(ws.estado_db, solo_lectura=True) as conn:
+        usos = {
+            h: [(u.capitulo, u.via) for u in estado_db.usos(conn, h)]
+            for h in ("hec-002", "hec-102")
+        }
+        assert estado_db.capitulos_que_usan(conn, "hec-002") == [2, 4, 6]
+    assert usos == {
+        "hec-002": [(2, "origen"), (2, "conocimiento"), (2, "lector"), (4, "cita"), (6, "cita")],
+        "hec-102": [(2, "origen"), (5, "cita")],
+    }
+
+
+def test_migracion_usos(novelas: Novelas) -> None:
+    """CA-05 (RF-05): una base sin la tabla la gana al aplicar el siguiente delta, con sus
+    triggers, y solo con los usos de ese capítulo: no hay backfill (spec 0007, D5)."""
+    ws, _ = _preparado(novelas)
+    with sqlite3.connect(ws.estado_db) as conn:
+        conn.execute("DROP TABLE usos_de_hecho")
+    assert _aplicar(ws).exit_code == 0
+    with estado_db.abrir(ws.estado_db) as conn:
+        capitulos = conn.execute("SELECT DISTINCT capitulo FROM usos_de_hecho").fetchall()
+        with pytest.raises(sqlite3.IntegrityError, match="usos_de_hecho es append-only"):
+            conn.execute("DELETE FROM usos_de_hecho")
+    assert capitulos == [(8,)]
+
+
 def test_renderiza_memoria(novelas: Novelas) -> None:
     """CA-19: memoria/resumenes/NN.md trae las tres granularidades del delta, con la escena por
     id; lo escribe aplicar-delta, no el cronista, y se reconstruye desde el delta sin cuota."""

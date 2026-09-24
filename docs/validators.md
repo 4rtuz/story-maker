@@ -67,7 +67,7 @@ Decirlo aquí, y no solo en `architecture.md` §12.7, es parte del método: un c
 | 25 | Integridad semántica del delta | A + T | `estado/deltas/NN.json`, `memoria/` | invariantes narrativos en `validar-delta` | v1 |
 | 26 | Sondas ciegas del secreto | I + A | briefing del `escritor`, capítulos del acto | modelo sin misterio predice el culpable; comparación mecánica | v1 |
 | 27 | Auditoría de trayectoria del orquestador | A | transcript de la sesión principal | script en el hook `Stop` + parada en `pendiente` | v1 |
-| 28 | Contención y bucle de `.claude/` | T + A + D | agentes, hook, permisos, procedimientos, bucle, canario | catálogo de fallos F-01 a F-70 (§4.17) | spec 0003 |
+| 28 | Contención y bucle de `.claude/` | T + A + D | agentes, hooks, permisos, procedimientos, bucle, canario | catálogo de fallos F-01 a F-79 (§4.17) | specs 0003 y 0008 |
 | 29 | Verificación a escala de novela | T + A + I + D | secreto, estado, estilo, tensión y orquestador | catálogo de fallos F-80 a F-168 (§4.18) | spec 0002 |
 
 ---
@@ -129,6 +129,7 @@ Hypothesis, generando estados y deltas aleatorios. Las propiedades que aquí son
 | `restore(checkpoint(e)) == e` | La reanudación depende de esto y nada más lo comprueba |
 | `misterio.md ⊄ briefing(escritor, *)` | Invariante 3, sobre canons generados al azar |
 | `validar(cap) == ok ⟹ todas las pistas del plan están en el frontmatter` | El gate no puede pasar en falso |
+| `⋃ usos(dᵢ) == origen ∪ conocimiento ∪ lector ∪ cita` por capítulo, sin duplicados, y repetir el último delta no lo cambia (spec 0007, CA-04) | `usos_de_hecho` decide qué capítulos se regeneran; un uso perdido deja un capítulo sin regenerar y uno duplicado rompería el `INSERT` |
 
 La cuarta es la más valiosa: un test de ejemplo comprueba que *ese* misterio no se filtra; la propiedad comprueba que ninguno lo hace.
 
@@ -543,6 +544,22 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 |---|---|---|---|---|---|
 | F-70 | Un baseline de una sola ejecución | Se usa como referencia una sola muestra con σ alta | El baseline declara su número de ejecuciones y no sirve para aceptar cambios de prompt hasta tener varias (§4.8) | — | U (§5.16) |
 
+**Hook `PostToolUse` (spec 0008)**
+
+`.claude/hooks/validar-capitulo.py`, §7.1 de `architecture.md`. Los tests están en `backend/tests/test_hook_validacion.py` salvo que se diga otro fichero; `CA-NN` son los de la spec 0008.
+
+| # | Fallo | Consecuencia | Verificador | Clase | Estado |
+|---|---|---|---|---|---|
+| F-71 | `python` o el script no resuelven, o el registro nombra otra ruta u otro matcher | Claude Code recibe un código distinto de 2 y sigue: el hook falla abierto sin avisar | `test_contratos.py::test_hook_de_validacion_registrado` (matcher literal, ruta existente, `timeout` 60); `comprobar-entorno` avisa de `python` y del script | T + A | activo (CA-10, CA-11) |
+| F-72 | Las validaciones del hook se cuentan como intentos del gate mecánico | El orquestador agota los reintentos sin haberlos usado y escribe `intervencion.md` | `--origen hook` escribe `validar-hook NN`, sin la subcadena `validar NN -> ` (`test_validacion.py::test_origen_hook_en_el_log`) | T | activo (CA-07) |
+| F-73 | `PostToolUse` llega sin `agent_type`, o con `null` o `""`, en un subagente | Si eso contara como fuera de alcance, el hook se apagaría en silencio | Ausente, `null` o vacío valida igual (falla cerrado) | T | activo (CA-03) |
+| F-74 | El feedback lleva prosa del capítulo o texto de `canon/misterio.md` | El secreto llega al `escritor` o al `editor-estilo` (invariante 3) | Solo se reenvían `tipo`, `gravedad`, `ubicacion` y `descripcion`, hasta 4.000 caracteres; 0 ventanas de 8 palabras del cuerpo y del misterio en stderr. Vale con los gates de hoy: la spec que añada a `validar` un hallazgo que cite texto tiene que revisarlo | T | activo (CA-02) |
+| F-75 | El capítulo se escribe con otro ancho (`008.md` en una novela de dos dígitos) | `validar` valida `08.md` y el hook reenviaría un informe de otro fichero | El hook busca `qa/<NN tal como se escribió>-validacion.json` y exige el sha del fichero escrito. Con un `08.md` válido, `validar` sale con 0 y el hook también, sin avisar del nombre (plan P2) | T | activo (CA-06); con `08.md` válido, propuesto |
+| F-76 | `validar` no termina | Claude Code mata el hook a los 60 s y lo trata como no bloqueante | `timeout` de 45 s en el subproceso → fallo del harness (`test_excepciones`, por parche). En Windows mata el lanzador `.exe`; que el Python hijo caiga con él y suelte `state.lock` no está probado | T + I | activo; el lock huérfano, propuesto |
+| F-77 | Un traceback de `validar` sale con 1 y queda el `qa/NN-validacion.json` de una validación anterior | El agente corrige defectos que ya no existen y el fallo real queda oculto | Tras un 1, el informe tiene que llevar el `capitulo_sha256` del fichero en disco y hallazgos legibles; si no, fallo del harness (`test_informe_ilegible`) | T | activo |
+| F-78 | El agente entra en un bucle de autocorrección, o los `Edit` intermedios del `editor-estilo` generan ruido | Cuota de opus gastada dentro de una invocación | Ninguno en el hook (spec 0008 D8). La demostración T-07 mide las líneas `validar-hook NN -> 1` por invocación; se reabre D8 si alguna pasa de 3 | D | propuesto |
+| F-79 | `PostToolUse` no corre dentro de los subagentes, o su stderr no les llega | Todo pasa en `pytest` y el hook no hace nada en producción | Demostración T-07 de la spec 0008 en una sesión del harness: una línea `validar-hook NN -> ` con `sesion=` y, si hubo un 1, `validar-capitulo:` en la transcripción del subagente | D | propuesto |
+
 Cinco filas se encontraron al implementar la 0003 y entraron en su v0.4: F-09, al escribir los agentes; F-54, al registrar el hook; F-64, en la primera ejecución del canario, y F-55 y F-65, al preparar su enmienda. Las cinco están en `activo`, y también F-28 y F-48, que entraron en la v0.5. Siguen en **propuesto** F-27, F-37 y F-56 a F-59, encontradas al cerrar la 0003: son la entrada de la spec que las recoja. Las que lo estaban antes entraron en la spec 0003 v0.3 (§16, «Enmiendas de la v0.3»), agrupadas en tres bloques:
 
 - **endurecer el hook**: F-14, F-19, F-20 y F-24;
@@ -823,7 +840,8 @@ Cada uno con su condición de revisión: un riesgo aceptado sin criterio para re
 |---|---|---|---|
 | Pre-commit | Type checking, SAST, tests unitarios; `npm --prefix frontend run lint` si el índice tiene ficheros de `frontend/` (spec 0004) | A, T | segundos |
 | Cada escritura o `Bash` de Claude Code | hook `PreToolUse`: `estado/`, salidas por rol, misterio y `estado.db` en órdenes (spec 0003) | A | < 300 ms |
-| Antes del bucle desatendido y del canario | `novela comprobar-entorno`: `novela` en el PATH, `python` real, hook presente, `settings.local.json` solo con `enabledPlugins`, `.env` ignorado y, con el trazado de scores pedido, sus claves; con `--limpio` en el canario (spec 0003) | A | gratis |
+| Cada escritura de `capitulos/NN.md` por el `escritor` o el `editor-estilo` | hook `PostToolUse`: `novela validar --origen hook`, con los hallazgos devueltos al agente con exit 2; su línea `validar-hook NN` no cuenta intentos (spec 0008) | A | ≤ 3 s |
+| Antes del bucle desatendido y del canario | `novela comprobar-entorno`: `novela` en el PATH, `python` real, los dos hooks presentes (`PreToolUse` y `PostToolUse`, spec 0008), `settings.local.json` solo con `enabledPlugins`, `.env` ignorado y, con el trazado de scores pedido, sus claves; con `--limpio` en el canario (spec 0003) | A | gratis |
 | Tras cada sesión del bucle | freno: sin avance de `checkpoints/latest.json`, el bucle para (spec 0003) | A | gratis |
 | CI del harness | + mutación sobre gates, contrato API, contrato de `.claude/`, model checking; job `frontend`: `npm ci`, `tipos:comprobar`, `lint`, `typecheck`, `test`, `build`, `presupuesto` y `npm audit --omit=dev --audit-level=high`; job `frontend-e2e`, en la imagen de Playwright de la versión fijada en `package-lock.json`: `uv sync --locked`, `npm ci` y `npm run e2e`, que genera los workspaces con `tests.fixtures.panel` y levanta la API y `vite preview` (spec 0004) | T, A | minutos |
 | Tras el `trazador`, una vez | `novela validar-plan`: fair play del plan, ids, orden de pistas, forma de la curva de tensión, secreto por capítulo en las fichas | A | gratis |
@@ -5106,3 +5124,715 @@ Spec: `docs/specs/0011/spec.md` · Plan: `docs/implementation-plans/0011.md` · 
 - Q8 — ¿Qué «exclusión por campo» del `editor-estilo` debe heredar hoy el juez? (R9, §5 RF-09 y §10): si hoy no existe ninguna (llega con la spec 0002), la cláusula no es verificable; si existe, falta nombrarla.
 - Q9 — ¿El cuerpo contra el que se comparan las citas excluye el frontmatter de `capitulos/NN.md`? (R20, §5 RF-20): el briefing incrusta el fichero entero (plan §9 P9), y «cuerpo» admite las dos lecturas.
 - Q10 — Un `brief/brief.json` que existe pero no valida, ¿cuenta como brief? (R10, R20, §5 RF-10 y RF-20): el briefing usa «brief válido contra `Brief`» y `checkpoint` usa «la existencia de `brief/brief.json`». Con un brief inválido, las dos reglas discrepan y producen `personalizacion_omitida` o un exit 4, según la implementación.
+
+## 0012
+Spec: `docs/specs/0012/spec.md` · Plan: `docs/implementation-plans/0012.md` · Fecha de análisis: 2026-09-24
+
+### Discrepancias spec ↔ plan
+| ID | Tipo (requisito sin cubrir / paso sin requisito / contradicción) | Detalle | Ref. spec | Ref. plan |
+|----|------|---------|-----------|-----------|
+| D1 | contradicción | La mitigación del riesgo «`comprobar-entorno` falla en toda máquina sin Lean» documenta la instalación «en `AGENTS.md` § Puesta en marcha (dentro de RF-28)». RF-28 y D19 limitan `AGENTS.md` a «una línea de la sección CLI», y el propio T8.2 exige «exactamente +1 línea» | R28 — §5 RF-28 | Plan §8 (riesgos), P27 (T8.2) |
+| D2 | requisito sin cubrir | RNF-02 mide el «tiempo total de `novela lean <slug> <cap>` con 1 000 eventos y la biblioteca ya compilada». T1.4 solo mide `lake env lean` sobre eventos sintéticos, y T7.4 mide una novela de humo de 3 capítulos, muy por debajo de 1 000 eventos. Ningún paso mide la orden completa (lectura, proyección, generación, dos llamadas a Lake e interpretación) a ese volumen | R31 — §6 RNF-02 | P4 (T1.4), P24 (T7.4) |
+| D3 | requisito sin cubrir | RNF-06 («diferencia de sha256 de `estado.db` antes y después de `novela lean`») y RNF-07 («`Hechos.lean` y `qa/*lean.json`») incluyen el modo sin capítulo. T4.3 no los cubre ni los prueba: solo T4.2, en modo capítulo | R35, R36 — §6 RNF-06, RNF-07 | P13 (T4.3) |
+| D4 | contradicción | RF-28 exige actualizar los documentos «en el mismo commit que el código que los cambia». T8.1 lo rebaja a «cuando sea posible, y el resto en el de cierre». La spec se contradice a sí misma: su T-13 dice «en el commit de cierre» | R28 — §5 RF-28, §12 T-13 | P26 (T8.1) |
+| D5 | contradicción | Plan §9 P11: si el teorema no se consigue, se entrega sin `Correccion.lean` y CA-10 «pasa a la parte sin Lean». CA-10 exige que `Correccion.lean` compile con `lake build Invariantes`, y §8.2 lo lista como componente nuevo. RF-10 es Should, pero su criterio de aceptación no prevé esa salida | R10 — §5 RF-10, §7 CA-10, §8.2 | P2 (T1.2), plan §9 P11 |
+
+### Validadores
+#### VAL-1: `hechos_temporales` lee exactamente el contrato y no escribe
+- Requisito: R1 — RF-01 «lee en solo lectura los datos del contrato de § 8.3 y devuelve eventos, nacimientos y exclusiones» (§5, CA-01)
+- Punto de fallo: la función pierde personajes de un evento al agrupar filas, mezcla nacimientos de otro personaje o ejecuta una escritura (por ejemplo, `PRAGMA journal_mode=WAL` o una tabla temporal) sobre una conexión que no es de solo lectura.
+- Precondiciones: `estado.db` fixture con el contrato de § 8.3: 3 eventos (`esc-01-1` con `per-prueba-uno` y `per-prueba-dos`; `esc-01-2` con `per-prueba-uno`; `esc-02-1` sin personajes), 2 nacimientos y 1 exclusión (`per-prueba-dos`, `esc-01-2`).
+- Cómo validarlo: calcular el sha256 de `estado.db`; abrir con `estado_db.abrir(ruta, solo_lectura=True)` y un `set_trace_callback` que registre cada sentencia; llamar a `hechos_temporales(conn)`; volver a calcular el sha256.
+- Resultado esperado: 3 `Evento` (el primero con exactamente 2 personajes, el tercero con una tupla vacía), 2 `Nacimiento` y 1 `Exclusion` iguales al fixture. Ninguna sentencia registrada empieza por `INSERT`, `UPDATE`, `DELETE`, `CREATE` o `PRAGMA journal_mode`, y el sha256 no cambia.
+- Tipo de prueba sugerida: integración
+- Severidad: Crítica — `estado.db` es la única fuente de verdad y es append-only; una escritura desde el gate la corrompe.
+
+#### VAL-2: La proyección no duplica escenas ya aplicadas
+- Requisito: R2 — RF-02 «una escena del delta que ya está en la base con el mismo contenido no se duplica» (§5, CA-02; §9 «Reanudación después de `aplicar-delta`»)
+- Punto de fallo: tras una reanudación, `proyectar` suma otra vez las escenas del delta ya aplicado y cambia el recuento o el veredicto.
+- Precondiciones: hechos con `esc-01-1`; delta con `esc-02-1` (nueva) y `esc-01-1` (idéntica a la de la base).
+- Cómo validarlo: calcular `p1 = proyectar(h, d)` y `p2 = proyectar(p1, d)`; propiedad de Hypothesis con `max_examples=200` sobre hechos y deltas generados, incluida la variante en la que todas las escenas del delta ya están en `h`. Ejecutar `novela lean` con lake falso antes y después de `aplicar-delta` del mismo capítulo.
+- Resultado esperado: `len(p1.eventos) == 2`, `p1 == p2`, ninguna `escena` repetida en `p1.eventos` y el mismo `hechos_sha256` y el mismo veredicto en las dos ejecuciones de `novela lean`.
+- Tipo de prueba sugerida: unitaria (property-based) + integración
+- Severidad: Alta — un duplicado produce violaciones de nacimiento o exclusión repetidas y recuentos falsos en el resumen.
+
+#### VAL-3: Conversión a minutos en los límites del calendario
+- Requisito: R3 — RF-03 «minutos enteros desde `0001-01-01T00:00` en el calendario gregoriano proléptico… Un nacimiento `AAAA-MM-DD` vale las 00:00» (§5, CA-03; §9 «Momento fuera de rango»)
+- Punto de fallo: el origen está desplazado un día, un año no bisiesto secular (1900) se acepta con 29 de febrero, o un año < 1 no lanza error.
+- Precondiciones: `temporal.minutos`.
+- Cómo validarlo: evaluar `minutos` sobre `0001-01-01T00:00`, `0001-01-01T00:01`, `0001-01-02`, `2000-02-29`, `2000-02-29T00:00`, `1900-02-29`, `0000-12-31T23:59` y `mañana`; propiedad de monotonía con dos momentos al azar `t1 < t2` y 200 ejemplos.
+- Resultado esperado: 0, 1 y 1440; los dos de 2000 dan el mismo valor; `1900-02-29`, `0000-12-31T23:59` y `mañana` lanzan `ValueError`; la propiedad cumple `minutos(t1) < minutos(t2)` en todos los ejemplos.
+- Tipo de prueba sugerida: unitaria (property-based)
+- Severidad: Alta — un origen o un bisiesto erróneo desplaza los nacimientos y produce falsos `antesDeNacer`.
+
+#### VAL-4: `Hechos.lean` byte a byte, sin CRLF y sin depender del orden
+- Requisito: R4 — RF-04 «eventos ordenados por `(inicio, escena)`… final de línea `\n`. Dos llamadas con hechos equivalentes, en cualquier orden de entrada, devuelven los mismos bytes» (§5, CA-04; §8.4 gramática)
+- Punto de fallo: el orden de entrada se filtra a la salida (empate de `inicio` sin desempate por `escena`), se deja coma tras el último elemento, falta el `\n` final o, en Windows, el fichero escrito lleva `\r\n`.
+- Precondiciones: estado fixture de VAL-1; `backend/tests/fixtures/lean/Hechos.esperado.lean`.
+- Cómo validarlo: comparar `generar(h).encode()` con los bytes del fichero esperado; generar con las listas de eventos, nacimientos y exclusiones invertidas y con dos eventos de igual `inicio` (`esc-02-1` y `esc-01-3`); leer los bytes de `formal/02/Hechos.lean` escrito por `novela lean` en Windows; hacer la ida y vuelta con el lector de la gramática.
+- Resultado esperado: igualdad byte a byte en todos los casos; `esc-01-3` precede a `esc-02-1`; la última línea de cada lista no termina en coma; el texto termina en exactamente un `\n`; `b"\r" not in` los bytes del fichero escrito; el lector devuelve los hechos normalizados.
+- Tipo de prueba sugerida: unitaria (property-based) + integración
+- Severidad: Media — el veredicto no cambia, pero `hechos_sha256` deja de ser reproducible y la auditoría pierde valor.
+
+#### VAL-5: Ningún texto fuera de las expresiones de id llega a Lean
+- Requisito: R5, R34 — RF-05 «Ningún texto que no sea un id validado o un entero llega a `Hechos.lean`» (§5, CA-05); RNF-05 «Cadenas generadas por Hypothesis fuera de las expresiones de id que llegan a `Hechos.lean` = 0» (§6)
+- Punto de fallo: un id con `"`, salto de línea o `#eval` cierra la cadena Lean y ejecuta código arbitrario durante `lake env lean`.
+- Precondiciones: hechos construidos saltándose la validación de Pydantic (`model_construct`) para simular datos corruptos.
+- Cómo validarlo: llamar a `generar` con los ids `per-a"\n#eval IO.println "x`, `per-a\n`, `esc-faro prueba`, `esc-01-1#eval` y con cadenas generadas por Hypothesis (200 ejemplos) que no casan con su expresión, en `escena`, `lugar`, `personajes`, `Nacimiento.personaje` y `Exclusion`. Ejecutar `novela lean lean-prueba 2` con un delta que contiene uno de esos ids.
+- Resultado esperado: `generar` lanza `HechosInvalidos` y no devuelve texto; `novela lean` sale con 4; no existen `formal/` ni `qa/02-lean.json`; el lake falso no recibe ninguna llamada.
+- Tipo de prueba sugerida: unitaria (property-based) + integración
+- Severidad: Crítica — inyección de código ejecutado en la máquina del operador.
+
+#### VAL-6: Proyecto Lake sin dependencias y con toolchain estable
+- Requisito: R6 — RF-06 «`lakefile.lean` sin ningún `require`, `lean-toolchain` con una versión estable fijada» (§5, CA-06)
+- Punto de fallo: el lakefile arrastra un `require` o el toolchain apunta a `stable`, `nightly` o `rc`, y Lake o elan descargan algo.
+- Precondiciones: `formal/lean/` commiteado.
+- Cómo validarlo: leer `formal/lean/lakefile.lean` y `formal/lean/lean-toolchain`; comprobar la existencia de `Invariantes.lean` y de `Invariantes/Tipos.lean`, `Reglas.lean`, `Informe.lean` y `Correccion.lean`.
+- Resultado esperado: el lakefile no contiene la palabra `require`; el toolchain es una sola línea que casa con `^leanprover/lean4:v\d+\.\d+\.\d+$`; existen los cinco ficheros.
+- Tipo de prueba sugerida: unitaria (contrato)
+- Severidad: Alta — una dependencia descargable rompe el requisito de no acceder a la red.
+
+#### VAL-7: Ubicuidad en los bordes del intervalo
+- Requisito: R7 — RF-07 «intervalos `[inicio, inicio + max(duracion, 1))` se solapan y cuyos lugares difieren» (§5, CA-07; §9 filas de duración 0 y mismo lugar)
+- Punto de fallo: el intervalo se trata como cerrado (dos escenas contiguas violan), la duración 0 se trata como vacía (dos instantáneas simultáneas no violan) o el mismo lugar se informa como violación.
+- Precondiciones: Lean instalado; test marcado `lean`; `per-prueba-uno` en todos los eventos.
+- Cómo validarlo: comprobar con Lean real estos pares: (a) `esc-01-1` 2024-03-01T10:00, 30 min, `esc-faro-prueba` y `esc-02-1` 10:30, `esc-puerto-prueba`; (b) igual con `esc-02-1` a las 10:29; (c) los dos a las 10:00 con duración 0 en lugares distintos; (d) 10:00 y 10:01, duración 0; (e) el caso (b) con el mismo lugar; (f) tres eventos solapados entre sí en tres lugares.
+- Resultado esperado: (a) 0 violaciones; (b) 1 `ubicuidad` con escenas `["esc-01-1","esc-02-1"]`; (c) 1; (d) 0; (e) 0; (f) exactamente 3, una por par sin ordenar y con `e₁.escena < e₂.escena`.
+- Tipo de prueba sugerida: integración (marca `lean`)
+- Severidad: Crítica — es la invariante obligatoria que justifica la spec; un fallo aquí publica la incoherencia o bloquea capítulos sanos.
+
+#### VAL-8: Nacimiento en el minuto exacto y en varios eventos
+- Requisito: R8 — RF-08 «Ningún personaje con fecha de nacimiento registrada está presente en un evento cuyo `inicio` es anterior a ella» (§5, CA-08; §9 filas «Personaje sin fecha» y «Nacimiento posterior a todos los eventos»)
+- Punto de fallo: la comparación usa `≤` en lugar de `<`, se informa una sola violación por personaje o se aplica a personajes sin nacimiento.
+- Precondiciones: Lean instalado; nacimiento de `per-prueba-uno` = `1990-05-10`.
+- Cómo validarlo: comprobar con Lean real: (a) evento a `1990-05-09T23:59`; (b) evento a `1990-05-10T00:00`; (c) nacimiento `2030-01-01` y 3 eventos en 2024; (d) `per-prueba-dos` sin nacimiento en un evento de `0001-01-01T00:00`.
+- Resultado esperado: (a) 1 `antesDeNacer`; (b) 0; (c) 3, una por evento; (d) 0.
+- Tipo de prueba sugerida: integración (marca `lean`)
+- Severidad: Crítica — invariante obligatoria; un error de borde bloquea escenas en el día del nacimiento o deja pasar las anteriores.
+
+#### VAL-9: Exclusión con fin igual a inicio y lista vacía declarada
+- Requisito: R9 — RF-09 «presente en otro evento cuyo `inicio` es igual o posterior al fin del evento que lo excluye. Sin exclusiones registradas, la lista va vacía y el informe lo dice» (§5, CA-09; §9)
+- Punto de fallo: se usa `>` en lugar de `≥`, se cuenta la presencia en el propio evento excluyente o el informe no declara el recuento cuando la lista está vacía.
+- Precondiciones: Lean instalado; exclusión (`per-prueba-dos`, `esc-02-1`), con `esc-02-1` a 2024-03-02T09:00 y 60 min.
+- Cómo validarlo: comprobar con Lean real `per-prueba-dos` presente en (a) `esc-03-1` a las 10:00; (b) `esc-03-1` a las 09:59; (c) solo en `esc-02-1`; (d) sin exclusiones, ejecutar `novela lean` con la salida real y leer el informe.
+- Resultado esperado: (a) 1 `trasExclusion`; (b) 0; (c) 0; (d) 0 violaciones, `LEAN-RESUMEN` con `"exclusiones":0` y la cadena `exclusiones: 0` en el resumen de `qa/NN-lean.json`.
+- Tipo de prueba sugerida: integración (marca `lean`)
+- Severidad: Media — requisito Could y condicionado a G-MEM.
+
+#### VAL-10: El teorema de corrección no usa `sorry` ni `admit`
+- Requisito: R10 — CA-10 «compila sin `sorry` ni `admit`, y `grep -E "sorry|admit"` sobre `formal/lean/` no devuelve nada» (§7)
+- Punto de fallo: la comprobación textual literal da un falso positivo con palabras en español como «admite» en `formal/lean/README.md` o en comentarios, o con artefactos de `formal/lean/.lake/`; o, al revés, se relaja tanto que deja pasar la táctica `sorry`.
+- Precondiciones: `formal/lean/` completo y, en local, `lake build` ya ejecutado.
+- Cómo validarlo: ejecutar `test_sin_sorry` (1) sobre el árbol real; (2) añadiendo a `README.md` la frase «la gramática admite listas vacías»; (3) añadiendo `theorem t : 1 = 2 := by sorry` a `Correccion.lean`. Ejecutar `lake build Invariantes` en el caso (3).
+- Resultado esperado: (1) pasa; (2) pasa, si Q9 se resuelve como comprobación de tácticas y no de texto; (3) el test falla y `lake build` emite el aviso `declaration uses 'sorry'`.
+- Tipo de prueba sugerida: unitaria (contrato) + integración (marca `lean`)
+- Severidad: Media — RF-10 es Should, pero un falso positivo bloquea la suite y uno negativo vacía la verificación.
+
+#### VAL-11: README del proyecto formal completo
+- Requisito: R11 — RF-11 «instalación de `elan` y del toolchain fijado, cómo compilar…, la gramática de § 8.4 y la tabla de invariantes con su tipo de hallazgo» (§5, CA-11)
+- Punto de fallo: la tabla nombra los tipos Lean (`ubicuidad`) y no los de `InformeQA`, o el README cita un toolchain distinto del fijado.
+- Precondiciones: `formal/lean/README.md`.
+- Cómo validarlo: ejecutar `test_formal_readme`; comparar la versión citada en «Instalación» con el contenido de `formal/lean/lean-toolchain`.
+- Resultado esperado: existen los encabezados «Instalación», «Compilar», «Comprobar un Hechos.lean», «Gramática» e «Invariantes»; la tabla contiene `lean_ubicuidad`, `lean_antes_de_nacer` y `lean_tras_exclusion`; la versión citada coincide.
+- Tipo de prueba sugerida: unitaria (contrato)
+- Severidad: Baja — documentación del operador; el error se descubre al instalar.
+
+#### VAL-12: Caso feliz de `novela lean <slug> <cap>`
+- Requisito: R12 — RF-12 «ejecuta `lake build Invariantes` y `lake env lean <ruta absoluta de Hechos.lean>` con `cwd` en `formal/lean/`… añade la línea `lean NN -> <código>`» (§5, CA-12)
+- Punto de fallo: se pasa una ruta relativa (que Lean resuelve contra `formal/lean/` y no encuentra), se omite `lake build`, el informe no lleva `delta_sha256` o se escribe sin `.tmp`.
+- Precondiciones: workspace `lean-prueba` en el paso del `cronista` con `estado/deltas/02.json` válido; lake falso que devuelve 0 y `LEAN-RESUMEN {"eventos":4,"nacimientos":0,"exclusiones":0,"violaciones":0}`.
+- Cómo validarlo: ejecutar `novela lean lean-prueba 2`; inspeccionar las llamadas registradas, `formal/02/Hechos.lean`, `qa/02-lean.json`, `harness.log` y el sha256 de `estado.db`.
+- Resultado esperado: exit 0; llamadas `["lake","build","Invariantes"]` y `["lake","env","lean",<ruta>]` en ese orden, con `Path(<ruta>).is_absolute()` y `cwd` `<RAIZ_REPO>/formal/lean`; `qa/02-lean.json` con `veredicto: aprobado`, `agente: lean`, `delta_sha256` igual a `sha256(estado/deltas/02.json)` y `hechos_sha256` igual a `sha256(formal/02/Hechos.lean)`; última línea de `harness.log` terminada en `lean 02 -> 0`; sha256 de `estado.db` sin cambios; ningún `*.tmp` residual.
+- Tipo de prueba sugerida: integración
+- Severidad: Crítica — es el gate obligatorio; sin él, `aplicar-delta` no puede avanzar.
+
+#### VAL-13: Lock ocupado
+- Requisito: R12 — RF-12 «el sistema debe tomar el lock del workspace» (§5; §9 «Lock ocupado: Sale con 3 sin escribir»)
+- Punto de fallo: `novela lean` no toma el lock y corre en paralelo con un `aplicar-delta` del mismo workspace.
+- Precondiciones: `estado/state.lock` tomado por otro proceso.
+- Cómo validarlo: ejecutar `novela lean lean-prueba 2` con el lock tomado.
+- Resultado esperado: exit 3; no existen `formal/02/Hechos.lean` ni `qa/02-lean.json`; el lake falso no recibe llamadas.
+- Tipo de prueba sugerida: integración
+- Severidad: Media — invariante 8; la ventana es estrecha en el bucle secuencial.
+
+#### VAL-14: Modo novela sobre la historia escrita
+- Requisito: R13 — RF-13 «sobre `estado.db` sin delta, con `formal/novela/Hechos.lean` y `qa/lean.json`. `capitulo` es el del último checkpoint. Sin checkpoint, sale con 4» (§5, CA-13)
+- Punto de fallo: el modo novela lee un `estado/deltas/NN.json` residual y lo proyecta, o toma `capitulo` del cursor y no del checkpoint.
+- Precondiciones: workspace con el capítulo 3 cerrado y un `estado/deltas/04.json` residual; lake falso aprobado.
+- Cómo validarlo: ejecutar `novela lean lean-prueba`; repetir en un workspace recién creado sin checkpoint.
+- Resultado esperado: exit 0; `qa/lean.json` con `capitulo: 3` y sin `delta_sha256`; `formal/novela/Hechos.lean` no contiene ninguna escena `esc-04-*`. Sin checkpoint, exit 4 y ningún fichero escrito.
+- Tipo de prueba sugerida: integración
+- Severidad: Alta — un veredicto con datos equivocados autoriza o bloquea la exportación.
+
+#### VAL-15: Informe de rechazo accionable para el escritor
+- Requisito: R14 — RF-14 «un hallazgo por violación: `tipo` según § 8.4, `gravedad` `alta`, `referencia` el id del personaje, `ubicacion` las escenas implicadas y `descripcion` con los lugares y los momentos en ISO 8601» (§5, CA-14; §9 fila «escena del capítulo actual con una de un capítulo cerrado»)
+- Punto de fallo: la descripción da minutos crudos (`1064001290`), se pierde la escena del capítulo cerrado o dos violaciones se funden en un hallazgo.
+- Precondiciones: lake falso con código 1, dos `LEAN-VIOLACION` (ubicuidad entre `esc-01-2` y `esc-02-1`; nacimiento en `esc-02-1`) y `LEAN-RESUMEN` con `"violaciones":2`.
+- Cómo validarlo: ejecutar `novela lean lean-prueba 2` y leer `qa/02-lean.json`.
+- Resultado esperado: exit 1; `veredicto: rechazado`; 2 hallazgos, `lean_ubicuidad` y `lean_antes_de_nacer`, los dos con `gravedad: alta` y `referencia: per-prueba-uno`; el primero con `esc-01-2` y `esc-02-1` en `ubicacion`; cada `descripcion` contiene una fecha que casa con `\d{4}-\d{2}-\d{2}T\d{2}:\d{2}` y ningún entero de 9 cifras o más; `harness.log` termina en `lean 02 -> 1`.
+- Tipo de prueba sugerida: integración
+- Severidad: Alta — sin detalle accionable, el escritor agota los reintentos sin corregir.
+
+#### VAL-16: Entorno inutilizable nunca aprueba
+- Requisito: R15 — RF-15 «si falta el toolchain fijado, si `lake` o `lean` superan 120 s, si la comprobación falla sin ninguna línea de violación o si la salida… no coincide… salir con 4, sin escribir el informe» (§5, CA-15; §9 «Error de compilación de `Hechos.lean`»)
+- Punto de fallo: un fallo de compilación (código ≠ 0, sin violaciones) se interpreta como rechazo y consume reintentos del escritor, o un código 0 sin `LEAN-RESUMEN` se interpreta como aprobado.
+- Precondiciones: lake falso configurable; `qa/02-lean.json` inexistente al empezar cada caso.
+- Cómo validarlo: ejecutar `novela lean lean-prueba 2` con: toolchain ausente; `TimeoutExpired`; código 1 sin líneas; código 0 con una `LEAN-VIOLACION`; código 1 con 2 líneas y `"violaciones":3`; código 0 sin `LEAN-RESUMEN`. Propiedad de `interpretar` con 200 combinaciones de código, líneas y resumen.
+- Resultado esperado: exit 4 en los seis casos; `qa/02-lean.json` no existe; stderr y la última línea de `harness.log` nombran la causa (`toolchain`, `timeout`, `sin violaciones`, `incoherente`, `sin resumen`). La propiedad devuelve `aprobado` si y solo si código 0, cero líneas `LEAN-VIOLACION` y resumen con `"violaciones":0`.
+- Tipo de prueba sugerida: integración + unitaria (property-based)
+- Severidad: Crítica — un aprobado sin ejecutar Lean anula el bloqueo de publicación.
+
+#### VAL-17: Dos workspaces compilan la biblioteca a la vez
+- Requisito: R15 — §9 «Dos workspaces compilan la biblioteca a la vez: Lake serializa… Si falla, el error sale con 4»
+- Punto de fallo: la compilación concurrente deja `formal/lean/.lake/` corrupto y los dos procesos aprueban o uno aprueba con una biblioteca a medio escribir.
+- Precondiciones: Lean instalado; `formal/lean/.lake/` borrado; dos workspaces `lean-prueba-a` y `lean-prueba-b` en el paso del `cronista`.
+- Cómo validarlo: lanzar a la vez `novela lean lean-prueba-a 2` y `novela lean lean-prueba-b 2`; después, `lake build Invariantes` a mano.
+- Resultado esperado: cada proceso sale con 0 o con 4, ninguno con 1 sin líneas `LEAN-VIOLACION`; la compilación manual posterior sale con 0.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Baja — el bucle es de un proceso por workspace y la concurrencia entre workspaces es rara.
+
+#### VAL-18: Entradas ausentes paran antes de Lean
+- Requisito: R16 — RF-16 «Si `estado/deltas/NN.json` no existe o no valida, o si `estado.db` no tiene los datos del contrato… salir con 4 sin ejecutar Lean y nombrar lo que falta» (§5, CA-16; §9 «Workspace creado antes de G-MEM»)
+- Punto de fallo: un workspace anterior a G-MEM lanza una traza de Python (exit 1 genérico) en lugar de 4, o se invoca `lake build` antes de validar el delta.
+- Precondiciones: tres workspaces: sin `estado/deltas/02.json`; con un delta sin campos obligatorios; con `estado.db` creado por el esquema actual (sin columnas de G-MEM).
+- Cómo validarlo: ejecutar `novela lean lean-prueba 2` en cada uno.
+- Resultado esperado: exit 4 en los tres; stderr contiene `estado/deltas/02.json`, el campo que no valida o la columna ausente, respectivamente; el lake falso no recibe llamadas; no existe `qa/02-lean.json`.
+- Tipo de prueba sugerida: integración
+- Severidad: Alta — un 1 en vez de un 4 manda al escritor a reintentar un fallo de entorno.
+
+#### VAL-19: `aplicar-delta` exige el veredicto del mismo delta
+- Requisito: R17 — RF-17 «no existe, no es `aprobado` o su `delta_sha256` no coincide… salir con 1 sin escribir nada. La causa… empieza por `custodia: lean`» (§5, CA-17; §9 filas «El `cronista` se reintenta» y «La sesión se salta `novela lean`»)
+- Punto de fallo: tras reintentar al `cronista`, el informe aprobado del delta anterior sigue sirviendo y se aplica un delta nunca comprobado.
+- Precondiciones: delta válido del capítulo 2; sha256 de `estado.db` anotado.
+- Cómo validarlo: ejecutar `novela aplicar-delta lean-prueba 2` (a) sin `qa/02-lean.json`; (b) con informe `rechazado`; (c) con informe `aprobado` y `delta_sha256` de otro delta; (d) tras aprobar el delta y cambiar un solo byte de `estado/deltas/02.json`; (e) con el informe aprobado del delta vigente. Propiedad sobre (veredicto, sha) con 200 ejemplos.
+- Resultado esperado: (a)-(d) exit 1, causa en `harness.log` que empieza por `custodia: lean` y sha256 de `estado.db` sin cambios; (e) exit 0 y el capítulo aplicado. La propiedad aprueba si y solo si `aprobado` y sha iguales.
+- Tipo de prueba sugerida: integración + unitaria (property-based)
+- Severidad: Crítica — una incoherencia aplicada queda fosilizada en tablas append-only.
+
+#### VAL-20: `exportar` exige el veredicto de la historia completa
+- Requisito: R18 — RF-18 «no existe, no es `aprobado` o su `capitulo` no coincide con el del último checkpoint… salir con 1, nombrar la causa y no escribir nada en `export/`» (§5, CA-18; §9 fila «`qa/lean.json` rechazado al exportar»)
+- Punto de fallo: `exportar` crea `export/` antes de comprobar, o acepta un `qa/lean.json` de un capítulo anterior.
+- Precondiciones: capítulo 3 cerrado; `export/` inexistente.
+- Cómo validarlo: ejecutar `novela exportar lean-prueba --formato md` sin `qa/lean.json`, con uno `rechazado`, con uno `aprobado` de `capitulo: 2` y con uno `aprobado` de `capitulo: 3`. Repetir los tres primeros con un `export/` previo y comparar su listado y sus mtimes.
+- Resultado esperado: los tres primeros salen con 1, nombran la causa en stderr y no crean `export/` o lo dejan con el mismo listado y los mismos mtimes; el cuarto sale con 0 y escribe el fichero exportado.
+- Tipo de prueba sugerida: integración
+- Severidad: Crítica — «publicar» es exportar; exportar con una incoherencia es el fallo que la spec existe para impedir.
+
+#### VAL-21: El procedimiento por capítulo pasa por Lean y reintenta al escritor
+- Requisito: R19 — RF-19 «ejecutar `novela lean <slug> <cap>` después del `cronista` y antes de `novela aplicar-delta`, también tras cada reintento del `cronista`… reintento del `escritor`… `reintento: qa/NN-lean.json`» (§5, CA-19)
+- Punto de fallo: el procedimiento pone `novela lean` solo en el camino feliz y, tras un reintento del `cronista`, salta a `aplicar-delta`; o el reintento del escritor recibe el capítulo en vez del informe.
+- Precondiciones: `.claude/commands/novela-continuar.md`; para la demostración, G-MEM implementado y Lean instalado.
+- Cómo validarlo: ejecutar `test_procedimiento_lean`; revisar a mano que la rama de reintento del `cronista` vuelve a `novela lean`; en la novela de humo, sembrar en el delta del capítulo 2 el defecto de `lean-ubicuidad`.
+- Resultado esperado: el test pasa (orden `cronista` < `novela lean` < `aplicar-delta`, fila `lean NN -> 1`, `reintento: qa/NN-lean.json`, paso 3 y `formal` en el bloque de intervención). En la humo, `harness.log` muestra `lean 02 -> 1` seguido de `briefing 02 escritor -> 0`, y tras el tercer `lean 02 -> 1` existe `intervencion.md` con `gate: formal`.
+- Tipo de prueba sugerida: unitaria (contrato) + e2e (novela de humo)
+- Severidad: Alta — sin el paso, cada capítulo acaba en intervención por `custodia: lean`.
+
+#### VAL-22: La auditoría final para sin exportar
+- Requisito: R20 — RF-20 «ejecutar `novela lean <slug>` antes de `novela exportar`. Si sale con 1, escribe `intervencion.md` con `gate: formal` y para sin exportar» (§5, CA-20)
+- Punto de fallo: el procedimiento sigue con `exportar` tras un 1, o reintenta al escritor sobre capítulos cerrados (invariante 7).
+- Precondiciones: `.claude/commands/novela-auditar.md`.
+- Cómo validarlo: ejecutar `test_procedimiento_lean` (parte de auditar); revisar que no hay ninguna rama de reintento del escritor en ese procedimiento.
+- Resultado esperado: `novela lean <slug>` aparece antes de `novela exportar`; ante un 1 se escribe `intervencion.md` con `gate: formal` y el texto dice parar; no aparece `briefing … escritor`.
+- Tipo de prueba sugerida: unitaria (contrato)
+- Severidad: Alta — sin la parada, la exportación llega a `exportar` y solo la frena RF-18 sin intervención registrada.
+
+#### VAL-23: `InformeQA` ampliado sin romper informes existentes
+- Requisito: R21 — RF-21 «el productor `lean`, los tipos `lean_ubicuidad`, `lean_antes_de_nacer` y `lean_tras_exclusion`, y los campos opcionales `delta_sha256` y `hechos_sha256`» (§5, CA-21)
+- Punto de fallo: los campos se declaran obligatorios y los `qa/*.json` de otros productores dejan de validar, o se acepta un sha no hexadecimal.
+- Precondiciones: `InformeQA` modificado; un `qa/02-continuidad.json` de un workspace anterior.
+- Cómo validarlo: validar un informe `agente: lean` con los tres tipos y los dos sha; otro con `delta_sha256: "abc"`; el informe antiguo de continuidad; ejecutar `REGENERAR=1 uv run pytest tests/test_contratos.py` y `git status --porcelain backend/schemas/`.
+- Resultado esperado: el primero valida, el segundo lanza `ValidationError` que nombra `delta_sha256`, el antiguo valida sin cambios, y `git status` no devuelve líneas.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Alta — un esquema incompatible rompe `vp_schema` en todos los workspaces.
+
+#### VAL-24: `vp_lean` en el catálogo sin tipos compartidos
+- Requisito: R22 — RF-22 «puntos `lean` y `checkpoint`, bloquea en `lean`, tipos de RF-21 y valor binario. `docs/validators.md` § 3.10 tiene su fila» (§5, CA-22)
+- Punto de fallo: un tipo `lean_*` queda asignado también a otro validador, o la fila de § 3.10 no coincide en orden con el catálogo.
+- Precondiciones: catálogo y tabla actualizados.
+- Cómo validarlo: ejecutar `test_catalogo` y `test_tabla_de_validadores`; evaluar `validador_de` para los tres tipos.
+- Resultado esperado: los tres devuelven `"vp_lean"`; ningún tipo aparece en dos entradas de `VALIDADORES`; los dos tests pasan.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Media — afecta a la atribución de scores, no al gate.
+
+#### VAL-25: `checkpoint` exige el informe y emite `vp_lean`
+- Requisito: R23 — RF-23 «validar `qa/NN-lean.json` con `vp_schema` como artefacto obligatorio y emitir `vp_lean`: 1 si el informe es `aprobado` y 0 si no… en el orden del catálogo» (§5, CA-23)
+- Punto de fallo: `vp_lean` se emite en una llamada aparte, antes de `vp_nombres`, o el checkpoint se escribe con el informe ausente.
+- Precondiciones: capítulo listo para cerrar; sink falso.
+- Cómo validarlo: ejecutar `novela checkpoint lean-prueba 2` con `qa/02-lean.json` `aprobado`, con uno `rechazado` que valida y sin informe.
+- Resultado esperado: aprobado: una sola emisión con `vp_lean: 1.0` inmediatamente después de `vp_nombres`. Rechazado: `vp_lean: 0.0` (el cierre depende de Q11). Ausente: la emisión solo contiene `vp_schema: 0`, exit 1 y `checkpoints/latest.json` sin cambios.
+- Tipo de prueba sugerida: integración
+- Severidad: Alta — un checkpoint sin informe cierra un capítulo no verificado.
+
+#### VAL-26: `comprobar-entorno` detecta Lean sin descargar
+- Requisito: R24 — RF-24 «comprobar que `lake` y `lean` resuelven en el PATH y que `elan toolchain list` incluye el toolchain… sin descargar nada. Registra un hallazgo por fallo y sale con 1» (§5, CA-24; §9 fila «Toolchain no instalado»)
+- Punto de fallo: la comprobación invoca `lake --version` dentro de `formal/lean/`, lo que hace que elan descargue el toolchain que falta.
+- Precondiciones: función pura `comprobaciones.entorno` y cáscara con `subprocess.run` sustituido.
+- Cómo validarlo: llamar a `entorno` con `lake` ausente, `lean` ausente, toolchain no instalado, los tres a la vez y todo presente; ejecutar la cáscara y registrar cada orden.
+- Resultado esperado: 1, 1, 1 y 3 hallazgos, cada uno con `lake`, `lean` o la versión de `lean-toolchain` en su texto; 0 hallazgos con todo presente; exit 1 con algún hallazgo; ninguna orden registrada contiene `install`, `update` ni se ejecuta con `cwd` en `formal/lean/`.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Alta — una descarga silenciosa rompe el requisito de no acceder a la red.
+
+#### VAL-27: La suite pasa sin Lean con un solo omitido
+- Requisito: R25, R37 — RF-25 «El único test que ejecuta Lean real lleva `@pytest.mark.lean` y se omite si `shutil.which("lake")` es `None`» (§5, CA-25); RNF-08 «Tests que fallan con `lake` ausente del PATH = 0, con 1 omitido» (§6)
+- Punto de fallo: algún test de contrato o de la cáscara llama a Lean real sin la marca, o hay más de un test omitido.
+- Precondiciones: PATH sin `lake` ni `lean`.
+- Cómo validarlo: `uv run pytest -rs` y `uv run pytest --markers`.
+- Resultado esperado: 0 fallos; exactamente 1 `SKIPPED` con el motivo «lake no está en el PATH»; `--markers` lista `@pytest.mark.lean`.
+- Tipo de prueba sugerida: integración
+- Severidad: Alta — CI no instala Lean; una dependencia oculta deja la suite en rojo.
+
+#### VAL-28: El caso sembrado escapa a los demás validadores
+- Requisito: R26 — RF-26 «un personaje está en dos escenarios distintos con intervalos solapados en capítulos distintos. Sobre él, `novela validar`, las violaciones de `aplicar-delta` y `novela auditar` no dan ningún hallazgo» (§5, CA-26)
+- Punto de fallo: el fixture comete otro error (pista huérfana, hilo abierto) que detecta un validador actual, con lo que deja de demostrar que solo Lean lo ve; o usa nombres reales.
+- Precondiciones: `fabrica.py` con el workspace `lean-ubicuidad`.
+- Cómo validarlo: ejecutar `novela validar` de cada capítulo, `aplicar-delta` de cada delta en orden con un `qa/NN-lean.json` aprobado de prueba y `novela auditar`; llamar a `generar` sobre el estado resultante.
+- Resultado esperado: todos salen con 0 y sus informes tienen 0 hallazgos; `generar` contiene dos eventos de capítulos distintos con el mismo `per-*`, lugares distintos e intervalos solapados; todos los ids contienen `prueba`.
+- Tipo de prueba sugerida: integración
+- Severidad: Media — sostiene la demostración de LEAN-04, no el gate.
+
+#### VAL-29: `docs/lean-caso.md` no presenta el caso sembrado como real
+- Requisito: R27 — RF-27 «con el caso detectado o la justificación de § 8.6»; CA-27 «el caso sembrado está marcado como tal y no como caso real» (§5, §7)
+- Punto de fallo: falta una sección de § 8.6, se cita una orden inexistente o el caso sembrado se mezcla con la novela real.
+- Precondiciones: `docs/lean-caso.md`.
+- Cómo validarlo: ejecutar `test_lean_caso`; revisar a mano la sección 5.
+- Resultado esperado: existen las cinco secciones de § 8.6; cada `novela <sub>` citado está registrado en el CLI; la sección 5 contiene la palabra «sembrado» y la sección 2 no cita `lean-ubicuidad`.
+- Tipo de prueba sugerida: unitaria (contrato) + revisión manual
+- Severidad: Media — presentar un fixture como hallazgo real es engañoso, pero no afecta al sistema.
+
+#### VAL-30: Documentación de referencia al día y sin futuro
+- Requisito: R28 — RF-28 «crear `docs/adr/0005-validador-formal-temporal-en-lean.md` y actualizar… `docs/validators.md` § 2, § 3.4, § 3.10, § 5.2 y § 6…» (§5, CA-28)
+- Punto de fallo: § 3.4 y § 5.2 siguen declarando descartada la verificación formal, o `CLAUDE.md` y `AGENTS.md` crecen más de lo autorizado.
+- Precondiciones: commit de cierre.
+- Cómo validarlo: `grep -niE "pendiente|próximamente"` sobre las secciones listadas; leer § 3.4 y § 5.2; `git diff --numstat` de `CLAUDE.md` y `AGENTS.md`; leer el frontmatter del ADR.
+- Resultado esperado: sin coincidencias nuevas; § 3.4 y § 5.2 no marcan como U la coherencia temporal; `1	0` en cada uno de los dos ficheros de convención; ADR con estado `aceptada`.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Media — la documentación de referencia debe describir lo que hay; su desfase confunde a los agentes.
+
+#### VAL-31: `.lake/` ignorado
+- Requisito: R29 — RF-29 «ignorar `formal/lean/.lake/` en `.gitignore`» (§5, CA-29)
+- Punto de fallo: los artefactos de compilación se versionan.
+- Precondiciones: `lake build` ejecutado.
+- Cómo validarlo: `git check-ignore formal/lean/.lake/` y `git status --porcelain formal/lean/`.
+- Resultado esperado: exit 0 y ninguna línea con `.lake`.
+- Tipo de prueba sugerida: unitaria (contrato)
+- Severidad: Baja — ruido en el repositorio.
+
+#### VAL-32: Generador por debajo de 1 s
+- Requisito: R30 — RNF-01 «Tiempo de `generar` con 1 000 eventos, 50 personajes y 10 personajes por evento < 1 s» (§6)
+- Punto de fallo: la revalidación de ids o la ordenación son cuadráticas.
+- Precondiciones: hechos sintéticos con esos volúmenes.
+- Cómo validarlo: medir con `time.perf_counter` la mediana de 5 llamadas a `generar`.
+- Resultado esperado: mediana < 1,0 s.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Baja — el tiempo queda dominado por Lean.
+
+#### VAL-33: Gate completo por debajo de 60 s
+- Requisito: R31 — RNF-02 «Tiempo total de `novela lean <slug> <cap>` con 1 000 eventos y la biblioteca ya compilada… ≤ 60 s» (§6)
+- Punto de fallo: `native_decide` sobre pares globales es cuadrático y supera el umbral con novelas largas.
+- Precondiciones: Lean instalado; biblioteca compilada; workspace con 1 000 eventos, 50 personajes y 10 por evento (ver D2).
+- Cómo validarlo: `Measure-Command { novela lean lean-prueba 24 }` tres veces en la máquina de desarrollo.
+- Resultado esperado: las tres ≤ 60 s.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Media — superar el umbral acerca el límite de 120 s y convierte novelas largas en fallos de entorno.
+
+#### VAL-34: Lean colgado aborta a los 120 s
+- Requisito: R32 — RNF-03 «Tiempo máximo de cada llamada a `lake` o `lean` antes de abortar con 4: 120 s» (§6; §9 «`lake` o `lean` colgado»)
+- Punto de fallo: el límite se aplica a las dos llamadas juntas o no se aplica a `lake build`.
+- Precondiciones: un `lake` falso real en el PATH (script que duerme 300 s) para cada llamada por separado.
+- Cómo validarlo: ejecutar `novela lean lean-prueba 2` con el `build` colgado y, después, con el `env lean` colgado, midiendo el tiempo total.
+- Resultado esperado: exit 4 en los dos casos en un tiempo entre 120 y 130 s por encima del de la llamada anterior, `timeout` en stderr y sin `qa/02-lean.json`.
+- Tipo de prueba sugerida: integración (manual por duración)
+- Severidad: Alta — un bucle desatendido colgado consume la sesión sin avanzar.
+
+#### VAL-35: Sin red en el gate ni en el entorno
+- Requisito: R33 — RNF-04 «`require` en `formal/lean/lakefile.lean`, y descargas iniciadas por `novela lean` o `comprobar-entorno` = 0» (§6)
+- Punto de fallo: Lake intenta resolver un manifiesto o elan descarga un toolchain al ejecutar `lake` en `formal/lean/`.
+- Precondiciones: Lean instalado; adaptador de red desactivado; `formal/lean/.lake/` borrado.
+- Cómo validarlo: ejecutar `novela comprobar-entorno` y `novela lean lean-prueba 2` sin red; registrar las conexiones con `Get-NetTCPConnection` o un proxy que rechace todo.
+- Resultado esperado: los dos comandos terminan con su código normal (0 con el toolchain instalado) y el registro no muestra ninguna conexión iniciada por `lake`, `lean` o `elan`.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Alta — incumple la regla del CLI de no acceder a la red.
+
+#### VAL-36: `estado.db` intacto en todos los caminos
+- Requisito: R35 — RNF-06 «Diferencia de sha256 de `estado.db` antes y después de `novela lean` = 0 bytes» (§6)
+- Punto de fallo: un camino de error (exit 1 o 4) o el modo novela abre la base en escritura.
+- Precondiciones: workspace con el capítulo 1 cerrado.
+- Cómo validarlo: anotar el sha256 de `estado.db` y el listado de `estado/`; ejecutar `novela lean lean-prueba 2` con lake falso aprobado, con rechazo, con timeout y con un id inválido, y `novela lean lean-prueba`.
+- Resultado esperado: el sha256 es idéntico tras las cinco ejecuciones y no aparece ningún fichero nuevo en `estado/`.
+- Tipo de prueba sugerida: integración
+- Severidad: Crítica — `estado.db` es la única fuente de verdad.
+
+#### VAL-37: Ni citas, ni canon, ni prosa en los artefactos de Lean
+- Requisito: R36 — RNF-07 «Textos de `canon/`, campos `cita` o prosa de capítulos en `Hechos.lean` y `qa/*lean.json` = 0» (§6; §3.2 «ningún contenido de `canon/misterio.md`»)
+- Punto de fallo: la `descripcion` del hallazgo incluye la `cita` del delta o texto de `canon/misterio.md`, y el escritor la recibe en su reintento.
+- Precondiciones: delta fixture con `cita: "CENTINELA-CITA-7Q"`; `canon/misterio.md` con `CENTINELA-MISTERIO-7Q`; capítulo con `CENTINELA-PROSA-7Q`.
+- Cómo validarlo: ejecutar `novela lean lean-prueba 2` con un rechazo y `novela lean lean-prueba`; buscar `7Q` en `formal/02/Hechos.lean`, `formal/novela/Hechos.lean`, `qa/02-lean.json` y `qa/lean.json`.
+- Resultado esperado: 0 coincidencias en los cuatro ficheros.
+- Tipo de prueba sugerida: integración
+- Severidad: Crítica — filtrar `canon/misterio.md` al escritor rompe el invariante 3.
+
+#### VAL-38: Contratos ajenos intactos
+- Requisito: R38 — RNF-09 «Cambios en `backend/api/openapi.json` y `backend/schemas/state.schema.json` introducidos por esta spec = 0» (§6)
+- Punto de fallo: ampliar `InformeQA` o el catálogo cambia el OpenAPI o el esquema de estado.
+- Precondiciones: commit base acordado (Q13).
+- Cómo validarlo: `git diff <base>..HEAD -- backend/api/openapi.json backend/schemas/state.schema.json` y `npm run verificar` en `frontend/`.
+- Resultado esperado: diff vacío y `npm run verificar` con exit 0.
+- Tipo de prueba sugerida: integración
+- Severidad: Alta — romper el contrato rompe el panel.
+
+#### VAL-39: Un `vp_lean` por capítulo cerrado
+- Requisito: R39 — RNF-10 «Scores `vp_lean` emitidos por capítulo cerrado con el sink activo = 1» (§6)
+- Punto de fallo: `novela lean` también emite el score, o el modo novela emite uno más.
+- Precondiciones: sink falso activo; workspace de 3 capítulos cerrados con fábrica y lake falso.
+- Cómo validarlo: cerrar los 3 capítulos y ejecutar `novela lean lean-prueba`; contar las emisiones de `vp_lean`.
+- Resultado esperado: exactamente 3 `vp_lean`, uno por capítulo, todos emitidos desde `checkpoint`.
+- Tipo de prueba sugerida: integración
+- Severidad: Baja — observabilidad.
+
+#### VAL-40: Propiedades con volumen suficiente
+- Requisito: R40 — RNF-11 «`max_examples` de cada propiedad de Hypothesis de esta spec ≥ 200» (§6)
+- Punto de fallo: una propiedad hereda el perfil por defecto de 50 ejemplos.
+- Precondiciones: tests de esta spec escritos.
+- Cómo validarlo: listar cada función con `@given` en `test_temporal.py`, `test_generador.py`, `test_interpretar.py` y `test_custodia.py`, y comprobar su `@settings`.
+- Resultado esperado: cada una tiene `@settings(max_examples=N)` con N ≥ 200.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Media — con pocos ejemplos, los gates property-based no cubren los bordes.
+
+### Verificadores
+#### VER-1: `imprimirInforme` imprime líneas crudas y el teorema fija el código
+- Paso del plan: P1 — T1.1 «`Informe.lean` contiene `imprimirInforme` con las líneas `LEAN-VIOLACION <json>` y `LEAN-RESUMEN {…}`» (Fase 1)
+- Punto de fallo: `#eval` de una `String` imprime el valor entrecomillado y con `\n` escapados, así que ninguna línea empieza por `LEAN-VIOLACION`. O `LEAN-RESUMEN` no es la última línea que imprime `#eval`.
+- Precondiciones: Lean instalado; `Hechos.lean` de ejemplo con una ubicuidad.
+- Cómo verificarlo: `lake env lean <ruta absoluta del ejemplo>` desde `formal/lean/`, capturando stdout y código.
+- Resultado esperado: una línea que empieza exactamente por `LEAN-VIOLACION {"invariante":"ubicuidad"`, sin comillas delante; la última línea de `#eval` empieza por `LEAN-RESUMEN {` y contiene `"violaciones":1`; código ≠ 0. Sin violaciones, código 0 y `"violaciones":0`.
+- Tipo de prueba sugerida: integración (manual en T1.1, automatizada en T6.1)
+- Severidad: Alta — con el formato equivocado, todo rechazo termina en exit 4.
+
+#### VER-2: Orden determinista de `violaciones` y algoritmo por personaje
+- Paso del plan: P1 — T1.1 «`violaciones : Hechos → List Violacion` en orden determinista (por personaje, con `e₁.escena < e₂.escena`)» (Fase 1); T1.4 «algoritmo… por personaje, no por pares globales»
+- Punto de fallo: el orden depende del orden de los eventos en la lista, o se generan pares globales de eventos sin agrupar por personaje.
+- Precondiciones: Lean instalado; dos `Hechos.lean` con los mismos hechos, uno de ellos con los eventos reordenados a mano.
+- Cómo verificarlo: comparar la salida de `lake env lean` de los dos ficheros; revisar en `Reglas.lean` que la iteración parte de los personajes.
+- Resultado esperado: stdout idéntico byte a byte; las líneas `LEAN-VIOLACION` aparecen ordenadas por `personaje` y después por `escenas`.
+- Tipo de prueba sugerida: integración + revisión manual
+- Severidad: Media — el orden afecta a la reproducibilidad del informe, no al veredicto.
+
+#### VER-3: El teorema lo comprueba el kernel
+- Paso del plan: P2 — T1.2 «demostrar en `Correccion.lean` `violaciones_nil_iff`… sin Mathlib» (Fase 1); T8.1 «la base de confianza de `native_decide`»
+- Punto de fallo: la demostración usa `native_decide`, `implemented_by` o un `axiom` propio, y el teorema deja de estar comprobado por el kernel.
+- Precondiciones: Lean instalado; `Correccion.lean` compilado.
+- Cómo verificarlo: añadir temporalmente `#print axioms Invariantes.violaciones_nil_iff` y compilar.
+- Resultado esperado: la lista de axiomas es un subconjunto de `propext`, `Classical.choice` y `Quot.sound`; no aparece `Lean.ofReduceBool` ni ningún axioma declarado en `formal/lean/`.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Media — sin kernel, la corrección descansa en el compilador, justo lo que el teorema debía evitar.
+
+#### VER-4: La medición de T1.4 corresponde al escenario de RNF-02
+- Paso del plan: P4 — T1.4 «generar 1 000 eventos sintéticos, con 50 personajes y 10 por evento, y medir `lake env lean` con `native_decide` y la biblioteca compilada. Compilar desde cero con la red desactivada» (Fase 1)
+- Punto de fallo: la medición usa menos eventos o personajes, incluye la primera compilación o se hace con red.
+- Precondiciones: PR de T1.4.
+- Cómo verificarlo: leer en el PR el número de eventos, personajes y personajes por evento, el tiempo medido, si la biblioteca estaba compilada y el resultado de la compilación sin red.
+- Resultado esperado: el PR registra 1 000 / 50 / 10, un tiempo ≤ 60 s con la biblioteca compilada y la compilación desde cero sin red con código 0; si el tiempo supera 60 s, la Fase 4 figura como detenida.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Media — sin medición fiable se construye la cáscara sobre un supuesto de rendimiento de confianza baja.
+
+#### VER-5: `minutos` no acepta una fecha sin hora como inicio de evento
+- Paso del plan: P5 — T2.1 «`minutos(momento) -> int` para `AAAA-MM-DDTHH:MM` y `AAAA-MM-DD`… Se añade también la conversión inversa» (Fase 2)
+- Punto de fallo: al aceptar los dos formatos en una sola función, un evento con `inicio` `2024-03-01` (sin hora, fuera del contrato de § 8.3) se convierte en silencio a las 00:00. O la conversión inversa no es la inversa exacta.
+- Precondiciones: `temporal.py`.
+- Cómo verificarlo: construir los hechos a partir de una fila de evento con `inicio = "2024-03-01"`; propiedad con 200 ejemplos de `iso(minutos(x)) == x` para `x` entre `0001-01-01T00:00` y `9999-12-31T23:59`.
+- Resultado esperado: la fila sin hora produce `ContratoTemporalAusente` o `ValueError` (salida 4), no un evento; la propiedad se cumple en todos los ejemplos.
+- Tipo de prueba sugerida: unitaria (property-based)
+- Severidad: Media — un evento a medianoche por defecto crea falsos solapes.
+
+#### VER-6: La revalidación de ids no deja pasar un salto de línea final
+- Paso del plan: P6 — T2.2 «Revalida cada id con su expresión antes de emitir texto» (Fase 2); §3 «`PersonajeId` (`^per-[a-z0-9-]+$`)»
+- Punto de fallo: en Python, `re.match(r"^per-[a-z0-9-]+$", "per-x\n")` casa porque `$` admite un `\n` final; el salto de línea llega a `Hechos.lean` y rompe la gramática o abre una línea nueva de código Lean.
+- Precondiciones: `generador.py`.
+- Cómo verificarlo: llamar a `generar` con `personajes=("per-x\n",)`, `lugar="esc-faro-prueba\n"` y `escena="esc-01-1\n"` (con `model_construct`); revisar que la revalidación usa `re.fullmatch` o `\Z`.
+- Resultado esperado: `HechosInvalidos` en los tres casos.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Crítica — deja abierta la inyección de código Lean que RF-05 prohíbe.
+
+#### VER-7: El fichero esperado compila contra `Invariantes`
+- Paso del plan: P6 — T2.2 «`Hechos.esperado.lean` compila con `lake env lean` en local… Añadir un lector de la gramática, solo para tests» (Fase 2)
+- Punto de fallo: la gramática del generador (anónimos `⟨…⟩`, `where`, listas vacías `[]`) no compila con los tipos reales, y el test byte a byte congela un fichero inválido.
+- Precondiciones: Lean instalado; biblioteca compilada.
+- Cómo verificarlo: `lake env lean <ruta absoluta de backend/tests/fixtures/lean/Hechos.esperado.lean>`; repetir con un `generar` de hechos sin nacimientos ni exclusiones; `grep -r` del nombre del lector fuera de `test_*.py`.
+- Resultado esperado: código 0 y `LEAN-RESUMEN` con `"eventos":3` en el primero; el segundo compila con `nacimientos := []` y `exclusiones := []`; el lector no aparece en código de producción.
+- Tipo de prueba sugerida: integración (manual)
+- Severidad: Alta — un generador que no compila hace que todo `novela lean` salga con 4.
+
+#### VER-8: Campos nuevos opcionales y esquema regenerado en el mismo commit
+- Paso del plan: P7 — T2.3 «`delta_sha256` y `hechos_sha256` como `Sha256 | None`. Regenerar `qa-informe.schema.json` y actualizar `docs/definitions.md` § 6 en el mismo commit» (Fase 2)
+- Punto de fallo: el esquema regenerado marca los campos como `required`, o el commit no incluye `definitions.md`.
+- Precondiciones: commit de T2.3.
+- Cómo verificarlo: leer `required` en `backend/schemas/qa-informe.schema.json`; `git show --stat <commit>`.
+- Resultado esperado: ni `delta_sha256` ni `hechos_sha256` están en `required`; el commit incluye `qa.py`, `test_qa.py`, `qa-informe.schema.json` y `docs/definitions.md`.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Media — incumple la regla del repositorio de regenerar en el mismo commit.
+
+#### VER-9: `interpretar` ignora las líneas de error de Lean
+- Paso del plan: P8 — T2.4 «siguiendo la tabla de § 8.4… Cualquier incoherencia devuelve `ErrorLean`» (Fase 2)
+- Punto de fallo: con un rechazo, `lean` imprime en stdout, además de las líneas del informe, el error de `native_decide` (`Hechos.lean:12:0: error: …`). Si `interpretar` trata cualquier línea sin prefijo como incoherencia, todo rechazo sale con 4 y nunca vuelve al escritor.
+- Precondiciones: stdout real capturado de un rechazo con Lean (VER-1).
+- Cómo verificarlo: llamar a `interpretar(1, stdout_real, 2)` con la salida capturada, y a `interpretar(1, stdout_sintetico, 2)` con dos `LEAN-VIOLACION`, un `LEAN-RESUMEN` y tres líneas `error:` intercaladas.
+- Resultado esperado: los dos devuelven un `InformeQA` `rechazado` con tantos hallazgos como líneas `LEAN-VIOLACION`; ninguno devuelve `ErrorLean`.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Alta — sin esto, el camino de rechazo de RF-14 y RF-19 no existe en la práctica.
+
+#### VER-10: Lectura en `mode=ro` y ausencia de contrato nombrada
+- Paso del plan: P9 — T3.1 «leer en solo lectura las tablas y columnas que fije G-MEM… Si falta algo, lanzar `ContratoTemporalAusente` nombrando lo que falta» (Fase 3); D2 «sale con `parar(WORKSPACE_INVALIDO, causa)`»
+- Punto de fallo: la cáscara abre con `solo_lectura=False`, o `ContratoTemporalAusente` se escapa como traza y sale con 1.
+- Precondiciones: base con el esquema actual (sin G-MEM).
+- Cómo verificarlo: sustituir `estado_db.abrir` por un envoltorio que registre `solo_lectura`; ejecutar `novela lean lean-prueba 2`.
+- Resultado esperado: `solo_lectura=True` en todas las llamadas; exit 4; la última línea de `harness.log` es `lean 02 -> 4 · <causa>` y la causa nombra la tabla o la columna que falta.
+- Tipo de prueba sugerida: integración
+- Severidad: Alta — un exit 1 en lugar de 4 desencadena reintentos del escritor inútiles.
+
+#### VER-11: La deduplicación de `proyectar` no depende del orden de personajes
+- Paso del plan: P10 — T3.2 «una escena ya presente con el mismo contenido no se duplica» (Fase 3)
+- Punto de fallo: la igualdad de `Evento` compara `personajes` como tupla ordenada; la base devuelve los presentes en orden de `rowid` y el delta en el orden del `cronista`, así que la misma escena se ve distinta y se duplica.
+- Precondiciones: hechos con `esc-02-1` y `personajes=("per-prueba-dos","per-prueba-uno")`; delta con la misma escena y `("per-prueba-uno","per-prueba-dos")`.
+- Cómo verificarlo: `proyectar(h, d)`.
+- Resultado esperado: una sola `esc-02-1` en el resultado.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Alta — tras cada reanudación aparecerían eventos duplicados y violaciones de nacimiento repetidas.
+
+#### VER-12: El timeout mata el árbol de procesos y no usa shell
+- Paso del plan: P11 — T4.1 «`subprocess.run` sin shell, con lista de argumentos y `TimeoutExpired` traducido» (Fase 4)
+- Punto de fallo: en Windows, `subprocess.run(timeout=…)` mata `lake` pero no el `lean` hijo, que sigue vivo con el lock de `.lake/` y hace fallar la siguiente ejecución.
+- Precondiciones: `lake` falso real que lanza un proceso hijo que duerme 300 s.
+- Cómo verificarlo: `ejecutar(["lake","env","lean","x"], cwd, timeout=2)`; al volver, listar los procesos hijos vivos; revisar que no hay `shell=True` (ruff `S602`).
+- Resultado esperado: la función devuelve o lanza el error traducido en menos de 5 s; no queda vivo ningún proceso hijo; ruff sin `S602`/`S604`.
+- Tipo de prueba sugerida: integración
+- Severidad: Alta — procesos huérfanos bloquean los gates siguientes.
+
+#### VER-13: `toolchain_instalado` entiende la salida real de elan
+- Paso del plan: P11 — T4.1 «`toolchain_instalado(proyecto)` lee `lean-toolchain` y compara con `elan toolchain list`» (Fase 4)
+- Punto de fallo: `elan toolchain list` añade sufijos como ` (default)` o ` (override)`, o `lean-toolchain` lleva `\r\n`; una comparación exacta da falso en todas las máquinas y `comprobar-entorno` falla siempre. Sin `elan` en el PATH, lanza una excepción.
+- Precondiciones: `subprocess.run` sustituido.
+- Cómo verificarlo: llamar con salidas `leanprover/lean4:v4.X.Y (default)\n`, `leanprover/lean4:v4.X.Y\r\n`, `leanprover/lean4:v4.X.Z\n` y con `elan` ausente, y `lean-toolchain` con y sin `\r\n`.
+- Resultado esperado: `True`, `True`, `False` y `False` (sin excepción).
+- Tipo de prueba sugerida: unitaria
+- Severidad: Alta — un falso negativo impide lanzar el harness en cualquier máquina.
+
+#### VER-14: Orden interno D7 y causa en el registro (D2)
+- Paso del plan: P12 — D7 «`generar` (en memoria) → comprobación del toolchain → escritura atómica de `Hechos.lean` → `lake build` → `lake env lean`»; D2 «la causa llega a `harness.log` dentro del `registro("lean", nn)`»
+- Punto de fallo: la comprobación del toolchain va después de `lake build` (elan intentaría descargar) o antes de `generar`, de modo que un id inválido se enmascara con un error de toolchain.
+- Precondiciones: lake falso que registra llamadas; `toolchain_instalado` sustituido.
+- Cómo verificarlo: (a) toolchain ausente con hechos válidos; (b) toolchain ausente y un id inválido.
+- Resultado esperado: (a) exit 4, 0 llamadas a lake, `formal/02/Hechos.lean` y `qa/02-lean.json` inexistentes y `lean 02 -> 4 · … toolchain …` en `harness.log`; (b) exit 4 con la causa `HechosInvalidos` y no la de toolchain.
+- Tipo de prueba sugerida: integración
+- Severidad: Alta — invocar `lake` sin toolchain puede disparar una descarga.
+
+#### VER-15: El modo novela no crea runs espurios
+- Paso del plan: P13 — T4.3 «El run y el `harness.log` siguen el supuesto de P4» (plan §9 P4: «Se reutiliza el run del último checkpoint»)
+- Punto de fallo: `run.abrir` con un capítulo cerrado crea un run nuevo desde el reloj (`run.py:158-166`) en cada ejecución.
+- Precondiciones: capítulo 3 cerrado con `checkpoint.run_id` = R.
+- Cómo verificarlo: listar `runs/`; ejecutar dos veces `novela lean lean-prueba`; volver a listar.
+- Resultado esperado: el listado de `runs/` no cambia y las dos líneas `lean` están en `runs/R/harness.log`.
+- Tipo de prueba sugerida: integración
+- Severidad: Media — un run espurio despista a `producir` al buscar `intervencion.md`.
+
+#### VER-16: La fábrica escribe un informe de Lean coherente
+- Paso del plan: P14 — T5.1 «`preparar_capitulo` escribe `qa/NN-lean.json` aprobado con `agente: lean` y el `delta_sha256` del delta que acaba de escribir… Se añade un parámetro para omitirlo» (Fase 5)
+- Punto de fallo: el sha se calcula antes de la última escritura del delta, o el generador de workspaces del panel (`tests/fixtures/panel.py`) no recibe el informe y el e2e se rompe.
+- Precondiciones: T5.1, T5.2 y T5.4 aplicados juntos.
+- Cómo verificarlo: `uv run pytest`; generar el workspace del panel y ejecutar `npm run verificar`; comparar el `delta_sha256` de cada `qa/NN-lean.json` con el sha256 de su delta.
+- Resultado esperado: suite en verde; `npm run verificar` con exit 0; los sha coinciden en todos los capítulos; con el parámetro de omisión, no existe `qa/NN-lean.json`.
+- Tipo de prueba sugerida: integración
+- Severidad: Alta — sin esto, T5.2 deja en rojo toda la suite y los e2e del panel.
+
+#### VER-17: La custodia comprueba los mismos bytes que aplica
+- Paso del plan: P15 — T5.2 «`custodia.precondicion_lean(informe, sha_delta)`… llamada desde `delta/cmd.py` después de validar el delta y antes de abrir `estado.db` para escribir… Un informe ilegible cuenta como ausente» (Fase 5)
+- Punto de fallo: `cmd.py` calcula el sha leyendo el fichero una vez y valida el delta leyéndolo otra, con lo que un cambio entre las dos lecturas pasa la custodia. O el informe se lee con `ws.leer_json`, que sale con 4 ante un JSON inválido en lugar de 1.
+- Precondiciones: delta del capítulo 2 aprobado.
+- Cómo verificarlo: revisar que el sha y el modelo salen del mismo `bytes`; ejecutar `novela aplicar-delta lean-prueba 2` con `qa/02-lean.json` que contiene `{no es json`.
+- Resultado esperado: una sola lectura del delta en el código; el caso ilegible sale con 1, `harness.log` contiene `custodia: lean: ilegible` y el sha256 de `estado.db` no cambia.
+- Tipo de prueba sugerida: revisión manual + integración
+- Severidad: Crítica — una ventana entre lectura y comprobación permite aplicar un delta no verificado.
+
+#### VER-18: `exportar` comprueba dentro del lock y los tests existentes se adaptan
+- Paso del plan: P16 — T5.3 «dentro del lock y antes de escribir, exigir `qa/lean.json` legible… Los tests existentes (`test_md_concatena_en_orden`, `test_epub_reabrible`) se adaptan» (Fase 5)
+- Punto de fallo: la comprobación se hace antes de tomar el lock, o los tests existentes se adaptan borrando aserciones.
+- Precondiciones: T5.3 aplicado.
+- Cómo verificarlo: revisar el orden en `export/cmd.py`; `git diff` de `test_export.py`; ejecutar `novela exportar` con el lock tomado.
+- Resultado esperado: la lectura de `qa/lean.json` va después de la toma del lock; el diff de los tests existentes solo añade la escritura de `qa/lean.json`; con el lock tomado, exit 3.
+- Tipo de prueba sugerida: revisión manual + integración
+- Severidad: Media — la ventana sin lock es estrecha.
+
+#### VER-19: `vp_lean` sale del informe de Lean
+- Paso del plan: P17 — D3 «`vp_lean` sale de `qa/NN-lean.json`, no de `qa/NN-validacion.json`»; T5.4 «`calcular_scores_validadores` recibe el informe de Lean»
+- Punto de fallo: la función sigue calculando todos los binarios desde `qa/NN-validacion.json` y `vp_lean` vale siempre 1.
+- Precondiciones: sink falso; `qa/02-validacion.json` aprobado.
+- Cómo verificarlo: llamar a `calcular_scores_validadores` con la validación aprobada y un informe de Lean `rechazado`.
+- Resultado esperado: `vp_lean == 0.0` y los binarios de punto `validar` iguales a los de antes del cambio.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Media — el score miente, aunque la custodia siga bloqueando.
+
+#### VER-20: El nuevo `Punto` no aparece en la API
+- Paso del plan: P17 — T5.4 «`Punto` gana `lean` y `NombreValidador` gana `vp_lean`» (Fase 5); plan §3 solo comprueba que `InformeQA` no está en la API
+- Punto de fallo: si `Punto` o `NombreValidador` se exponen en algún modelo de respuesta, ampliarlos cambia `openapi.json` (RNF-09).
+- Precondiciones: T5.4 aplicado.
+- Cómo verificarlo: `Grep` de `Punto`, `NombreValidador` y `VALIDADORES` en `backend/api/`; regenerar el OpenAPI y `git diff backend/api/openapi.json`.
+- Resultado esperado: 0 coincidencias en `backend/api/` y diff vacío.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Media — un cambio de contrato rompe el panel.
+
+#### VER-21: Los consumidores de `comprobar-entorno` siguen funcionando
+- Paso del plan: P18 — T5.5 «añadir a `comprobaciones.entorno` los parámetros `lake`, `lean`… y `toolchain_instalado`… Se amplía `BIEN`» (Fase 5); §3 «lo invocan también `producir/cmd.py:40` y `canario/ejecutar.py:133`»
+- Punto de fallo: la firma nueva rompe las llamadas de `producir` o del canario, o sus tests no sustituyen la comprobación de Lean y fallan en CI.
+- Precondiciones: CI sin Lean.
+- Cómo verificarlo: `uv run pytest backend/novela/slices/producir backend/tests/canario` sin `lake` en el PATH; revisar que las dos llamadas pasan por la cáscara y no por la función pura.
+- Resultado esperado: tests en verde y 0 cambios de firma en las llamadas de `producir` y del canario.
+- Tipo de prueba sugerida: integración
+- Severidad: Media — rompe el canario y el lanzamiento desde el panel.
+
+#### VER-22: El test real restaura `RAIZ_REPO` y sigue siendo uno
+- Paso del plan: P19 — T6.1 «Crear un único `test_invariantes_con_lean`… El test restaura `run.RAIZ_REPO` (D6)»; T6.2 «Se amplía `test_lean_real.py`»
+- Punto de fallo: al ampliarlo en T6.2 se añade una segunda función de test (dos omitidos, incumple CA-25), o el test no restaura `RAIZ_REPO` y busca `formal/lean` en el directorio temporal de `conftest.py`.
+- Precondiciones: T6.1 y T6.2 aplicados.
+- Cómo verificarlo: contar las funciones `test_*` de `test_lean_real.py`; buscar `monkeypatch.setattr(run, "RAIZ_REPO"`; ejecutarlo con Lean.
+- Resultado esperado: exactamente 1 función; la restauración está presente; el test pasa con Lean.
+- Tipo de prueba sugerida: revisión manual + integración (marca `lean`)
+- Severidad: Media — sin la restauración, el único test con Lean real falla siempre.
+
+#### VER-23: El fixture `lean-ubicuidad` usa el formato de G-MEM y datos ficticios
+- Paso del plan: P20 — T6.2 «construye, con datos ficticios, un workspace… con deltas en el formato de G-MEM» (Fase 6)
+- Punto de fallo: el fixture escribe los hechos temporales directamente en `estado.db` en lugar de pasar por `aplicar-delta`, así que no ejercita la proyección ni la custodia.
+- Precondiciones: G-MEM implementado.
+- Cómo verificarlo: revisar la función de `fabrica.py`; ejecutar `test_otros_validadores_no_detectan`.
+- Resultado esperado: los hechos llegan a `estado.db` solo mediante `aplicar-delta`; todos los ids contienen `prueba`; el test pasa sin Lean.
+- Tipo de prueba sugerida: revisión manual + integración
+- Severidad: Media — un fixture que salta el camino real no demuestra nada sobre él.
+
+#### VER-24: La reanudación entra por `novela lean`
+- Paso del plan: P21 — T7.1 «una fila de reanudación antes de `aplicar-delta` (P5)… regla de lectura 1 ampliada» (Fase 7)
+- Punto de fallo: con el delta escrito y `briefing NN cronista -> 0`, el procedimiento reanuda en `aplicar-delta`, que falla por `custodia: lean` y acaba en intervención.
+- Precondiciones: `novela-continuar.md` modificado.
+- Cómo verificarlo: leer la tabla de reanudación; simular en `test_bucle.py` un `harness.log` que termina en `briefing 02 cronista -> 0`.
+- Resultado esperado: el siguiente paso es `novela lean <slug> 02`; con `lean 02 -> 0` en el log, el siguiente es `aplicar-delta`.
+- Tipo de prueba sugerida: unitaria (contrato)
+- Severidad: Alta — cada reanudación tras el `cronista` acabaría en intervención.
+
+#### VER-25: La intervención de la auditoría llega a `producir`
+- Paso del plan: P22 — T7.2 «Con 1, escribir `intervencion.md` con `gate: formal` en el run del supuesto de P4 y parar sin exportar. Con 4, informar y parar» (Fase 7)
+- Punto de fallo: `intervencion.md` se escribe en un run que `producir/flujo.py` no mira, y `producir` informa «la auditoría encontró hallazgos».
+- Precondiciones: workspace con `qa/lean.json` rechazado.
+- Cómo verificarlo: ejecutar el flujo de `producir` con un agente falso que sigue `novela-auditar.md`; comprobar `intervencion_viva`.
+- Resultado esperado: `intervencion.md` existe en `runs/<checkpoint.run_id>/`, `intervencion_viva` devuelve verdadero y `export/` no se crea.
+- Tipo de prueba sugerida: integración
+- Severidad: Media — el operador recibe una causa equivocada.
+
+#### VER-26: La máquina del bucle incluye el paso `lean`
+- Paso del plan: P23 — T7.3 «se añade el paso `lean` a `SECUENCIA` y `FASE_DE` de `tests/test_bucle.py` y a `GATES`» (Fase 7)
+- Punto de fallo: `SECUENCIA` coloca `lean` después de `aplicar-delta`, o `GATES` no cuenta `lean NN -> 1` como intento.
+- Precondiciones: T7.3 aplicado.
+- Cómo verificarlo: leer `SECUENCIA`; ejecutar `test_bucle.py` con tres `lean 02 -> 1` simulados.
+- Resultado esperado: `cronista` < `lean` < `aplicar-delta` en `SECUENCIA`; al tercer rechazo, la máquina produce intervención con `gate: formal`.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Media — el modelo del bucle diverge del procedimiento.
+
+#### VER-27: La novela de humo registra el reintento y el tiempo
+- Paso del plan: P24 — T7.4 «el `harness.log` del run muestra `lean NN -> 1` seguido de un `briefing NN escritor -> 0`, y el Task del escritor lleva `reintento: qa/NN-lean.json`» (Fase 7)
+- Punto de fallo: el defecto se siembra después de `novela lean` y nunca se detecta, o no se anota el tiempo.
+- Precondiciones: G-MEM y esta spec implementados; Lean instalado.
+- Cómo verificarlo: leer `harness.log` y `runs/<run_id>/briefings/NN-escritor.md` del capítulo sembrado.
+- Resultado esperado: `lean NN -> 1` precede a `briefing NN escritor -> 0`; el briefing contiene `reintento: qa/NN-lean.json`; el tiempo de cada `novela lean` figura en los datos de T7.5.
+- Tipo de prueba sugerida: e2e
+- Severidad: Media — es la única prueba de extremo a extremo del camino de rechazo.
+
+#### VER-28: `test_lean_caso` comprueba las órdenes contra el CLI
+- Paso del plan: P25 — T7.5 «Un test comprueba las secciones y que cada orden citada es un subcomando registrado en el CLI» (Fase 7)
+- Punto de fallo: el test compara con una lista escrita a mano y no con el registro de Typer.
+- Precondiciones: `docs/lean-caso.md`.
+- Cómo verificarlo: añadir temporalmente `novela inexistente` al documento y ejecutar el test.
+- Resultado esperado: el test falla nombrando `inexistente`.
+- Tipo de prueba sugerida: unitaria (contrato)
+- Severidad: Baja — documentación.
+
+#### VER-29: Numeración libre del ADR y base de confianza documentada
+- Paso del plan: P26 — T8.1 «crear `docs/adr/0005-…` con estado `aceptada` y la base de confianza de `native_decide`»; plan §8 «Comprobar la numeración libre al crear el ADR»
+- Punto de fallo: el 0005 ya está ocupado cuando se crea, o el ADR no menciona `native_decide`.
+- Precondiciones: T8.1 aplicado.
+- Cómo verificarlo: `Glob docs/adr/0005-*`; buscar `native_decide` en el ADR.
+- Resultado esperado: un único fichero `0005-*`, que contiene `native_decide`.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Baja — colisión de numeración fácil de corregir.
+
+#### VER-30: `CLAUDE.md` y `AGENTS.md` crecen una línea
+- Paso del plan: P27 — T8.2 «`git diff --stat` muestra exactamente +1 línea en cada fichero» (Fase 8)
+- Punto de fallo: se añade además la instalación de Lean en `AGENTS.md` § Puesta en marcha (plan §8, D1 de esta sección).
+- Precondiciones: T8.2 aplicado.
+- Cómo verificarlo: `git diff --numstat <base>..HEAD -- CLAUDE.md AGENTS.md`.
+- Resultado esperado: `1	0	CLAUDE.md` y `1	0	AGENTS.md`.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Baja — coste de contexto en cada sesión.
+
+#### VER-31: Diff de contratos contra la base acordada
+- Paso del plan: P28 — T8.3 «`git diff <base>..HEAD -- backend/api/openapi.json backend/schemas/state.schema.json` no muestra cambios introducidos por esta spec (ver P13)» (Fase 8)
+- Punto de fallo: el diff se hace contra `main` anterior a G-MEM y da un falso rojo, o contra un commit posterior a esta spec y da un falso verde.
+- Precondiciones: commit de integración de G-MEM identificado.
+- Cómo verificarlo: anotar en el PR el sha base y ejecutar el diff contra él; `uv run pytest`, `mypy --strict` y `ruff` sin Lean.
+- Resultado esperado: el sha base es el de integración de G-MEM; diff vacío; los tres analizadores con exit 0.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Media — una base mal elegida invalida la comprobación de RNF-09.
+
+### Matriz de cobertura
+| Requisito | Validadores | Verificadores |
+|-----------|-------------|---------------|
+| R1 — RF-01: `hechos_temporales` en solo lectura | VAL-1 | VER-10 |
+| R2 — RF-02: `proyectar` puro e idempotente | VAL-2 | VER-11 |
+| R3 — RF-03: minutos gregorianos | VAL-3 | VER-5 |
+| R4 — RF-04: `generar` determinista | VAL-4 | VER-6, VER-7 |
+| R5 — RF-05: ids inválidos → `HechosInvalidos` y 4 | VAL-5 | VER-6, VER-7, VER-14 |
+| R6 — RF-06: proyecto Lake sin `require` | VAL-6 | VER-1, VER-2 |
+| R7 — RF-07: ubicuidad | VAL-7 | VER-1, VER-2, VER-22, VER-23 |
+| R8 — RF-08: nacimiento | VAL-8 | VER-1, VER-2, VER-22 |
+| R9 — RF-09: exclusión | VAL-9 | VER-1, VER-2, VER-9, VER-22 |
+| R10 — RF-10: teorema de corrección | VAL-10 | VER-3, VER-22 |
+| R11 — RF-11: README formal | VAL-11 | SIN CUBRIR |
+| R12 — RF-12: `novela lean <slug> <cap>` | VAL-12, VAL-13 | VER-14 |
+| R13 — RF-13: `novela lean <slug>` | VAL-14 | VER-15 |
+| R14 — RF-14: informe rechazado | VAL-15 | VER-9, VER-14 |
+| R15 — RF-15: errores de entorno → 4 | VAL-16, VAL-17 | VER-9, VER-12, VER-13, VER-14 |
+| R16 — RF-16: entradas ausentes → 4 | VAL-18 | VER-10, VER-14 |
+| R17 — RF-17: custodia de `aplicar-delta` | VAL-19 | VER-16, VER-17 |
+| R18 — RF-18: precondición de `exportar` | VAL-20 | VER-18 |
+| R19 — RF-19: procedimiento `novela-continuar` | VAL-21 | VER-24, VER-26, VER-27 |
+| R20 — RF-20: procedimiento `novela-auditar` | VAL-22 | VER-25, VER-26 |
+| R21 — RF-21: `InformeQA` ampliado | VAL-23 | VER-8 |
+| R22 — RF-22: `vp_lean` en el catálogo | VAL-24 | VER-19, VER-20 |
+| R23 — RF-23: `checkpoint` y `vp_lean` | VAL-25 | VER-16, VER-19, VER-20 |
+| R24 — RF-24: `comprobar-entorno` | VAL-26 | VER-21 |
+| R25 — RF-25: marca `lean` y un omitido | VAL-27 | VER-22 |
+| R26 — RF-26: workspace `lean-ubicuidad` | VAL-28 | VER-23 |
+| R27 — RF-27: `docs/lean-caso.md` | VAL-29 | VER-28 |
+| R28 — RF-28: ADR 0005 y documentación | VAL-30 | VER-29, VER-30 |
+| R29 — RF-29: `.lake/` ignorado | VAL-31 | SIN CUBRIR |
+| R30 — RNF-01: `generar` < 1 s | VAL-32 | VER-6, VER-7 |
+| R31 — RNF-02: `novela lean` ≤ 60 s | VAL-33 | VER-4, VER-27 |
+| R32 — RNF-03: 120 s por llamada | VAL-34 | VER-12, VER-13 |
+| R33 — RNF-04: sin red | VAL-35 | VER-1, VER-2, VER-4, VER-12, VER-13, VER-21 |
+| R34 — RNF-05: sin inyección | VAL-5 | VER-6, VER-7 |
+| R35 — RNF-06: `estado.db` intacto | VAL-36 | VER-14 |
+| R36 — RNF-07: solo datos del estado | VAL-37 | VER-6, VER-7, VER-14 |
+| R37 — RNF-08: suite sin Lean | VAL-27 | VER-22, VER-31 |
+| R38 — RNF-09: contratos ajenos intactos | VAL-38 | VER-31 |
+| R39 — RNF-10: un `vp_lean` por capítulo | VAL-39 | VER-19, VER-20 |
+| R40 — RNF-11: ≥ 200 ejemplos | VAL-40 | VER-5, VER-6, VER-7, VER-9, VER-11, VER-17 |
+
+### Preguntas abiertas
+- Q1 — ¿El toolchain ausente se detecta antes de invocar `lake` o por su salida? (R15, §7 CA-15 y §9): CA-15 lo lista como «salida del lake falso» y §9 dice «sale con 4 sin invocar `lake`». El test de CA-15 se escribe distinto según la respuesta.
+- Q2 — ¿Qué hacen los procedimientos ante un 4 de `novela lean`? (R19, R20, §5 RF-19 y RF-20, §9): RF-19 y RF-20 solo tratan el 1, y §9 dice que un 4 «no consume reintentos del `escritor`». No se dice si se reintenta, si se escribe `intervencion.md` con `gate: workspace` o `formal`, o si solo se para.
+- Q3 — ¿Qué línea escribe `novela lean <slug>` en `harness.log` y en qué run? (R13, §5 RF-13 «hacer lo mismo»): el formato `lean NN -> <código>` exige un `NN` que el modo novela no tiene, y `run.abrir` con un capítulo cerrado crea un run nuevo.
+- Q4 — Un `qa/NN-lean.json` o `qa/lean.json` que no es JSON válido, ¿da 1 o 4? (R17, R18, R23, §5): RF-17 y RF-18 solo enumeran «no existe», «no es `aprobado`» y sha o capítulo distintos, y en `checkpoint` RF-23 lo manda a `vp_schema`.
+- Q5 — ¿Qué hace `proyectar` si una escena del delta ya está en la base con contenido distinto? (R2, §5 RF-02): RF-02 solo define el caso «con el mismo contenido». Caben el error (4), la sustitución o la duplicación.
+- Q6 — ¿Qué cuenta como «hechos equivalentes» y cómo se ordenan las exclusiones? (R4, §5 RF-04): no se dice si el orden de `personajes` dentro de un evento y los personajes repetidos forman parte de la equivalencia, ni por cuál de los dos ids se ordenan las exclusiones («ordenados por id»).
+- Q7 — ¿Qué variantes ISO acepta `minutos`? (R3, §5 RF-03 «sin zona horaria», §8.3): no se dice si `2024-03-01T10:00:00`, `2024-03-01T10:00Z` o `2024-03-01T10:00+01:00` se rechazan o se truncan.
+- Q8 — ¿Qué pasa con una exclusión que nombra una escena inexistente o un personaje que no está presente en ella? (R9, §5 RF-09, §8.3 «Exclusión (personaje, evento)»): la invariante necesita el fin del evento excluyente, y la spec no dice si ese caso es un error de contrato (4) o se ignora.
+- Q9 — ¿La comprobación de CA-10 es de texto o de tácticas? (R10, §7 CA-10 `grep -E "sorry|admit"`): tal como está escrita, casa con «admite» en el README o en comentarios en español y con artefactos de `formal/lean/.lake/`.
+- Q10 — ¿Los documentos de RF-28 van en el commit de cada código o en el de cierre? (R28, §5 RF-28 y §12 T-13): la spec se contradice y el plan (T8.1) mezcla las dos reglas.
+- Q11 — ¿`checkpoint` cierra un capítulo con `qa/NN-lean.json` `rechazado`? (R23, §3.1 O-03 «`checkpoint` no cierra el capítulo» y §5 RF-23 «0 si no»): RF-23 solo dice que emite 0, y O-03 dice que no cierra.
+- Q12 — ¿Qué hace el sistema con dos nacimientos registrados para el mismo personaje? (R8, §5 RF-08, §8.3): la spec no dice si es un error de contrato o si vale el más temprano o el más tardío.
+- Q13 — ¿Contra qué commit se mide RNF-09? (R38, §6 RNF-09 «introducidos por esta spec»): G-MEM, del que depende esta spec, sí puede cambiar `state.schema.json`, y la spec no fija la base.

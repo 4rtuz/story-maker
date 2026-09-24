@@ -112,6 +112,14 @@ def test_state_schema_al_dia() -> None:
         assert "schema_version" in esquema["properties"], nombre
 
 
+def test_delta_schema_al_dia() -> None:
+    """RF-02: el esquema que lee el cronista trae `hechos_usados`, opcional y con cita."""
+    esquema = json.loads((SCHEMAS / "delta.schema.json").read_text(encoding="utf-8"))
+    assert "hechos_usados" in esquema["properties"]
+    assert "hechos_usados" not in esquema.get("required", [])
+    assert set(esquema["$defs"]["UsoCitado"]["required"]) == {"hecho", "cita"}
+
+
 def test_estado_json_valida_contra_el_esquema(
     novelas: Callable[[str], WorkspaceRepository],
 ) -> None:
@@ -322,3 +330,41 @@ def test_tabla_de_validadores() -> None:
         "| `vp_ids` | Los ids citados existen | `auditar` |",
     )
     assert otro_punto != texto and _tabla_de_validadores(otro_punto) != catalogo
+
+
+def test_hook_de_validacion_registrado() -> None:
+    """CA-10 de la 0008 (RF-09, VER-17): el matcher literal, no como conjunto: un separador que
+    Claude Code no interpreta dejaría el hook sin disparar."""
+    [registro] = json.loads(SETTINGS.read_text(encoding="utf-8"))["hooks"]["PostToolUse"]
+    assert registro["matcher"] == "Write|Edit|MultiEdit"
+    [hook] = registro["hooks"]
+    assert hook["command"] == 'python "$CLAUDE_PROJECT_DIR/.claude/hooks/validar-capitulo.py"'
+    assert hook["timeout"] == 60 and hook["type"] == "command"
+    assert (RAIZ_REPO / ".claude" / "hooks" / "validar-capitulo.py").is_file()
+
+
+def test_adr_de_versiones() -> None:
+    """CA-42 (RF-45): el ADR 0004 existe con su frontmatter y sus cinco secciones, y el
+    invariante 7 de AGENTS.md admite versiones sin dejar de prohibir la reescritura en sitio."""
+    _, cabecera, cuerpo = (
+        (RAIZ_REPO / "docs" / "adr" / "0004-versiones-de-la-novela.md")
+        .read_text(encoding="utf-8")
+        .split("---", 2)
+    )
+    meta = yaml.safe_load(cabecera)
+    assert (meta["adr"], meta["estado"], meta["specs"]) == (4, "aceptada", [7])
+    for seccion in (
+        "Contexto",
+        "Decisión",
+        "Alternativas descartadas",
+        "Consecuencias",
+        "Cuándo reabrirla",
+    ):
+        assert f"\n## {seccion}\n" in cuerpo, seccion
+    [invariante] = [
+        linea
+        for linea in (RAIZ_REPO / "AGENTS.md").read_text(encoding="utf-8").splitlines()
+        if linea.startswith("7. ")
+    ]
+    assert "versiones/" in invariante
+    assert "novela cambio" in invariante

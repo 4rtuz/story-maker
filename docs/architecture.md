@@ -191,7 +191,7 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │       └── 0001-orquestador-en-claude-code.md
 │
 ├── .claude/                      # compartido; vive en la raíz del monorepo
-│   ├── settings.json             # permisos y registro del hook; ni claves ni plugins, ver §7.1
+│   ├── settings.json             # permisos y registro de los hooks; ni claves ni plugins, ver §7.1
 │   ├── settings.local.json       # solo enabledPlugins, el de Langfuse — en .gitignore
 │   ├── agents/                   # un fichero por subagente
 │   │   ├── arquitecto.md
@@ -206,7 +206,8 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   ├── novela-continuar.md   # el bucle por capítulo
 │   │   └── novela-auditar.md
 │   └── hooks/
-│       └── denegar-escritura-estado.py   # PreToolUse sobre estado/, ver §7.1
+│       ├── denegar-escritura-estado.py   # PreToolUse sobre estado/, ver §7.1
+│       └── validar-capitulo.py   # PostToolUse sobre capitulos/NN.md, ver §7.1
 │
 ├── backend/                      # Python 3.12 — FastAPI + CLI novela
 │   ├── pyproject.toml
@@ -227,7 +228,7 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │   ├── delta/            # cmd.py · apply.py · violaciones.py · test_delta.py
 │   │   │   ├── checkpoint/
 │   │   │   ├── auditoria/        # pistas huérfanas, hilos abiertos
-│   │   │   ├── entorno/          # comprobar-entorno: hook, python, settings.local.json, .env
+│   │   │   ├── entorno/          # comprobar-entorno: hooks, python, settings.local.json, .env
 │   │   │   ├── presupuesto/      # ventana de uso y degradación
 │   │   │   └── export/           # cmd.py · markdown.py · epub.py
 │   │   │
@@ -576,6 +577,17 @@ Refuerzo adicional, preventivo en lugar de detectivo: el hook `PreToolUse` de `.
 
 Debajo quedan los `deny` de `settings.json` sobre `estado.db*`, `state.lock` y `sqlite3`, y los triggers, que cubren lo que el hook no normaliza: nombres cortos 8.3, uniones y enlaces simbólicos.
 
+Un segundo hook, `PostToolUse` (spec 0008): `.claude/hooks/validar-capitulo.py`, registrado para `Write|Edit|MultiEdit` con `timeout` de 60 s. Cuando el `escritor` o el `editor-estilo` —o una llamada sin `agent_type`— escriben `novelas/<slug>/capitulos/NN.md`, ejecuta `novela validar <slug> <NN> --origen hook` con el `NOVELAS_DIR` de esa ruta, así que el gate mecánico corre aunque el orquestador se salte un paso. Solo stdlib, y no escribe nada: lo que queda es lo que ya escribe `validar`.
+
+| Situación | Salida | stderr, que Claude Code entrega al agente |
+|---|---|---|
+| Otra ruta, otra herramienta u otro `agent_type` | 0 | vacío; no ejecuta `novela` |
+| `validar` sale con 0 | 0 | vacío |
+| `validar` sale con 1 | 2 | `validar-capitulo: capitulos/NN.md rechazado…` y una línea por hallazgo de `qa/NN-validacion.json` (`tipo`, `gravedad`, `ubicacion`, `descripcion`), hasta 4.000 caracteres |
+| Entrada ilegible, `novela` sin resolver, `validar` con 2, 3 o 4 o más de 45 s, o un informe tras el 1 que falta o no lleva el sha del capítulo en disco | 2 | `validar-capitulo: fallo del harness, no del capítulo: <causa>. No reescribas el capítulo: termina e informa.` |
+
+`--origen hook` solo cambia la orden de la línea de `harness.log`, `validar-hook NN`, que no contiene `validar NN -> `: no gasta intentos del procedimiento, cuyos pasos 3 y 5 siguen siendo el gate que cuenta. Como el informe es el mismo, la custodia de `aplicar-delta` lo acepta si la última escritura del capítulo pasó. En `PostToolUse` la escritura ya está hecha: el exit 2 no la deshace, devuelve el motivo al agente dentro de su invocación.
+
 ### 7.2 Frontmatter de capítulo
 
 ```yaml
@@ -700,6 +712,7 @@ Las dos asimetrías de la tabla son deliberadas: `trazador`, `continuista` y `le
   "libro_de_hechos": [
     { "id": "hec-007", "texto": "La puerta de la linterna estaba forzada.", "capitulo": 7, "cita": "..." }
   ],
+  "hechos_usados": [ { "hecho": "hec-002", "cita": "..." } ],
   "hilos": [
     { "id": "hil-003", "estado": "abierto", "abierto_en": 7, "cerrado_en": null, "descripcion": "..." }
   ],
@@ -715,7 +728,9 @@ Las colecciones append-only —`linea_temporal`, `conocimiento`, `conocimiento_l
 
 No vienen `pistas` ni `metricas`, que `aplicar-delta` deriva del frontmatter y de los capítulos; ni `tension_real`, que la puntúa el `lector-suspense` en `qa/NN-suspense.json`; ni el cursor, que avanza `aplicar-delta` desde `capitulo`. `resumen` es obligatorio y trae las tres granularidades, con `escena` indexado por id de escena. Es lo que `aplicar-delta` renderiza a `memoria/resumenes/NN.md`.
 
-Toda `cita` presente tiene que ser literal del cuerpo del capítulo tras normalizar a NFC y colapsar espacios (RF-33). En `libro_de_hechos` es obligatoria; en las otras tres, opcional.
+`hechos_usados` es opcional y lista los hechos ya afirmados que el capítulo usa sin enseñarlos de nuevo, cada uno con la cita que lo prueba (spec 0007, RF-02). El `hecho` tiene que existir en el `libro_de_hechos` vigente o en el propio delta; si no, `aplicar-delta` lo rechaza con `hecho inexistente`.
+
+Toda `cita` presente tiene que ser literal del cuerpo del capítulo tras normalizar a NFC y colapsar espacios (RF-33). En `libro_de_hechos` y `hechos_usados` es obligatoria; en las otras tres, opcional.
 
 ---
 
@@ -736,13 +751,13 @@ novela nueva <slug> --idea "..."   # árbol del workspace, config.yaml y estado.
 novela estado <slug> --breve
 novela estado <slug> --json        # estado completo serializado, para inspección
 novela briefing <slug> <cap> <agente>
-novela validar <slug> <cap>
+novela validar <slug> <cap> [--origen orquestador|hook]   # hook: la línea es validar-hook NN y no cuenta
 novela aplicar-delta <slug> <cap>
 novela checkpoint <slug> <cap>
 novela pendiente <slug>            # código de salida: 0 si quedan capítulos
 novela auditar <slug>              # pistas huérfanas, hilos sin cerrar, fair play
 novela exportar <slug> --formato epub
-novela comprobar-entorno [--limpio]   # hook, python, settings.local.json y .env antes de lanzar
+novela comprobar-entorno [--limpio]   # hooks, python, settings.local.json y .env antes de lanzar
 ```
 
 **Reanudación.** `/novela-continuar` empieza leyendo `checkpoints/latest.json` y repite el último paso no confirmado. Regla dura: el estado nunca se reconstruye desde una conversación previa, ni siquiera desde la sesión anterior de Claude Code.
@@ -873,7 +888,7 @@ Se arranca desde `backend/` con `NOVELAS_DIR=../novelas uv run uvicorn api.main:
 | — | Con Git para Windows instalado por usuario, `CLAUDE_CODE_GIT_BASH_PATH` en el entorno de usuario, apuntando a su `bin\bash.exe` | `claude -p "responde ok" --output-format stream-json --verbose`: el evento `init` lista `Bash` | La sesión solo tiene PowerShell: `Bash(novela:*)` no casa, y los hooks corren en PowerShell y fallan |
 | — | Con App Control (Device Guard), `novela --help` responde | `novela --help` | El `novela.exe` de `uv tool` sale con «Permission denied». El de `backend\.venv\Scripts` sí corre, y esa carpeta va por delante en el PATH |
 
-Si `python` no resuelve, se desactiva el alias en «Alias de ejecución de aplicaciones» o se pone Python 3.12 por delante en el PATH; el comando del hook no se cambia a una ruta absoluta. `novela comprobar-entorno` comprueba `python`, el script del hook, `settings.local.json` y `.env` antes de cada bucle.
+Si `python` no resuelve, se desactiva el alias en «Alias de ejecución de aplicaciones» o se pone Python 3.12 por delante en el PATH; el comando del hook no se cambia a una ruta absoluta. `novela comprobar-entorno` comprueba `python`, los scripts de los dos hooks, `settings.local.json` y `.env` antes de cada bucle.
 
 ### 11.2 Frontend (`frontend/`)
 
@@ -895,7 +910,7 @@ Contrato de acoplamiento: el frontend consume lo que la API devuelve tal cual. S
 2. **Cerrado (spec 0003): el `session_id` se fija desde fuera.** `claude --session-id <uuid>` existe. El bucle genera un UUID por sesión, se lo pasa a `claude` y lo exporta como `NOVELA_SESSION_ID`, y `novela` añade `sesion=<uuid>` a cada línea de `harness.log`: cada paso enlaza con su traza. No va al manifiesto, porque un capítulo reanudado tiene varias sesiones y un solo manifiesto.
 3. **Contexto de la sesión orquestadora.** Las cuatro reglas de §2.4 y la aritmética de §6.5 son la hipótesis de que un capítulo por sesión basta. Si en la práctica el orquestador aguanta tres o cuatro, el modo desatendido se abarata; si no aguanta ni uno completo, hay que partir el bucle en dos comandos.
 4. **`indice_recuperable` no existe.** La rama 5 de `docs/definitions.md` lo nombra y nada lo materializa. La consulta puntual y retrospectiva —«¿en qué escena se vio por última vez `obj-011`?», «¿dónde se habló de una llave oxidada?»— solo se responde hoy cargando capítulos en el briefing, dejando que el agente explore por su cuenta (contra el principio 7) o conformándose con resúmenes que ya han perdido el detalle que la pregunta busca. Con 24 capítulos los resúmenes jerárquicos bastan y no hay presión de contexto medida: el índice se justificaría por **capacidad de consulta, no por ahorro de tokens**, y mal usado los aumenta. La dirección acordada, si se aborda, es híbrida sobre `estado.db` y por fases, porque esas preguntas no son la misma: exacta (tabla `menciones(entidad_id, escena_id, capitulo)` que el `cronista` emite en el delta), léxica (FTS5 sobre `memoria/resumenes/`) y semántica (un vector por escena con un modelo de embeddings **local** —la regla de «ningún proveedor ni SDK de modelos» se mantiene— y producto escalar en numpy, que sobre ~200 escenas no necesita índice vectorial). Las dos primeras no añaden dependencias; la tercera sí, y es la única que conviene medir antes de darla por buena. Los aciertos exactos van primero y sin fusionar; el resto se ordena con Reciprocal Rank Fusion, que suma rangos y no obliga a normalizar `bm25()` contra un coseno. Quien consulta es el orquestador, mediante un subcomando con tope de resultados y de tokens que deja rastro en `runs/`: dar a los agentes una herramienta de búsqueda libre rompe el techo de §6.5 y la regla de no explorar el workspace. **El orden es exacta y léxica primero, semántica solo después de medir** cuántas consultas reales se quedan sin responder: de las tres preguntas de ejemplo, la primera la cierra la exacta y la segunda la léxica, y solo la tercera necesita embeddings. Si esa medición la justifica, la elección acordada es `multilingual-e5-small` (384 dimensiones) servido por `fastembed` sobre `onnxruntime`, no por `sentence-transformers`: la vía habitual arrastra PyTorch, unos 2 GB, que sería con diferencia la dependencia más pesada del sistema y entraría para la capa más prescindible; ONNX deja el coste en unos 200 MB, en CPU y sin GPU. Dos detalles que no se ven hasta que fallan: los modelos E5 exigen el prefijo `query: ` al consultar y `passage: ` al indexar —omitirlos degrada la calidad sin dar ningún error— y el modelo va fijado por versión en el lockfile, porque un vector calculado con otra revisión no es comparable con los ya guardados; por eso `novela reindexar` existe desde el primer día. La elección concreta conviene revisarla en el momento de implementarla: lo que no cambia son los criterios —local, multilingüe, pequeño y sin torch—.
-5. **El escritor no reescribe capítulos anteriores.** Si un gate detecta que un problema del capítulo 7 nace del 5, el harness para y pide intervención. La reescritura retroactiva automática invalidaría el estado y los resúmenes de todo lo intermedio.
+5. **El escritor no reescribe capítulos de una versión.** Si un gate detecta que un problema del capítulo 7 nace del 5, el harness para y pide intervención: la reescritura retroactiva en sitio invalidaría el estado y los resúmenes de todo lo intermedio. Cambiar un hecho de una novela terminada abre una versión nueva con `novela cambio`, que guarda la anterior intacta en `versiones/vN/` y reconstruye la base desde cero (ADR 0004).
 6. **Cerrado (spec 0004): el panel ve la actividad del bucle.** `estado.db` solo cambia en `aplicar-delta`, así que el estado no distingue un capítulo en curso de un bucle colgado. Lo distingue `runs/<run_id>/harness.log`, que el CLI vuelca línea a línea (spec 0001, RF-27): la API sirve `GET …/runs` y `GET …/runs/{run_id}/log?desde=<byte>` (§11.1), y el panel encadena tramos guardando el `hasta` devuelto. Leer así un fichero que crece no deja estado en el servidor ni suscripción que caducar; SSE o WebSocket serían un segundo transporte para el patrón que el panel ya usa en todo lo demás.
 7. **Cerrado (spec 0003): las tres barreras de contención están puestas.** Los siete `.claude/agents/*.md` con el `tools` de §7.4 y un test de contrato que falla si derivan; el `deny` de `Read` sobre `canon/misterio.md` en `.claude/settings.json`, viable porque `novela briefing` incrusta el misterio; y el hook `PreToolUse` de §7.1, que se dispara también para las llamadas de un subagente (experimento E-1 de la spec 0003). Los plugins de desarrollo viven en el ámbito de usuario. Lo que sigue es el razonamiento que llevó ahí. **Antes, enunciadas y no puestas.** `.claude/` contiene hoy un único fichero, `settings.json`, con plugins de desarrollo: no hay definiciones de agente, ni hooks, ni permisos. El invariante 3 se sostiene solo sobre el aborto de `novela briefing`, y el 1 solo sobre los triggers append-only de `estado.db`. La dificultad es que los permisos de Claude Code valen para la sesión entera y no por subagente, así que un `deny` sobre `canon/misterio.md` rompería a los tres agentes que sí lo necesitan —`trazador`, `continuista` y `lector-suspense`—; lo que lo hace viable es que `novela briefing` **incruste** el contenido del misterio en el briefing de esos tres, con lo que ningún agente necesita abrir el fichero y la regla pasa a ser una línea igual para los siete, con el coste de contexto contando además dentro del presupuesto que §6.5 verifica antes de invocar. El resto de la contención es material: los siete `.claude/agents/*.md` con el `tools` de §7.4, los dos hooks que `CLAUDE.md` da por existentes (`PreToolUse` de escritura, `Stop` de trazado), los plugins de desarrollo fuera del fichero versionado y un test de contrato que falle si un agente gana una herramienta prohibida. Queda por verificar si `PreToolUse` se dispara para las llamadas de herramienta de un subagente: si no lo hiciera, el invariante 1 se queda solo con los triggers. Mientras nada de esto exista, §6.3 y §7.4 describen el contrato de los agentes, no lo que hay en disco.
 8. **El arranque pasa por un humano.** El formulario del panel prepara la orden `/novela-nueva` para copiar en la sesión del harness, porque la API no escribe y FastAPI no puede invocar modelos (§2, «fuera del stack»); el `config.yaml` lo escribe `novela nueva` desde los flags, así que no hay dos fuentes de los mismos parámetros (spec 0004). Es la única costura manual del diseño y está en el primer paso que da cualquiera. La dirección acordada es una cola en disco fuera de los workspaces —`novelas/_cola/`, con `pendientes/`, `en-curso/` y `hechas/`, donde el prefijo `_` no es un slug válido y la separación se sostiene por construcción—: la API gana un `POST /cola` que valida y encola de forma atómica, su única escritura, con tope de pendientes porque cada solicitud aceptada acabará gastando cuota; el CLI gana `novela cola tomar` y `novela cola cerrar`; y el `config.yaml` lo escribe siempre el backend, venga de la cola o de los flags. Quien vacía la cola es un supervisor de quince líneas de shell, el bucle desatendido de §2.3 con una fuente de trabajo delante: se queda en shell porque solo decide **qué novela empieza**, no qué paso sigue a un gate, y meterlo en el CLI borraría esa frontera. Un `run.sh` levanta API y supervisor juntos, de modo que no exista el estado «panel en pie, nadie ejecutando» ni, con él, un segundo camino de arranque que mantener. Si se adopta, la frase «no hay verbo de escritura» de §11.1 pasa a «la API no muta una novela», y con ella la regla equivalente de `AGENTS.md`.

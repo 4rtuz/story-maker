@@ -348,6 +348,28 @@
       ],
       "title": "Resumen",
       "type": "object"
+    },
+    "UsoCitado": {
+      "additionalProperties": false,
+      "description": "Un hecho ya afirmado que el capítulo usa sin enseñarlo de nuevo, con la cita literal que\nlo prueba. Es lo que deja rastro en `usos_de_hecho` por la vía `cita` (spec 0007, D4).",
+      "properties": {
+        "hecho": {
+          "pattern": "^hec-[0-9]{3}$",
+          "title": "Hecho",
+          "type": "string"
+        },
+        "cita": {
+          "minLength": 1,
+          "title": "Cita",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hecho",
+        "cita"
+      ],
+      "title": "UsoCitado",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -426,6 +448,14 @@
         "$ref": "#/$defs/Hecho"
       },
       "title": "Libro De Hechos",
+      "type": "array"
+    },
+    "hechos_usados": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/UsoCitado"
+      },
+      "title": "Hechos Usados",
       "type": "array"
     },
     "hilos": {

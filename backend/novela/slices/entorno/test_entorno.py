@@ -16,6 +16,7 @@ BIEN: dict[str, object] = {
     "settings": SETTINGS,
     "local": None,
     "hook_existe": True,
+    "hook_validacion_existe": True,
     "python": PYTHON,
     "env_ignorado": None,
     "scores": {},
@@ -45,6 +46,7 @@ EMISOR = {
         ),
         ({"local": "{"}, "settings.local.json no es JSON válido"),
         ({"hook_existe": False}, "falta .claude/hooks/denegar-escritura-estado.py"),
+        ({"hook_validacion_existe": False}, "falta .claude/hooks/validar-capitulo.py"),
         ({"python": None}, "python no resuelve: el hook fallaría abierto"),
         (
             {"python": "C:\\Users\\x\\AppData\\Local\\Microsoft\\windowsapps\\python.exe"},
@@ -76,6 +78,7 @@ def test_por_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     lo imprime en una línea; sin ninguno, sale con 0 y no imprime nada."""
     (tmp_path / ".claude" / "hooks").mkdir(parents=True)
     (tmp_path / ".claude" / "settings.json").write_text(SETTINGS, encoding="utf-8")
+    (tmp_path / ".claude" / "hooks" / "validar-capitulo.py").write_text("", "utf-8")
     monkeypatch.setattr(run, "RAIZ_REPO", tmp_path)
     monkeypatch.setattr(shutil, "which", lambda _: PYTHON)
 
@@ -84,6 +87,25 @@ def test_por_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert resultado.output.splitlines() == ["falta .claude/hooks/denegar-escritura-estado.py"]
 
     (tmp_path / ".claude" / "hooks" / "denegar-escritura-estado.py").write_text("", "utf-8")
+    resultado = CliRunner().invoke(app, ["comprobar-entorno"])
+    assert (resultado.exit_code, resultado.output) == (0, "")
+
+
+def test_hook_de_validacion_ausente(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """CA-11 de la 0008 (RF-10, VAL-17): sin validar-capitulo.py avisa y sale con el mismo 1 que
+    sin el PreToolUse; con los dos, nada."""
+    hooks = tmp_path / ".claude" / "hooks"
+    hooks.mkdir(parents=True)
+    (tmp_path / ".claude" / "settings.json").write_text(SETTINGS, encoding="utf-8")
+    (hooks / "denegar-escritura-estado.py").write_text("", "utf-8")
+    monkeypatch.setattr(run, "RAIZ_REPO", tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda _: PYTHON)
+
+    resultado = CliRunner().invoke(app, ["comprobar-entorno"])
+    assert resultado.exit_code == 1
+    assert resultado.output.splitlines() == ["falta .claude/hooks/validar-capitulo.py"]
+
+    (hooks / "validar-capitulo.py").write_text("", "utf-8")
     resultado = CliRunner().invoke(app, ["comprobar-entorno"])
     assert (resultado.exit_code, resultado.output) == (0, "")
 
@@ -138,6 +160,7 @@ def test_env_sin_ignorar_por_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     (tmp_path / ".claude" / "hooks").mkdir(parents=True)
     (tmp_path / ".claude" / "settings.json").write_text(SETTINGS, encoding="utf-8")
     (tmp_path / ".claude" / "hooks" / "denegar-escritura-estado.py").write_text("", "utf-8")
+    (tmp_path / ".claude" / "hooks" / "validar-capitulo.py").write_text("", "utf-8")
     _git(tmp_path, "init", "-q")
     (tmp_path / ".env").write_text("".join(f"{k}={v}\n" for k, v in EMISOR.items()), "utf-8")
     monkeypatch.setattr(run, "RAIZ_REPO", tmp_path)

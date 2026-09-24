@@ -217,6 +217,17 @@ def test_ilegible_da_404(
     assert respuesta.json()["detail"]
 
 
+def test_estado_sin_tabla_usos(novelas: Callable[[str], WorkspaceRepository]) -> None:
+    """CA-07 (RF-07), por la API: sin `usos_de_hecho`, el mismo 200 y el mismo JSON."""
+    ws = novelas("demo-24")
+    con_tabla = cliente.get("/novelas/demo-24/estado")
+    with sqlite3.connect(ws.raiz / "estado" / "estado.db") as conn:
+        conn.execute("DROP TABLE usos_de_hecho")
+    sin_tabla = cliente.get("/novelas/demo-24/estado")
+    assert (con_tabla.status_code, sin_tabla.status_code) == (200, 200)
+    assert sin_tabla.json() == con_tabla.json()
+
+
 def test_runs(novelas: Callable[[str], WorkspaceRepository]) -> None:
     """CA-35: un Manifest por `runs/*/manifest.json`, por run_id ascendente."""
     ws = novelas("demo-24")

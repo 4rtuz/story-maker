@@ -40,12 +40,13 @@ def comprobar_entorno(
         bool, typer.Option("--limpio", help="además, sin cambios sin commitear (canario)")
     ] = False,
 ) -> None:
-    """Hook, python, settings.local.json y .env antes de lanzar. Un hallazgo por línea."""
+    """Hooks, python, settings.local.json y .env antes de lanzar. Un hallazgo por línea."""
     raiz = run.RAIZ_REPO
     hallazgos = comprobaciones.entorno(
         settings=_texto(raiz / ".claude" / "settings.json"),
         local=_texto(raiz / ".claude" / "settings.local.json"),
         hook_existe=(raiz / comprobaciones.HOOK).is_file(),
+        hook_validacion_existe=(raiz / comprobaciones.HOOK_VALIDACION).is_file(),
         python=shutil.which("python"),
         # git solo corre si hace falta.
         sucio=limpio and run.procedencia(raiz)[0],

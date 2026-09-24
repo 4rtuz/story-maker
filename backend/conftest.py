@@ -67,13 +67,15 @@ def lock_ajeno() -> Callable[[Path], AbstractContextManager[None]]:
 
 @pytest.fixture(scope="session")
 def plantillas(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Los tres workspaces de la tarea 1.13b, construidos una vez por sesión con el bucle real y
-    agentes falsos. demo-24 es la instantánea de demo-terminado al cerrar el capítulo 7."""
+    """Los workspaces de la tarea 1.13b y demo-cambio (spec 0007 §7), construidos una vez por
+    sesión con el bucle real y agentes falsos. demo-24 es la instantánea de demo-terminado al
+    cerrar el capítulo 7."""
     base = tmp_path_factory.mktemp("plantillas")
     fabrica.construir(
         base, "demo-terminado", fabrica.DEMO, cerrados=24, instantaneas={7: "demo-24"}
     )
     fabrica.construir(base, "demo-huerfana", fabrica.HUERFANA, cerrados=3)
+    fabrica.construir(base, "demo-cambio", fabrica.CAMBIO, cerrados=6)
     return base
 
 
