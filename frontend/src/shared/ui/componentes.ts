@@ -192,6 +192,27 @@ export function vacio(texto: string): HTMLElement {
   return el('p', 'q-vacio', texto);
 }
 
+/** Un estado sin datos que ocupa su tarjeta: icono, el texto fijo, una pista y, si hay, la salida. */
+export function estadoVacio({
+  icono: nombre,
+  texto,
+  pista,
+  accion,
+}: {
+  icono: NombreDeIcono;
+  texto: string;
+  pista: string;
+  accion?: HTMLElement;
+}): HTMLElement {
+  return el(
+    'div',
+    'q-estado-vacio',
+    cuadroDeIcono(nombre, 'naranja'),
+    el('div', 'q-estado-vacio__texto', el('p', 'q-estado-vacio__titulo', texto), el('p', 'q-estado-vacio__pista', pista)),
+    ...(accion ? [accion] : []),
+  );
+}
+
 /** El aviso de error de RF-04: tinte naranja, icono y texto; se anuncia al aparecer. */
 export function aviso(texto: string): HTMLElement {
   const nodo = el('div', 'q-aviso', icono('circle-alert'), el('p', 'q-aviso__texto', texto));

@@ -6,7 +6,9 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { boton, campo } from './componentes';
 
-const CSS = fs.readFileSync(path.join(import.meta.dirname, 'estilos.css'), 'utf8');
+const CSS = ['estilos.css', '../../app/app.css']
+  .map((f) => fs.readFileSync(path.join(import.meta.dirname, f), 'utf8'))
+  .join('\n');
 const TOKENS = fs.readFileSync(path.join(import.meta.dirname, '../marca/tokens.css'), 'utf8');
 
 /** Las declaraciones de cada selector, sin comentarios y fuera de @media. */
@@ -45,6 +47,24 @@ const INTERACTIVOS: Interactivo[] = [
     hover: '.q-boton--secundario:hover',
     foco: '.q-boton:focus-visible',
     deshabilitado: '.q-boton:disabled',
+  },
+  {
+    nombre: 'ítem de navegación',
+    reposo: '.q-nav__item',
+    hover: '.q-nav__item:hover',
+    foco: '.q-nav__item:focus-visible',
+  },
+  {
+    nombre: 'botón de plegar',
+    reposo: '.q-plegar',
+    hover: '.q-plegar:hover',
+    foco: '.q-plegar:focus-visible',
+  },
+  {
+    nombre: 'entrada de novela',
+    reposo: '.q-entrada__slug',
+    hover: '.q-entrada__slug:hover',
+    foco: '.q-entrada__slug:focus-visible',
   },
   {
     nombre: 'campo de formulario',

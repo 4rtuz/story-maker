@@ -27,6 +27,8 @@ export const PARES: readonly Par[] = [
   { primerPlano: '--q-texto-sobre-primario', fondo: '--q-primario', tipo: 'texto' },
   { primerPlano: '--q-texto-sobre-primario', fondo: '--q-nav-activo-fondo', tipo: 'texto' },
   { primerPlano: '--q-nav-texto', fondo: '--q-nav-fondo', tipo: 'texto' },
+  // El hover de los ítems de navegación (T-07).
+  { primerPlano: '--q-nav-texto', fondo: '--q-nav-separador', tipo: 'texto' },
   { primerPlano: '--q-banner-texto', fondo: '--q-deco-banner-inicio', tipo: 'texto' },
   { primerPlano: '--q-banner-subtitulo', fondo: '--q-deco-banner-inicio', tipo: 'texto' },
   {

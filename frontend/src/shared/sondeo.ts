@@ -4,6 +4,10 @@
 // propias, la hora de la barra superior y el estado de la API de la barra lateral (D50).
 import { ErrorDeApi } from './api/errores';
 
+/** Los datos de la vista cada 10 s y el tramo del log cada 3 s (D10). */
+export const CADA_DATOS = 10_000;
+export const CADA_LOG = 3_000;
+
 export interface Recurso {
   clave: string;
   /** Milisegundos entre rondas: 10 000 para los datos de la vista, 3 000 para el log. */

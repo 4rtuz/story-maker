@@ -1,0 +1,310 @@
+/*
+ * El marco del panel (spec 0004 §8.4, «Estructura»): barra lateral fija de --q-ancho-barra sobre
+ * --q-nav-fondo, barra superior sobre --q-fondo-pagina y el contenido con --q-margen-contenido.
+ * Solo roles y medidas de tokens.css.
+ */
+
+.q-oculto-visual {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.q-app {
+  display: grid;
+  grid-template-columns: var(--q-ancho-barra) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.q-app--plegada {
+  grid-template-columns: var(--q-ancho-barra-plegada) minmax(0, 1fr);
+}
+
+/* --- Barra lateral ------------------------------------------------------------------------- */
+
+.q-nav {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  height: 100vh;
+  padding: 24px 16px;
+  overflow-y: auto;
+  background: var(--q-nav-fondo);
+  color: var(--q-nav-texto);
+}
+
+.q-nav__logo {
+  padding: 0 4px 20px;
+  border-bottom: 1px solid var(--q-nav-separador);
+}
+
+.q-nav__bloque {
+  display: grid;
+  gap: 4px;
+}
+
+.q-nav__rotulo {
+  margin: 0 0 6px;
+  padding: 0 12px;
+  font-size: var(--q-texto-etiqueta);
+  font-weight: var(--q-peso-etiqueta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--q-nav-texto);
+}
+
+.q-nav__slug {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--q-texto-meta);
+  overflow-wrap: anywhere;
+}
+
+.q-nav__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: var(--q-radio-control);
+  color: var(--q-nav-texto);
+  font-size: var(--q-texto-meta);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color var(--q-transicion);
+}
+
+.q-nav__item:hover {
+  background: var(--q-nav-separador);
+}
+
+.q-nav__item:focus-visible {
+  outline: var(--q-contorno-foco) solid var(--q-foco-sobre-oscuro);
+  outline-offset: var(--q-separacion-foco);
+}
+
+.q-nav__item[aria-current='page'] {
+  background: var(--q-nav-activo-fondo);
+  color: var(--q-texto-sobre-primario);
+  font-weight: 600;
+}
+
+.q-nav__item[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 0;
+  width: 4px;
+  border-radius: 0 var(--q-radio-pildora) var(--q-radio-pildora) 0;
+  background: var(--q-nav-indicador);
+}
+
+.q-api {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: auto;
+  padding: 16px 12px 0;
+  border-top: 1px solid var(--q-nav-separador);
+  font-size: var(--q-texto-meta);
+}
+
+.q-api__texto {
+  display: grid;
+  min-width: 0;
+}
+
+.q-api__estado {
+  font-weight: 600;
+}
+
+.q-api__url {
+  overflow-wrap: anywhere;
+}
+
+/* Plegada: solo iconos, con el nombre de cada ítem como nombre accesible (RF-50). */
+.q-app--plegada .q-nav {
+  padding-inline: 12px;
+  align-items: center;
+}
+
+.q-app--plegada .q-nav__item {
+  justify-content: center;
+  width: 48px;
+  padding: 10px 0;
+}
+
+.q-app--plegada :is(.q-nav__texto, .q-nav__rotulo, .q-logo__nombre, .q-api__texto) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.q-app--plegada .q-nav__logo {
+  padding-inline: 0;
+}
+
+.q-app--plegada .q-api {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+/* --- Barra superior ------------------------------------------------------------------------ */
+
+.q-app__columna {
+  min-width: 0;
+}
+
+.q-barra {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 80px;
+  padding: 16px var(--q-margen-contenido);
+  background: var(--q-fondo-pagina);
+}
+
+.q-plegar {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid transparent;
+  border-radius: var(--q-radio-control);
+  background: transparent;
+  color: var(--q-texto);
+  cursor: pointer;
+  transition: background-color var(--q-transicion);
+}
+
+.q-plegar:hover {
+  background: var(--q-secundario-fondo);
+}
+
+.q-plegar:focus-visible {
+  outline: var(--q-contorno-foco) solid var(--q-foco);
+  outline-offset: var(--q-separacion-foco);
+}
+
+.q-barra__titulo {
+  flex: 1;
+  margin: 0;
+  font-size: var(--q-texto-titulo-pagina);
+  font-weight: var(--q-peso-titulo-pagina);
+}
+
+.q-barra__actualizado {
+  margin: 0;
+  font-size: var(--q-texto-meta);
+  color: var(--q-texto);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Contenido ----------------------------------------------------------------------------- */
+
+.q-contenido {
+  display: grid;
+  gap: var(--q-hueco);
+  padding: 0 var(--q-margen-contenido) var(--q-margen-contenido);
+}
+
+.q-avisos:empty {
+  display: none;
+}
+
+.q-vista {
+  display: grid;
+  gap: var(--q-hueco);
+}
+
+.q-vista__acciones {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* --- Inicio -------------------------------------------------------------------------------- */
+
+.q-entradas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+}
+
+.q-esqueleto--entrada {
+  height: 158px;
+}
+
+.q-entrada {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px;
+  border: 1px solid var(--q-borde-tarjeta);
+  border-radius: var(--q-radio-control);
+  background: var(--q-fondo-tarjeta);
+  transition: box-shadow var(--q-transicion);
+}
+
+.q-entrada:hover {
+  box-shadow: var(--q-sombra-tarjeta);
+}
+
+.q-entrada__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.q-entrada__titulo {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.q-entrada__slug {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--q-radio-control);
+  color: var(--q-texto);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  transition: color var(--q-transicion);
+}
+
+.q-entrada__slug .q-icono {
+  color: var(--q-icono-naranja);
+}
+
+.q-entrada__slug:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.q-entrada__slug:focus-visible {
+  outline: var(--q-contorno-foco) solid var(--q-foco);
+  outline-offset: var(--q-separacion-foco);
+}
+
+.q-entrada__meta {
+  margin: 0;
+  font-size: var(--q-texto-meta);
+  color: var(--q-texto-secundario);
+}
+
+.q-entrada__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}

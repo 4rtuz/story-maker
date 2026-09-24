@@ -432,6 +432,31 @@ textarea.q-campo__control {
   color: var(--q-texto-secundario);
 }
 
+.q-estado-vacio {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 20px;
+  padding: 8px 0;
+}
+
+.q-estado-vacio__texto {
+  flex: 1;
+  min-width: 240px;
+}
+
+.q-estado-vacio__titulo {
+  margin: 0;
+  font-weight: 600;
+  color: var(--q-texto);
+}
+
+.q-estado-vacio__pista {
+  margin: 2px 0 0;
+  font-size: var(--q-texto-meta);
+  color: var(--q-texto-secundario);
+}
+
 .q-aviso {
   display: flex;
   align-items: flex-start;

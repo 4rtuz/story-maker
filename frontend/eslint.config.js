@@ -48,7 +48,8 @@ const redSoloEnApi = {
     return {
       Identifier(nodo) {
         const clave = nodo.parent?.type === 'Property' && nodo.parent.key === nodo && !nodo.parent.computed;
-        if (RED.has(nodo.name) && !clave) avisar(nodo, nodo.name);
+        const tipo = nodo.parent?.type === 'TSTypeQuery'; // `typeof fetch` no pide nada
+        if (RED.has(nodo.name) && !clave && !tipo) avisar(nodo, nodo.name);
       },
       Literal(nodo) {
         const indice = nodo.parent?.type === 'MemberExpression' && nodo.parent.property === nodo;
