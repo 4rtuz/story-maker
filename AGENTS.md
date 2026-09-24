@@ -129,18 +129,18 @@ Cinco tipos de documento, cinco reglas. No los mezcles.
 |---|---|---|
 | `AGENTS.md`, `CLAUDE.md` | Convenciones vigentes | Solo si cambia una convención |
 | `docs/architecture.md`, `definitions.md`, `domain-knowledge.md`, `validators.md` | El estado **actual** del sistema | En el mismo commit que el código que lo cambia |
-| `docs/specs/NNNN-<slug>.md` | Un cambio concreto **antes** de existir | Al proponerlo |
-| `docs/implementation-plans/NNNN-<slug>/` | Cómo se ejecuta una spec aceptada | Al aceptarla; se borra al implementarla |
+| `docs/specs/NNNN/spec.md`, `decisions.md` | Un cambio concreto **antes** de existir, y sus decisiones | Al proponerlo |
+| `docs/specs/NNNN/plan/`, `validators.md` | Cómo se ejecuta una spec aceptada y dónde puede fallar | Al aceptarla; se borran al implementarla, tras subir a `docs/validators.md` lo que perdura |
 | `docs/adr/NNNN-<slug>.md` | Una decisión con alternativas descartadas | Cuando revertirla sería caro |
 
 **Regla dura: la documentación de referencia describe lo que hay, no lo que habrá.** Nada de «próximamente» o «pendiente» en `architecture.md`. El futuro vive en `docs/specs/`.
 
 Ciclo de vida de una spec:
 
-1. Copia `docs/specs/_plantilla.md` a `docs/specs/NNNN-<slug>.md`, correlativo de cuatro dígitos. Estado `borrador`.
+1. Crea `docs/specs/NNNN/` con `spec.md` y `decisions.md`, correlativo de cuatro dígitos. Estado `borrador`. Las specs anteriores a la 0004 conservan su formato (`docs/specs/NNNN-<slug>.md` y `docs/implementation-plans/NNNN-<slug>/`) hasta cerrarse.
 2. Se discute **en el fichero**, no en la conversación: la conversación se pierde y el fichero es lo que lee el siguiente agente.
-3. Aceptada → estado `aceptada`. Sus criterios de aceptación son los tests del ciclo TDD, uno a uno. Una spec sin criterios verificables no se acepta.
-4. Implementada → estado `implementada`, sha del commit en el frontmatter, y en ese mismo commit se actualizan los docs de referencia que quedaron desfasados.
+3. Aceptada → estado `aceptada`, con `plan/` (un `README.md` y un fichero por fase) y `validators.md` escritos. Sus criterios de aceptación son los tests del ciclo TDD, uno a uno. Una spec sin criterios verificables no se acepta.
+4. Implementada → estado `implementada`, sha del commit en el frontmatter, y en ese mismo commit se actualizan los docs de referencia que quedaron desfasados: lo que perdura de `validators.md` sube a `docs/validators.md` y se borran `plan/` y `validators.md`.
 5. Descartada → estado `descartada` con el motivo. **No se borra**: el motivo es lo que evita que alguien la reproponga en tres meses.
 
 Una spec que lleva dos versiones del harness en `borrador` está muerta. Ciérrala como `descartada`.
