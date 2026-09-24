@@ -737,7 +737,7 @@ novela nueva <slug> --idea "..."   # árbol del workspace, config.yaml y estado.
 novela estado <slug> --breve
 novela estado <slug> --json        # estado completo serializado, para inspección
 novela briefing <slug> <cap> <agente>
-novela validar <slug> <cap>
+novela validar <slug> <cap> [--origen orquestador|hook]   # hook: la línea es validar-hook NN y no cuenta
 novela aplicar-delta <slug> <cap>
 novela checkpoint <slug> <cap>
 novela pendiente <slug>            # código de salida: 0 si quedan capítulos
