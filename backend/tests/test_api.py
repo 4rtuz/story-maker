@@ -6,6 +6,7 @@ import json
 import os
 import sqlite3
 import stat
+import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -197,3 +198,175 @@ def test_ilegible_da_404(
     respuesta = cliente.get(f"/novelas/demo-24/{recurso}")
     assert respuesta.status_code == 404
     assert respuesta.json()["detail"]
+
+
+def test_runs(novelas: Callable[[str], WorkspaceRepository]) -> None:
+    """CA-35: un Manifest por `runs/*/manifest.json`, por run_id ascendente."""
+    ws = novelas("demo-24")
+    respuesta = cliente.get("/novelas/demo-24/runs")
+    assert respuesta.status_code == 200
+    ids = [m["run_id"] for m in respuesta.json()]
+    assert ids == sorted(ids) == [fabrica.run_id(n) for n in range(1, 8)]
+    for manifiesto in respuesta.json():
+        ruta = ws.raiz / "runs" / manifiesto["run_id"] / "manifest.json"
+        assert manifiesto == json.loads(ruta.read_bytes())
+
+
+def _log(ws: WorkspaceRepository, run_id: str = fabrica.run_id(7)) -> Path:
+    return ws.raiz / "runs" / run_id / "harness.log"
+
+
+def _run_propio(ws: WorkspaceRepository, run_id: str, log: bytes | None) -> Path:
+    """Un run fabricado a mano: `run.abrir` siempre deja log tras el primer paso."""
+    directorio = ws.raiz / "runs" / run_id
+    directorio.mkdir()
+    manifiesto = json.loads((ws.raiz / "runs" / fabrica.run_id(7) / "manifest.json").read_bytes())
+    (directorio / "manifest.json").write_text(json.dumps(manifiesto | {"run_id": run_id}))
+    if log is not None:
+        (directorio / "harness.log").write_bytes(log)
+    return directorio
+
+
+def test_log_encadenado(novelas: Callable[[str], WorkspaceRepository]) -> None:
+    """RF-36 contra la API: encadenar con cada `hasta` recorre el log entero, una sola vez."""
+    ws = novelas("demo-24")
+    ruta = f"/novelas/demo-24/runs/{fabrica.run_id(7)}/log"
+    desde, lineas = 0, []
+    while True:
+        tramo = cliente.get(ruta, params={"desde": desde}).json()
+        assert tramo["desde"] == desde and tramo["tamano"] == _log(ws).stat().st_size
+        assert tramo["modificado"]
+        if not tramo["lineas"]:
+            break
+        lineas += tramo["lineas"]
+        desde = tramo["hasta"]
+    assert lineas == _log(ws).read_text(encoding="utf-8").splitlines()
+    assert desde == _log(ws).stat().st_size
+
+
+def test_log_codigos(
+    novelas: Callable[[str], WorkspaceRepository], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """CA-37 y VAL-21, en el orden del criterio."""
+    ws = novelas("demo-24")
+    ruta = f"/novelas/demo-24/runs/{fabrica.run_id(7)}/log"
+    sin_log = "/novelas/demo-24/runs/r-20990101-0000/log"
+    tamano = _log(ws).stat().st_size
+    _run_propio(ws, "r-20990101-0000", log=None)
+    vacio: dict[str, Any] = {"tamano": 0, "modificado": None, "lineas": []}
+    for pedida, codigo, cuerpo in (
+        (f"{ruta}?desde=-1", 422, None),
+        (f"{ruta}?desde=abc", 422, None),
+        (f"{ruta}?desde={tamano + 1}", 416, None),
+        ("/novelas/demo-24/runs/r-20990101-0001/log", 404, None),
+        (f"{sin_log}?desde=0", 200, {"desde": 0, "hasta": 0} | vacio),
+        (f"{sin_log}?desde=5", 200, {"desde": 5, "hasta": 5} | vacio),
+    ):
+        respuesta = cliente.get(pedida)
+        assert respuesta.status_code == codigo, pedida
+        if cuerpo is not None:
+            assert respuesta.json() == cuerpo
+
+    al_final = cliente.get(f"{ruta}?desde={tamano}").json()
+    assert al_final["lineas"] == [] and al_final["hasta"] == al_final["tamano"] == tamano
+
+    # A mitad de la línea 3: la primera devuelta es la 4, completa (VAL-21, D48).
+    lineas = _log(ws).read_bytes().splitlines(keepends=True)
+    mitad = len(b"".join(lineas[:2])) + len(lineas[2]) // 2
+    tramo = cliente.get(f"{ruta}?desde={mitad}").json()
+    assert tramo["lineas"][0] == lineas[3].decode().rstrip("\r\n")
+
+    respuesta, fuera = _pedir_espiando(
+        monkeypatch, tmp_path, "/novelas/demo-24/runs/..%2F..%2Fconfig.yaml/log"
+    )
+    assert respuesta.status_code != 200 and fuera == []
+
+
+def test_rutas_de_runs_no_se_solapan(novelas: Callable[[str], WorkspaceRepository]) -> None:
+    """VER-4: con `{slug:path}`, cada forma de ruta llega a su endpoint y a su modelo."""
+    novelas("demo-24")
+    run = fabrica.run_id(7)
+    assert isinstance(cliente.get("/novelas/demo-24/runs").json(), list)
+    assert cliente.get(f"/novelas/demo-24/runs/{run}").json()["run_id"] == run
+    campos = {"desde", "hasta", "tamano", "modificado", "lineas"}
+    assert set(cliente.get(f"/novelas/demo-24/runs/{run}/log").json()) == campos
+    assert cliente.get(f"/novelas/demo-24/runs/{run}/log/extra").status_code == 404
+    assert cliente.get("/novelas/runs/runs").status_code in (404, 422)
+
+
+def test_log_con_escritura_entre_stat_y_lectura(
+    novelas: Callable[[str], WorkspaceRepository], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """VER-5: si el CLI añade una línea entre el stat y la lectura, el tramo no pasa de `tamano`
+    y la línea nueva llega en la petición siguiente."""
+    ws = novelas("demo-24")
+    ruta = f"/novelas/demo-24/runs/{fabrica.run_id(7)}/log"
+    real = os.fstat
+
+    def fstat_y_escribir(fd: int) -> os.stat_result:
+        resultado = real(fd)
+        with _log(ws).open("ab") as log:
+            log.write(b"linea tardia\n")
+        return resultado
+
+    monkeypatch.setattr(os, "fstat", fstat_y_escribir)
+    tramo = cliente.get(ruta).json()
+    monkeypatch.setattr(os, "fstat", real)
+    assert tramo["hasta"] <= tramo["tamano"]
+    siguiente = cliente.get(ruta, params={"desde": tramo["hasta"]}).json()
+    assert siguiente["lineas"][-1] == "linea tardia"
+
+
+class _Contador:
+    """Envuelve el fichero abierto y suma los bytes que se leen de él."""
+
+    def __init__(self, fichero: Any, leidos: list[int]) -> None:
+        self._fichero, self._leidos = fichero, leidos
+
+    def read(self, *args: Any) -> bytes:
+        datos: bytes = self._fichero.read(*args)
+        self._leidos.append(len(datos))
+        return datos
+
+    def __enter__(self) -> "_Contador":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self._fichero.close()
+
+    def __getattr__(self, nombre: str) -> Any:
+        return getattr(self._fichero, nombre)
+
+
+def test_log_rendimiento(
+    novelas: Callable[[str], WorkspaceRepository], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """RNF-17: 1 MiB en menos de 200 ms, como mucho 65 536 bytes de líneas por respuesta, y nunca
+    más de 1 MiB y el byte anterior leídos del log, tampoco cerca del final de uno de 8 MiB."""
+    ws = novelas("demo-24")
+    linea = b"x" * 63 + b"\n"
+    _run_propio(ws, "r-20990101-0000", log=linea * (1_048_576 // len(linea)))
+    grande = linea * (8 * 1_048_576 // len(linea))
+    _run_propio(ws, "r-20990101-0001", log=grande)
+    leidos: list[int] = []
+    abrir = builtins.open
+
+    def espia(fichero: Any, *args: Any, **kwargs: Any) -> Any:
+        abierto = abrir(fichero, *args, **kwargs)
+        return _Contador(abierto, leidos) if str(fichero).endswith("harness.log") else abierto
+
+    monkeypatch.setattr(builtins, "open", espia)
+    ruta = "/novelas/demo-24/runs/r-20990101-0000/log"
+    cliente.get(ruta)  # calentamiento: la primera petición importa y compila
+    leidos.clear()
+    inicio = time.perf_counter()
+    tramo = cliente.get(ruta).json()
+    assert time.perf_counter() - inicio < 0.2
+    assert sum(len(x.encode()) + 1 for x in tramo["lineas"]) <= 65_536
+    assert 0 < sum(leidos) <= 1_048_576 + 1
+
+    for desde in (len(grande) - 100, len(grande) - 1_048_576 - 7):
+        leidos.clear()
+        respuesta = cliente.get("/novelas/demo-24/runs/r-20990101-0001/log?desde=" + str(desde))
+        assert respuesta.status_code == 200
+        assert 0 < sum(leidos) <= 1_048_576 + 1

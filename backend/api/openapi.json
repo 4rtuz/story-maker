@@ -211,6 +211,118 @@
         }
       }
     },
+    "/novelas/{slug}/runs": {
+      "get": {
+        "tags": [
+          "novelas"
+        ],
+        "summary": "Runs",
+        "operationId": "runs_novelas__slug__runs_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Manifest"
+                  },
+                  "title": "Response Runs Novelas  Slug  Runs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/novelas/{slug}/runs/{run_id}/log": {
+      "get": {
+        "tags": [
+          "novelas"
+        ],
+        "summary": "Log",
+        "description": "El tramo de `harness.log` desde el byte `desde`, que el panel encadena con `hasta` (D48).\nUn run sin log todavía responde un tramo vacío: solo existe entre el manifiesto y la primera\nlínea.",
+        "operationId": "log_novelas__slug__runs__run_id__log_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^r-[0-9]{8}-[0-9]{4}$",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "desde",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Desde"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TramoDeLog"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/novelas/{slug}/runs/{run_id}": {
       "get": {
         "tags": [
@@ -1555,6 +1667,54 @@
         ],
         "title": "Relacion",
         "description": "Arista de la evolución; `intensidad` es cuantitativa y no es la `tension` del canon."
+      },
+      "TramoDeLog": {
+        "properties": {
+          "desde": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Desde"
+          },
+          "hasta": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Hasta"
+          },
+          "tamano": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Tamano"
+          },
+          "modificado": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modificado"
+          },
+          "lineas": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lineas"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "desde",
+          "hasta",
+          "tamano",
+          "modificado",
+          "lineas"
+        ],
+        "title": "TramoDeLog",
+        "description": "Líneas completas de `runs/<run_id>/harness.log` desde el byte `desde`. `hasta` es el\nsiguiente `desde`: el cliente encadena sin que el servidor guarde nada. Sin log, `tamano` 0,\n`modificado` None y `hasta` = `desde`. No es documento del workspace: sin schema_version."
       },
       "ValidationError": {
         "properties": {

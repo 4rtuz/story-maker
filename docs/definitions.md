@@ -292,6 +292,8 @@ El contexto persiste como ficheros, no como historial de conversación. Cada sub
 
 **`checkpoints/`** — Snapshots de estado y cursor. Permiten reanudar sin reprocesar y sin gastar requests.
 
+**`runs/<run_id>/`** — `manifest.json`, la procedencia del run, y `harness.log`, una línea por subcomando que el CLI añade al terminar cada uno. La API sirve el log por tramos como `TramoDeLog`: `desde`, `hasta` (el siguiente `desde`), `tamano`, `modificado` (ISO 8601 con zona, o `null` si el run aún no tiene log) y `lineas`, completas y sin `\r\n` ni `\n` finales. No es contrato de ningún agente.
+
 **`CLAUDE.md`** — Convenciones del repositorio. Todo agente lo lee antes de actuar, de modo que las reglas no se repiten en cada prompt.
 
 ---

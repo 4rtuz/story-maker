@@ -11,6 +11,7 @@ import re
 from collections.abc import Mapping
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Self
 
@@ -18,7 +19,14 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from novela.dominio import frontmatter
-from novela.dominio.artefactos import Checkpoint
+from novela.dominio.artefactos import (
+    TOPE_LECTURA_BYTES,
+    TOPE_TRAMO_BYTES,
+    Checkpoint,
+    Manifest,
+    TramoDeLog,
+    cortar_tramo,
+)
 from novela.dominio.config import Config
 from novela.dominio.ids import SLUG_PATRON, nn
 from novela.dominio.plan import Escaleta
@@ -34,6 +42,10 @@ class SlugInvalido(ValueError):
 
 class WorkspaceInvalido(Exception):
     """Falta el workspace o un fichero suyo no valida contra su modelo. Salida 4."""
+
+
+class FueraDelLog(ValueError):
+    """El `desde` pedido pasa del tamaño de `harness.log`: la API lo sirve como 416."""
 
 
 def validar_slug(slug: str) -> str:
@@ -114,6 +126,40 @@ class WorkspaceRepository:
             return Escaleta.model_validate(meta, context=contexto)
         except (OSError, yaml.YAMLError, ValueError) as exc:  # ValueError: ValidationError incluido
             raise WorkspaceInvalido(f"{ruta}: {exc}") from exc
+
+    def manifiestos(self) -> list[Manifest]:
+        rutas = (self.raiz / "runs").glob("*/manifest.json")
+        return sorted((self.leer_json(r, Manifest) for r in rutas), key=lambda m: m.run_id)
+
+    def tramo_de_log(self, run_id: str, desde: int) -> TramoDeLog:
+        """Salta a `desde` y lee como mucho 1 MiB, más el byte anterior para saber si `desde` es
+        límite de línea: nunca desde el principio (RNF-17). Tampoco pasa del tamaño del `stat`,
+        aunque el CLI escriba mientras tanto (VER-5)."""
+        try:
+            with open(self.raiz / "runs" / run_id / "harness.log", "rb") as log:
+                info = os.fstat(log.fileno())
+                if desde > info.st_size:
+                    raise FueraDelLog(f"desde {desde} pasa del tamaño del log ({info.st_size})")
+                log.seek(max(desde - 1, 0))
+                en_limite = desde == 0 or log.read(1) == b"\n"
+                ventana = log.read(min(TOPE_LECTURA_BYTES, info.st_size - desde))
+        except FileNotFoundError:
+            return TramoDeLog(desde=desde, hasta=desde, tamano=0, modificado=None, lineas=[])
+        lineas, hasta = cortar_tramo(
+            ventana,
+            desde,
+            TOPE_TRAMO_BYTES,
+            en_limite=en_limite,
+            hasta_el_final=desde + len(ventana) >= info.st_size,
+        )
+        modificado = datetime.fromtimestamp(info.st_mtime).astimezone()
+        return TramoDeLog(
+            desde=desde,
+            hasta=hasta,
+            tamano=info.st_size,
+            modificado=modificado.isoformat(timespec="seconds"),
+            lineas=lineas,
+        )
 
     def exigir(self) -> Self:
         if not self.existe():

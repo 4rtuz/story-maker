@@ -2,15 +2,20 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 
-from novela.dominio.artefactos import Checkpoint, Manifest
+from novela.dominio.artefactos import Checkpoint, Manifest, TramoDeLog
 from novela.dominio.config import Config
 from novela.dominio.estado import CursorDeNovela, Estado
 from novela.dominio.ids import RUN_ID_PATRON, SLUG_PATRON
 from novela.dominio.plan import Escaleta
 from novela.plataforma import estado_db
-from novela.plataforma.workspace import SlugInvalido, WorkspaceRepository, raiz_de_novelas
+from novela.plataforma.workspace import (
+    FueraDelLog,
+    SlugInvalido,
+    WorkspaceRepository,
+    raiz_de_novelas,
+)
 
 
 def _workspace(slug: Annotated[str, Path(pattern=SLUG_PATRON)]) -> WorkspaceRepository:
@@ -23,6 +28,7 @@ def _workspace(slug: Annotated[str, Path(pattern=SLUG_PATRON)]) -> WorkspaceRepo
 
 
 Workspace = Annotated[WorkspaceRepository, Depends(_workspace)]
+RunIdPath = Annotated[str, Path(pattern=RUN_ID_PATRON)]
 # `:path` porque Starlette decodifica `%2F` antes de enrutar: con `{slug}` a secas, `..%2F..%2Fetc`
 # no casaría ninguna ruta y el 404 dependería del enrutado, no de la validación.
 SLUG = "/{slug:path}"
@@ -72,8 +78,26 @@ def checkpoint(ws: Workspace) -> Checkpoint | None:
     return ws.ultimo_checkpoint()
 
 
+@router.get(SLUG + "/runs")
+def runs(ws: Workspace) -> list[Manifest]:
+    return ws.manifiestos()
+
+
+@router.get(SLUG + "/runs/{run_id}/log")
+def log(ws: Workspace, run_id: RunIdPath, desde: Annotated[int, Query(ge=0)] = 0) -> TramoDeLog:
+    """El tramo de `harness.log` desde el byte `desde`, que el panel encadena con `hasta` (D48).
+    Un run sin log todavía responde un tramo vacío: solo existe entre el manifiesto y la primera
+    línea."""
+    if not (ws.raiz / "runs" / run_id).is_dir():
+        raise HTTPException(404, f"no existe el run {run_id}")
+    try:
+        return ws.tramo_de_log(run_id, desde)
+    except FueraDelLog as exc:
+        raise HTTPException(416, str(exc)) from exc
+
+
 @router.get(SLUG + "/runs/{run_id}")
-def manifiesto(ws: Workspace, run_id: Annotated[str, Path(pattern=RUN_ID_PATRON)]) -> Manifest:
+def manifiesto(ws: Workspace, run_id: RunIdPath) -> Manifest:
     ruta = ws.raiz / "runs" / run_id / "manifest.json"
     if not ruta.is_file():
         raise HTTPException(404, f"no existe el run {run_id}")
