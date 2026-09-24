@@ -41,6 +41,8 @@ class Novela:
     usados: tuple[tuple[int, str], ...] = ()  # (capítulo, hecho que cita)
     # (capítulo, escena, lugar, personajes): sustituye la escena por defecto de la ficha de plan.
     escenas: tuple[tuple[int, int, str, tuple[str, ...]], ...] = ()
+    # docs/formal/lean.md: (capítulo, evento) que el cronista añade a la cronología del delta.
+    cronologia: tuple[tuple[int, dict[str, Any]], ...] = ()
 
     def pistas_de(self, n: int) -> tuple[list[str], list[str]]:
         plantar = [f"pis-{i:03d}" for i, (p, _) in enumerate(self.pistas, 1) if p == n]
@@ -69,6 +71,35 @@ CAMBIO = Novela(
 # La novela de regalo de la spec 0006: en el capítulo 2, la escena 2 ocurre en el archivo y solo
 # con Elena. Con el delta de la fábrica son 15 apariciones, 5 por capítulo.
 REGALO = Novela(3, pistas=((1, 3),), hilos=((1, 3),), escenas=((2, 2, ARCHIVO, (ELENA,)),))
+
+
+def _evento(
+    id_: str, dia: int, hora: str, lugar: str, *personajes: str, **extra: Any
+) -> dict[str, Any]:
+    h, m = hora.split(":")
+    momento = (dia - 1) * 1440 + int(h) * 60 + int(m)
+    return {"id": id_, "momento": momento, "lugar": lugar, "personajes": list(personajes), **extra}
+
+
+# docs/formal/lean.md §5: Tomás se va en el ferry en el 2 y vuelve a la linterna en el 3; y en el 3
+# Inés lo recuerda en el puerto la primera noche a la hora en que el 1 lo tiene en el faro. Ni
+# validar, ni aplicar-delta, ni auditar lo ven: solo la verificación en Lean.
+_CRONOLOGIA_BUENA = (
+    (1, _evento("evt-01-1", 1, "21:00", FARO, ELENA, TOMAS, duracion_min=40, edades={ELENA: 40})),
+    (2, _evento("evt-02-1", 2, "07:00", PUERTO, TOMAS, excluye=[TOMAS], tras=["evt-01-1"])),
+    (3, _evento("evt-03-1", 3, "21:00", FARO, ELENA, tras=["evt-02-1"])),
+)
+PARTIDA_COHERENTE = Novela(3, pistas=((1, 3),), hilos=((1, 3),), cronologia=_CRONOLOGIA_BUENA)
+PARTIDA = Novela(
+    3,
+    pistas=((1, 3),),
+    hilos=((1, 3),),
+    cronologia=(
+        *_CRONOLOGIA_BUENA[:2],
+        (3, _evento("evt-03-1", 3, "21:00", FARO, ELENA, TOMAS, tras=["evt-02-1"])),
+        (3, _evento("evt-03-2", 1, "21:10", PUERTO, TOMAS, INES)),
+    ),
+)
 
 
 def _md(meta: dict[str, Any], cuerpo: str) -> str:
@@ -391,7 +422,8 @@ def delta(novela: Novela, n: int) -> dict[str, Any]:
     assert {h["id"] for h in hilos if h["abierto_en"] == n} == set(abre)
     assert {h["id"] for h in hilos if h["cerrado_en"] == n} == set(cierra)
     hecho = f"hec-{n:03d}"
-    return {
+    eventos = [e for c, e in novela.cronologia if c == n]
+    return ({"cronologia": eventos} if eventos else {}) | {
         "capitulo": n,
         "linea_temporal": [
             {

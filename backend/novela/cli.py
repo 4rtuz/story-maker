@@ -14,6 +14,7 @@ from novela.slices.delta.cmd import aplicar_delta
 from novela.slices.entorno.cmd import comprobar_entorno
 from novela.slices.estado.cmd import estado, pendiente
 from novela.slices.export.cmd import exportar
+from novela.slices.formal.cmd import verificar_lean
 from novela.slices.nueva.cmd import nueva
 from novela.slices.plan.cmd import validar_plan
 from novela.slices.producir.cmd import producir
@@ -44,6 +45,7 @@ app.command()(con_codigos(auditar))
 app.command()(con_codigos(exportar))
 app.command("comprobar-entorno")(con_codigos(comprobar_entorno))
 app.command()(con_codigos(producir))
+app.command("verificar-lean")(con_codigos(verificar_lean))
 
 brief_app = typer.Typer(no_args_is_help=True, help="Fase de brief de una novela de regalo.")
 brief_app.command()(con_codigos(brief.iniciar))
