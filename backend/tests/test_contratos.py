@@ -120,6 +120,15 @@ def test_delta_schema_al_dia() -> None:
     assert set(esquema["$defs"]["UsoCitado"]["required"]) == {"hecho", "cita"}
 
 
+def test_delta_trae_cronologia_opcional() -> None:
+    """docs/formal/lean.md: la cronología del cronista es opcional (los deltas de antes siguen
+    valiendo) y cada evento trae momento, lugar y personajes."""
+    esquema = json.loads((SCHEMAS / "delta.schema.json").read_text(encoding="utf-8"))
+    assert "cronologia" in esquema["properties"]
+    assert "cronologia" not in esquema.get("required", [])
+    assert set(esquema["$defs"]["EventoCronologia"]["required"]) == {"id", "momento", "lugar"}
+
+
 def test_estado_json_valida_contra_el_esquema(
     novelas: Callable[[str], WorkspaceRepository],
 ) -> None:

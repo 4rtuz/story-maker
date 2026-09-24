@@ -24,6 +24,7 @@ from novela.plataforma import estado_db, run
 from novela.plataforma.salida import USO_INCORRECTO
 from novela.plataforma.workspace import WorkspaceRepository, sha256
 from novela.slices.delta import apply, custodia, violaciones
+from novela.slices.formal import cronologia
 
 REVISORES = ("continuista", "lector-suspense", "editor-estilo")
 
@@ -124,6 +125,8 @@ def aplicar_delta(slug: str, capitulo: int) -> None:
                     estado_db.registrar_usos(conn, apply.usos(delta))
                     estado_db.asegurar_apariciones(conn)  # bases anteriores a la spec 0006
                     estado_db.registrar_apariciones(conn, aparecen)
+                    cronologia.asegurar(conn)  # bases anteriores a docs/formal/lean.md
+                    cronologia.registrar(conn, delta)
 
             # Derivado de verdad: se reconstruye recorriendo estado/deltas/*.json, sin cuota.
             memoria = Memoria(capitulo=capitulo, **delta.resumen.model_dump())

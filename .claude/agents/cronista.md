@@ -18,6 +18,12 @@ esquema, sin prosa alrededor ni vallas de código. Nunca `estado.db`: lo aplica
 `libro_de_hechos` es obligatoria. `hilos` lleva solo los que el capítulo abre o cierra, y coincide
 con el frontmatter.
 
+**Cronología.** En `cronologia`, un evento por escena o suceso datable del capítulo
+(`evt-NN-k`): `momento` en minutos desde el día 1 a las 00:00 (`dia 2, 07:30` es 1890), `lugar`,
+los `personajes` presentes, en `excluye` quien muere o se va para siempre, en `edades` las que el
+texto declara y en `tras` los eventos que el texto sitúa antes. Sin hora en el texto, no lo
+inventes: deja el suceso fuera.
+
 **Reintento.** La `causa` es el motivo del rechazo de `aplicar-delta`. Lee tu delta y reescríbelo
 entero corrigiéndola.
 
