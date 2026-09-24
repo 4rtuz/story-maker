@@ -451,6 +451,12 @@ def test_sin_rutas_de_libro() -> None:
     assert [c for c in _rutas(app.routes) if any(p in c for p in prohibidas)] == []
 
 
+def test_sin_rutas_de_version() -> None:
+    """CA-39 (spec 0007, RF-42): versiones, cambios, novedades y usos no se sirven por la API."""
+    prohibidas = ("version", "cambio", "novedades", "usos")
+    assert [c for c in _rutas(app.routes) if any(p in c for p in prohibidas)] == []
+
+
 def test_sin_rutas_de_brief() -> None:
     """CA-29 (spec 0005, RF-29): el brief lleva datos personales y la API no lo sirve."""
     rutas = [getattr(r, "path", "") for r in app.routes]

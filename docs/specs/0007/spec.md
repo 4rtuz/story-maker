@@ -1,7 +1,9 @@
 ---
 id: 0007
 titulo: Regenerar los capítulos que usan un hecho cambiado y versionar la novela
-estado: Propuesta
+estado: implementada
+sha: el commit de cierre de T5.3, cabeza de la rama spec-0007
+demostracion: T5.2 sin ejecutar; necesita una sesión humana del harness (docs/validators.md §4.9)
 version: 2
 fecha: 2026-09-24
 specs_relacionadas: [0001, 0002, 0003, 0005, 0006]

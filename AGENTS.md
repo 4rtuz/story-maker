@@ -104,6 +104,7 @@ esc-casa-del-faro escenario       pfa-003   pista falsa
 esc-01-3          escena          rev-002   revelación
 hil-004           hilo            hec-014   hecho
 obj-011           objeto o prueba cap-01    capítulo
+cam-001           cambio
 ```
 
 `esc-` sirve a escenario y a escena: escenario lleva letra tras el guion (`esc-casa-del-faro`),

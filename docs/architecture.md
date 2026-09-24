@@ -230,6 +230,8 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │   ├── briefing/         # cmd.py · assemble.py · recipes.py · test_briefing.py
 │   │   │   ├── validacion/       # cmd.py · gates.py · test_gates.py
 │   │   │   ├── delta/            # cmd.py · apply.py · violaciones.py · test_delta.py
+│   │   │   ├── cambio/           # novela cambio: cmd.py · plan.py (plan de regeneración, puro)
+│   │   │   ├── versiones/        # novela versiones: cmd.py · novedades.py
 │   │   │   ├── checkpoint/
 │   │   │   ├── auditoria/        # pistas huérfanas, hilos abiertos
 │   │   │   ├── entorno/          # comprobar-entorno: hooks, python, settings.local.json, .env
@@ -243,12 +245,14 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │   ├── canon.py          # rama 2 — Canon, Pista
 │   │   │   ├── plan.py           # rama 3 — Plan
 │   │   │   ├── estado.py         # rama 4 — Estado, LibroDeHechos (append-only)
+│   │   │   ├── version.py        # PeticionDeCambio, Version, RegistroDeVersiones (spec 0007)
 │   │   │   └── qa.py
 │   │   │
 │   │   └── plataforma/           # los dos puertos y sus adaptadores
 │   │       ├── workspace.py      # WorkspaceRepository
 │   │       ├── esquema.sql       # DDL de estado.db: tablas y triggers append-only
 │   │       ├── estado_db.py      # conexión, PRAGMAs y transacciones
+│   │       ├── versiones.py      # edición vigente, cambio en curso, instantánea y restablecimiento
 │   │       ├── atomic.py         # escritura tmp + rename, para todo lo que no es el estado
 │   │       ├── lock.py           # un proceso por workspace
 │   │       └── langfuse.py       # ScoreSink
@@ -352,6 +356,14 @@ novelas/<slug>/
 │   ├── 01.json                   # cursor, versiones, run_id y capitulos_sha256 (el sello)
 │   └── latest.json
 │
+├── cambios/                      # spec 0007: una petición por cambio, la escribe novela cambio
+│   └── cam-001.json              # PeticionDeCambio: hecho, texto, plan, preparando | en_curso
+│
+├── versiones/                    # spec 0007: ediciones anteriores, inmutables
+│   ├── versiones.json            # RegistroDeVersiones, solo crece
+│   └── v1/                       # capitulos/, estado/ (base y deltas), memoria/, qa/, checkpoints/
+│       └── version.json          # sha256 de cada fichero copiado y sello de capítulos
+│
 ├── runs/
 │   └── <run_id>/
 │       ├── manifest.json         # sha de commit, recetas, canon, plan, fase y hashes de .claude/
@@ -368,7 +380,7 @@ novelas/<slug>/
 
 `brief/` lleva los datos personales del destinatario. Lo crea `novela brief iniciar` y, en cuanto existe `config.yaml`, queda cerrado: ningún subcomando lo vuelve a escribir.
 
-`memoria/` y `runs/` son reconstruibles o desechables. `canon/`, `plan/`, `estado/` y `capitulos/` son los cuatro directorios que importa respaldar.
+`memoria/` y `runs/` son reconstruibles o desechables. `canon/`, `plan/`, `estado/` y `capitulos/` son los cuatro directorios que importa respaldar, más `cambios/` y `versiones/` si la novela cambió. `versiones/vN/` no copia `canon/`: pondría `misterio.md` en una ruta que el `deny` de lectura no cubre. Solo los escribe `novela cambio`, y el hook deniega a cualquier agente y a la sesión principal escribir en `versiones/` o `cambios/`.
 
 ---
 
@@ -390,6 +402,7 @@ obj-011              objeto o prueba    ^obj-\d{3}$
 hec-014              hecho              ^hec-\d{3}$
 cap-01               capítulo           ^cap-\d{2,3}$
 ent-01               entrada del brief  ^ent-\d{2}$
+cam-001              cambio             ^cam-\d{3}$
 ```
 
 `esc-` sirve a escenario y a escena, y las dos expresiones son disjuntas por construcción: la de
@@ -591,6 +604,8 @@ Modificar o eliminar una entrada existente no es una corrección, es reescribir 
 `novela aplicar-delta` aplica el delta entero dentro de una única transacción: si alguna fila viola una restricción, no queda nada escrito y el capítulo se reintenta sobre el estado anterior.
 
 Una tabla queda fuera de la vista serializada: `apariciones (entidad, tipo, capitulo)`, `STRICT`, con clave `(entidad, capitulo)`, índice por capítulo y los mismos triggers append-only. Es un índice derivado de en qué capítulos sale cada personaje y cada escenario (`docs/definitions.md` §4). `aplicar-delta` lee `plan/capitulos/NN.md` antes de abrir la base (sin ficha válida sale con 4 sin escribir nada) y, dentro de la misma transacción que `guardar`, registra las filas con `INSERT OR IGNORE`, así que reaplicar un capítulo no duplica ni borra. Una base anterior a la tabla la gana en esa transacción: `asegurar_apariciones` ejecuta sentencia a sentencia el bloque de `esquema.sql` marcado con `-- apariciones: inicio/fin`, con `IF NOT EXISTS`, porque `executescript` haría `COMMIT` de la transacción abierta. `meta.schema_version` no cambia, `leer` no toca la tabla, y `novela estado` y la API responden igual con ella y sin ella. Se consulta con `estado_db.apariciones(conn, hasta)`, que vale en solo lectura y lanza `EstadoIlegible` si la tabla falta.
+
+Otra, con el mismo trato (spec 0007): `usos_de_hecho (hecho, capitulo, via)`, `STRICT`, con `via` en `origen | conocimiento | lector | cita`, clave `(hecho, capitulo, via)` —la consulta hecho→capítulos usa su índice—, índice por capítulo y triggers append-only. `aplicar-delta` la deriva del delta en la transacción de `guardar` (`libro_de_hechos`, `conocimiento`, `conocimiento_lector` y `hechos_usados`, §7.6) con `INSERT OR IGNORE`, y `asegurar_usos` la crea en una base anterior sin rellenar los capítulos ya aplicados. Se consulta con `estado_db.usos` y `estado_db.capitulos_que_usan`, que lanzan `EstadoIlegible` sin la tabla. `meta` guarda además `version` (la edición, 1 si falta) y `cambio` (el `cam-NNN` que la abrió), que escribe `novela cambio` al instalar la base vacía de la versión nueva.
 
 Refuerzo adicional, preventivo en lugar de detectivo: el hook `PreToolUse` de `.claude/hooks/denegar-escritura-estado.py`, registrado en `.claude/settings.json` para `Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Agent|Task`. Un agente que lo intente no llega a escribir, en vez de descubrirse después de haberlo hecho. Deniega con exit 2, también ante una entrada que no entiende, porque cualquier otro código deja pasar la acción:
 
