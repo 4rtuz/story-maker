@@ -140,7 +140,7 @@ El motivo es concreto: si al mutar `>=` por `>` en la comprobación de longitud 
 
 Tres contratos, mismo principio.
 
-**API ↔ frontend.** FastAPI emite OpenAPI; el frontend genera sus tipos desde ahí; CI falla si el esquema commiteado no coincide con el que genera el código. Eso es el contrato entero. No hace falta Pact para dos partes que viven en el mismo repo.
+**API ↔ frontend.** FastAPI emite OpenAPI; el frontend genera sus tipos desde ahí; CI falla si el esquema commiteado no coincide con el que genera el código. Eso es el contrato entero. No hace falta Pact para dos partes que viven en el mismo repo. Son dos comprobaciones encadenadas: `test_openapi_al_dia` (OpenAPI ↔ código) y `npm run tipos:comprobar` (OpenAPI ↔ tipos), que regenera `frontend/src/shared/api/esquema.gen.ts` con `openapi-typescript` y sale con distinto de 0 si el fichero no está en el índice —`git diff` no ve uno sin seguimiento— o si difiere del commiteado. Corre al principio de `npm run verificar` (spec 0004). `contrato.test.ts` cierra la puerta de atrás: ninguna `interface` ni `type` de `frontend/src/` fuera del generado lleva el nombre de un esquema de `components.schemas`, con un fixture que sí lo lleva como control positivo.
 
 **Agente ↔ CLI.** Los ficheros de `qa/`, el delta del `cronista` y el frontmatter de capítulo son contratos igual de reales, entre un productor no determinista y un consumidor estricto. Se tratan igual: JSON Schema versionado en `backend/schemas/`, validación en ambos lados, y `schema_version` en el propio documento. Cuando un agente empieza a devolver un campo de más, quieres enterarte en el capítulo 1.
 

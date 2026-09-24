@@ -35,7 +35,16 @@ const soloDeSrc = {
 };
 
 export default tseslint.config(
-  { ignores: ['dist/', 'node_modules/', 'test/fixtures/', 'playwright-report/', 'test-results/'] },
+  {
+    ignores: [
+      'dist/',
+      'node_modules/',
+      'test/fixtures/',
+      'playwright-report/',
+      'test-results/',
+      'src/shared/api/esquema.gen.ts', // generado por `npm run tipos` (RF-02)
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   noUnsanitized.configs.recommended,

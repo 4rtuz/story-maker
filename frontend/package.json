@@ -13,7 +13,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "verificar": "npm run lint && npm run typecheck && npm run test"
+    "tipos": "openapi-typescript ../backend/api/openapi.json -o src/shared/api/esquema.gen.ts",
+    "tipos:comprobar": "npm run tipos && git ls-files --error-unmatch src/shared/api/esquema.gen.ts && git diff --exit-code src/shared/api/esquema.gen.ts",
+    "verificar": "npm run tipos:comprobar && npm run lint && npm run typecheck && npm run test"
   },
   "dependencies": {
     "markdown-it": "15.0.2",
@@ -27,6 +29,7 @@
     "eslint": "10.11.0",
     "eslint-plugin-no-unsanitized": "4.1.5",
     "jsdom": "30.1.1",
+    "openapi-typescript": "7.13.0",
     "typescript": "5.9.3",
     "typescript-eslint": "8.70.1",
     "vite": "8.3.1",
