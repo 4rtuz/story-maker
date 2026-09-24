@@ -95,6 +95,19 @@ def _hilos(delta: Delta, fm: FrontmatterCapitulo) -> list[str]:
     return causas
 
 
+def hilos_sin_abrir(estado: Estado, delta: Delta) -> list[str]:
+    """Spec 0007 P2, solo en `--reaplicar`: el delta reaplicado cierra un hilo que no abre y que
+    la versión nueva no tiene abierto, porque un capítulo regenerado dejó de abrirlo. Cerrado ya
+    en este capítulo es repetir el paso, no una causa."""
+    n = delta.capitulo
+    abiertos = {h.id for h in estado.hilos if h.estado == "abierto" or h.cerrado_en == n}
+    return [
+        f"cierra {h.id}, que no está abierto en el estado vigente"
+        for h in delta.hilos
+        if h.cerrado_en == n and h.abierto_en != n and h.id not in abiertos
+    ]
+
+
 def violaciones(estado: Estado, delta: Delta, cuerpo: str, fm: FrontmatterCapitulo) -> list[str]:
     return (
         _duplicados(delta)

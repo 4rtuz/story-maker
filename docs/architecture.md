@@ -738,7 +738,7 @@ novela estado <slug> --breve
 novela estado <slug> --json        # estado completo serializado, para inspección
 novela briefing <slug> <cap> <agente>
 novela validar <slug> <cap>
-novela aplicar-delta <slug> <cap>
+novela aplicar-delta <slug> <cap> [--reaplicar]
 novela checkpoint <slug> <cap>
 novela pendiente <slug>            # código de salida: 0 si quedan capítulos
 novela auditar <slug>              # pistas huérfanas, hilos sin cerrar, fair play
@@ -749,6 +749,8 @@ novela cambio <slug> --siguiente   # NN reaplicar | NN regenerar | completo | si
 ```
 
 **Cambio de un hecho (spec 0007).** `novela cambio` exige la novela terminada, ningún cambio en curso y ninguna intervención sin `resuelto:` (1); valida `--hecho` y `--texto` (2) y que la base tenga `usos_de_hecho` y quede un id de hecho libre (4), todo antes de escribir. Regenera los capítulos de `capitulos_que_usan(H)` y reaplica el resto; reserva para el hecho nuevo el mayor id de `libro_de_hechos` más uno. `--simular` imprime ese plan sin escribir. Sin él, con el lock tomado, escribe `cambios/cam-NNN.json` en `preparando`, abre un run del capítulo 1 con la línea `cambio cam-NNN -> <código>`, copia a `versiones/vN.tmp/` `capitulos/`, `estado/deltas/`, `memoria/`, `qa/`, `checkpoints/` y la base (por la API de backup, en modo `DELETE`), la verifica por sha256, `quick_check` y `leer`, escribe `version.json`, la renombra a `versiones/vN/`, la añade a `versiones/versiones.json`, vacía esos directorios en la raíz, instala una base vacía con `meta.version = N+1` y `meta.cambio`, y pasa el cambio a `en_curso`. Repetir la misma petición tras un corte completa la preparación; un `versiones/vN/` que ningún cambio en `preparando` explica sale con 4. Con un cambio registrado, los runs anteriores a él son de la versión anterior: no se reutilizan y un `NOVELA_RUN_ID` que apunte a uno sale con 2. `--siguiente` excluye las demás opciones y lee `checkpoint + 1` contra el plan; «completo» se deriva del checkpoint del último capítulo.
+
+**Reaplicar (spec 0007, RF-25 a RF-27).** Con un cambio en curso, `aplicar-delta <cap> --reaplicar` sirve al capítulo reaplicable siguiente al checkpoint: copia de `versiones/vN/`, con escritura atómica, `capitulos/NN.md`, `estado/deltas/NN.json` y `qa/NN-*.json`, tras comprobar su sha256 contra `version.json` (4 si alguno no casa, sin copiar nada), y aplica el delta con las mismas violaciones del modo normal, sin custodia de briefings, más una propia: el delta no puede cerrar un hilo que la versión nueva no tenga abierto. Registra usos, renderiza la memoria y deja `aplicar-delta NN --reaplicar -> <código>`. `--reaplicar` sin cambio, sobre un afectado o fuera de orden, y el modo normal sobre un reaplicable, salen con 2 antes de abrir run.
 
 **Reanudación.** `/novela-continuar` empieza leyendo `checkpoints/latest.json` y repite el último paso no confirmado. Regla dura: el estado nunca se reconstruye desde una conversación previa, ni siquiera desde la sesión anterior de Claude Code.
 

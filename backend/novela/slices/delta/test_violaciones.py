@@ -4,7 +4,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from novela.dominio.base import ColeccionAppendOnly
-from novela.dominio.estado import Cursor, Delta, Estado, Hecho, UsoCitado
+from novela.dominio.estado import Cursor, Delta, Estado, Hecho, Hilo, UsoCitado
 from novela.slices.delta import violaciones
 from tests import estrategias
 
@@ -148,3 +148,27 @@ def test_hilos_contra_frontmatter() -> None:
 
     sin_hilos = delta.model_copy(update={"hilos": []})
     assert any("hil-001" in v for v in violaciones.violaciones(_estado(5), sin_hilos, "", fm))
+
+
+@settings(max_examples=200)
+@given(estrategias.deltas(), st.lists(estrategias.hilos(), max_size=3), st.data())
+def test_hilos_sin_abrir_property(delta: Delta, previos: list[Hilo], datos: st.DataObject) -> None:
+    """P2 (CA-25): en --reaplicar, un hilo que el delta cierra sin abrirlo en el capítulo tiene
+    que estar abierto en el estado vigente. Si y solo si no lo está, hay causa."""
+    n = delta.capitulo
+    hilos = {h.id: h for h in previos}
+    for id_ in datos.draw(
+        st.sets(st.sampled_from([h.id for h in delta.hilos])) if delta.hilos else st.just(set())
+    ):
+        hilos[id_] = Hilo(id=id_, estado="abierto", abierto_en=1, descripcion="abierto antes")
+    estado = _estado(n).model_copy(update={"hilos": list(hilos.values())})
+    # Cerrado ya en este capítulo: es repetir el --reaplicar tras un corte.
+    abiertos = {h.id for h in hilos.values() if h.estado == "abierto" or h.cerrado_en == n}
+    esperados = {
+        h.id
+        for h in delta.hilos
+        if h.cerrado_en == n and h.abierto_en != n and h.id not in abiertos
+    }
+    causas = violaciones.hilos_sin_abrir(estado, delta)
+    assert len(causas) == len(esperados)
+    assert all(any(id_ in c for c in causas) for id_ in esperados)

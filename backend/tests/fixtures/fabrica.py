@@ -17,6 +17,10 @@ from typer.testing import CliRunner, Result
 from novela.cli import app
 from novela.dominio import frontmatter
 from novela.dominio.artefactos import Memoria
+from novela.dominio.estado import Estado
+from novela.dominio.version import PeticionDeCambio
+from novela.plataforma import estado_db
+from novela.plataforma.workspace import huella as huella_de
 
 ELENA, TOMAS, INES = "per-elena-vidal", "per-tomas-reyes", "per-ines-mar"
 FARO, PUERTO, ARCHIVO = "esc-casa-del-faro", "esc-puerto", "esc-archivo"
@@ -54,10 +58,12 @@ DEMO = Novela(24, pistas=((2, 20), (3, 6), (5, 22), (8, 23)), hilos=((1, 10), (4
 # Una pista plantada en el 1 que nadie paga: el hallazgo de CA-23.
 HUERFANA = Novela(3, pistas=((1, 3), (1, None)), hilos=((1, 3),))
 # demo-cambio (spec 0007 §7): hec-102 nace en el 2 y lo cita el 5; hec-002 lo citan el 4 y el 6.
+# El 2, afectado, planta una pista, cierra hil-003 y abre hil-002, que cierra el 3, reaplicable:
+# es lo que miran CA-25 y CA-27.
 CAMBIO = Novela(
     6,
-    pistas=((1, 5), (3, 6)),
-    hilos=((1, 6), (2, 4)),
+    pistas=((2, 5), (3, 6)),
+    hilos=((1, 6), (2, 3), (1, 2)),
     hechos_extra=(("hec-102", 2),),
     usados=((4, "hec-002"), (5, "hec-102"), (6, "hec-002")),
 )
@@ -73,6 +79,15 @@ def nn(n: int) -> str:
 
 def run_id(n: int) -> str:
     return f"r-202601{n:02d}-0900"
+
+
+def run_v2(n: int) -> str:
+    """Los runs de la versión 2: los de la 1 son anteriores al cambio y no se reutilizan (P1)."""
+    return f"r-202602{n:02d}-0900"
+
+
+# La petición ficticia de spec 0007 §7.
+TEXTO_CAMBIO = "La puerta de la linterna estaba intacta en la noche 2."
 
 
 # --- Canon: lo que escribiría el arquitecto --------------------------------------------------
@@ -302,6 +317,10 @@ def frase_de_escena(n: int, escena: int) -> str:
     return f"Aquella escena {escena} del capítulo {n} empezó con el viento del norte."
 
 
+def frase_regenerada(n: int) -> str:
+    return f"En la noche {n} Elena vio que la puerta de la linterna seguía intacta."
+
+
 def capitulo(novela: Novela, n: int) -> str:
     plantar, pagar = novela.pistas_de(n)
     abre, cierra = novela.hilos_de(n)
@@ -467,6 +486,49 @@ def delta(novela: Novela, n: int) -> dict[str, Any]:
     }
 
 
+def capitulo_regenerado(novela: Novela, n: int) -> str:
+    """El agente falso de la regeneración (spec 0007 §7): el mismo contrato de pistas e hilos y
+    una frase más, que es la que cita el hecho nuevo."""
+    meta, cuerpo = frontmatter.partir(capitulo(novela, n))
+    cuerpo = cuerpo.replace("\n\n***\n\n", f"\n\n{frase_regenerada(n)}\n\n***\n\n", 1)
+    return _md(meta | {"palabras": len(cuerpo.split())}, cuerpo)
+
+
+def delta_regenerado(
+    novela: Novela, n: int, peticion: PeticionDeCambio, vigente: Estado, anterior: Estado
+) -> dict[str, Any]:
+    """Lo que escribiría el cronista de un capítulo afectado: el hecho cambiado pasa al id
+    reservado con el texto nuevo, los requeridos conservan id y texto, y los demás hechos que el
+    capítulo introduce toman ids libres de las dos bases (P4). Los objetos que la versión nueva
+    aún no tiene no se reintroducen: serían ids de la anterior."""
+    d = delta(novela, n)
+    requeridos = set(peticion.plan.requeridos.get(n, []))
+    todos = [h.id for h in (*vigente.libro_de_hechos, *anterior.libro_de_hechos)]
+    libres = iter(range(max(int(h[-3:]) for h in todos) + 1, 1000))
+    ids = {peticion.hecho: peticion.hecho_nuevo}
+    for h in d["libro_de_hechos"]:
+        if h["id"] == peticion.hecho:
+            h |= {"texto": peticion.texto, "cita": frase_regenerada(n)}
+        elif h["id"] not in requeridos:
+            ids[h["id"]] = f"hec-{next(libres):03d}"
+        h["id"] = ids.get(h["id"], h["id"])
+    conocimiento = [e for es in d["conocimiento"].values() for e in es]
+    for e in (*conocimiento, *d["conocimiento_lector"], *d["hechos_usados"]):
+        e["hecho"] = ids.get(e["hecho"], e["hecho"])
+    existen = {o.id for o in vigente.objetos}
+    d["objetos"] = [o for o in d["objetos"] if o["id"] in existen]
+    return d
+
+
+def estados(raiz: Path, version: int) -> tuple[Estado, Estado]:
+    """La base vigente de la raíz y la de `versiones/v<version>/`."""
+    leidos = []
+    for ruta in (raiz, raiz / "versiones" / f"v{version}"):
+        with estado_db.abrir(ruta / "estado" / "estado.db", solo_lectura=True) as conn:
+            leidos.append(estado_db.leer(conn))
+    return leidos[0], leidos[1]
+
+
 def memoria(novela: Novela, n: int) -> str:
     """Lo que renderiza aplicar-delta desde el resumen del delta."""
     resumen = Memoria(capitulo=n, **delta(novela, n)["resumen"])
@@ -491,23 +553,51 @@ def cli(base: Path, *orden: str, run: str, entorno: dict[str, str] | None = None
     return CliRunner().invoke(app, list(orden), env=fijo if entorno is None else entorno)
 
 
-def preparar_capitulo(base: Path, slug: str, novela: Novela, n: int) -> None:
+def huella(raiz: Path) -> str:
+    """Sin los -wal y -shm de SQLite, que son efímeros: en Windows, abrir la base en solo
+    lectura los crea o los toca, y no son parte de lo que el subcomando escribe."""
+    copia = raiz.parent / "huella"
+    shutil.rmtree(copia, ignore_errors=True)
+    shutil.copytree(raiz, copia, ignore=shutil.ignore_patterns("*-wal", "*-shm"))
+    try:
+        return huella_de(copia)
+    finally:
+        shutil.rmtree(copia)
+
+
+def pedir_cambio(base: Path, slug: str, texto: str = TEXTO_CAMBIO) -> Result:
+    """La petición de spec 0007 §7, sin NOVELA_RUN_ID: su run sale del reloj."""
+    orden = ("cambio", slug, "--hecho", "hec-002", "--texto", texto)
+    return cli(base, *orden, run="", entorno={"NOVELAS_DIR": str(base)})
+
+
+def preparar_capitulo(
+    base: Path,
+    slug: str,
+    novela: Novela,
+    n: int,
+    texto: str | None = None,
+    delta_: dict[str, Any] | None = None,
+    run: str | None = None,
+) -> None:
     """El bucle por capítulo hasta dejar el delta escrito, con el CLI real y agentes falsos:
-    lo que escribirían el escritor, los tres revisores y el cronista."""
-    raiz, run = base / slug, run_id(n)
+    lo que escribirían el escritor, los tres revisores y el cronista. `texto` y `delta_`
+    sustituyen a los de la versión 1."""
+    raiz, run = base / slug, run or run_id(n)
 
     def paso(*orden: str) -> None:
         resultado = cli(base, *orden, run=run)
         assert resultado.exit_code == 0, f"{orden}: {resultado.output}"
 
     paso("briefing", slug, str(n), "escritor")
-    escribir(raiz, {f"capitulos/{nn(n)}.md": capitulo(novela, n)})
+    escribir(raiz, {f"capitulos/{nn(n)}.md": texto or capitulo(novela, n)})
     paso("validar", slug, str(n))
     for agente in ("continuista", "editor-estilo", "lector-suspense"):
         paso("briefing", slug, str(n), agente)
     escribir(raiz, informes(novela, n))  # el editor falso aprueba sin reescribir
     paso("briefing", slug, str(n), "cronista")
-    escribir(raiz, {f"estado/deltas/{nn(n)}.json": json.dumps(delta(novela, n), indent=2)})
+    datos = delta_ or delta(novela, n)
+    escribir(raiz, {f"estado/deltas/{nn(n)}.json": json.dumps(datos, indent=2)})
 
 
 def cerrar_capitulo(base: Path, slug: str, novela: Novela, n: int) -> None:

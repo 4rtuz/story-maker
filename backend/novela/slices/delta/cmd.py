@@ -4,7 +4,9 @@ Valida el delta contra su esquema, comprueba la custodia y lo que el esquema no 
 dentro de una única transacción y renderiza `memoria/resumenes/NN.md` desde el delta.
 """
 
+from fnmatch import fnmatchcase
 from pathlib import Path
+from typing import Annotated
 
 import typer
 from pydantic import ValidationError
@@ -19,8 +21,9 @@ from novela.dominio.artefactos import (
 from novela.dominio.canon import Misterio
 from novela.dominio.estado import Delta
 from novela.dominio.qa import InformeQA
-from novela.plataforma import estado_db, run
-from novela.plataforma.salida import USO_INCORRECTO
+from novela.dominio.version import PeticionDeCambio, Version
+from novela.plataforma import estado_db, run, versiones
+from novela.plataforma.salida import USO_INCORRECTO, WORKSPACE_INVALIDO
 from novela.plataforma.workspace import WorkspaceRepository, sha256
 from novela.slices.delta import apply, custodia, violaciones
 
@@ -70,24 +73,78 @@ def _derivados(ws: WorkspaceRepository, capitulo: int, fm: FrontmatterCapitulo) 
     )
 
 
-def aplicar_delta(slug: str, capitulo: int) -> None:
+def _fuera_de_modo(
+    ws: WorkspaceRepository, cambio: PeticionDeCambio | None, capitulo: int, reaplicar: bool
+) -> str | None:
+    """RF-26, antes del lock y del run: un rechazo de modo no escribe nada (D11)."""
+    if not reaplicar:
+        if cambio and capitulo in cambio.plan.reaplicar:
+            return f"el capítulo {ws.nn(capitulo)} es reaplicable: usa --reaplicar"
+        return None
+    if cambio is None:
+        return "--reaplicar sin un cambio en curso"
+    if capitulo in cambio.plan.regenerar:
+        return f"el capítulo {ws.nn(capitulo)} es afectado por {cambio.id}: se regenera"
+    punto = ws.ultimo_checkpoint()
+    siguiente = (punto.capitulo if punto else 0) + 1
+    if capitulo != siguiente:
+        return f"--reaplicar fuera de orden: el siguiente es el {ws.nn(siguiente)}"
+    return None
+
+
+def _copiar_de_la_version(ws: WorkspaceRepository, version: int, nn: str) -> list[str]:
+    """RF-25: capítulo, delta y qa/ del capítulo, desde `versiones/vN/`, si casan con su
+    `version.json`. Se comprueba todo antes de escribir nada. Devuelve lo que no casa."""
+    origen = ws.raiz / "versiones" / f"v{version}"
+    ficheros = ws.leer_json(origen / "version.json", Version).ficheros
+    propios = {f"capitulos/{nn}.md", f"estado/deltas/{nn}.json"}
+    rutas = sorted(r for r in ficheros if r in propios or fnmatchcase(r, f"qa/{nn}-*.json"))
+    distintos = [
+        r for r in rutas if not (origen / r).is_file() or sha256(origen / r) != ficheros[r]
+    ]
+    distintos += [f"{r}: no está en version.json" for r in sorted(propios - set(rutas))]
+    if not distintos:
+        for relativa in rutas:
+            ws.escribir(ws.raiz / relativa, (origen / relativa).read_bytes())
+    return distintos
+
+
+def aplicar_delta(
+    slug: str,
+    capitulo: int,
+    reaplicar: Annotated[
+        bool, typer.Option("--reaplicar", help="Copia el capítulo de la versión anterior")
+    ] = False,
+) -> None:
     """Aplica estado/deltas/NN.json entero o no aplica nada. Sale con 1 si lo rechaza."""
     ws = WorkspaceRepository.resolver(slug).exigir()
     total = ws.config().parametros_obra.num_capitulos
     if not 1 <= capitulo <= total:
         typer.echo(f"capítulo {capitulo} fuera de 1..{total}", err=True)
         raise typer.Exit(USO_INCORRECTO)
+    cambio = versiones.cambio_en_curso(ws)
+    if motivo := _fuera_de_modo(ws, cambio, capitulo, reaplicar):
+        typer.echo(f"aplicar-delta: {motivo}", err=True)
+        raise typer.Exit(USO_INCORRECTO)
     with ws.bloquear():
         abierto = run.abrir(ws, capitulo)
         nn = ws.nn(capitulo)
-        with abierto.registro("aplicar-delta", nn) as causas:
+        orden = ("aplicar-delta", nn, "--reaplicar") if reaplicar else ("aplicar-delta", nn)
+        with abierto.registro(*orden) as causas:
 
-            def rechazar(motivos: list[str]) -> None:
+            def rechazar(motivos: list[str], codigo: int = 1) -> None:
                 causas.extend(motivos)
                 typer.echo(f"aplicar-delta {nn}: no se aplica nada", err=True)
                 for motivo in motivos:
                     typer.echo(f"- {motivo}", err=True)
-                raise typer.Exit(1)
+                raise typer.Exit(codigo)
+
+            if reaplicar and cambio is not None:  # _fuera_de_modo exige el cambio
+                if distintos := _copiar_de_la_version(ws, cambio.version_base, nn):
+                    rechazar(
+                        [f"instantánea distinta de version.json: {d}" for d in distintos],
+                        WORKSPACE_INVALIDO,
+                    )
 
             ruta_delta = ws.raiz / "estado" / "deltas" / f"{nn}.json"
             if not ruta_delta.is_file():
@@ -97,7 +154,8 @@ def aplicar_delta(slug: str, capitulo: int) -> None:
             except ValidationError as exc:
                 rechazar([f"el delta no valida contra delta.schema.json: {exc}"])
                 raise
-            if rotura := custodia.rotura(_cadena(ws, abierto, nn)):
+            # Reaplicado, el capítulo ya pasó su custodia en la versión de la que se copia.
+            if not reaplicar and (rotura := custodia.rotura(_cadena(ws, abierto, nn))):
                 rechazar([f"custodia: {r}" for r in rotura])
             meta, cuerpo = frontmatter.partir(
                 (ws.raiz / "capitulos" / f"{nn}.md").read_text(encoding="utf-8")
@@ -108,6 +166,8 @@ def aplicar_delta(slug: str, capitulo: int) -> None:
             with estado_db.abrir(ws.estado_db) as conn:
                 vigente = estado_db.leer(conn)
                 motivos = violaciones.violaciones(vigente, delta, cuerpo, fm)
+                if reaplicar:
+                    motivos += violaciones.hilos_sin_abrir(vigente, delta)
                 tension = vigente.tension_real.entradas
                 if len(tension) >= capitulo and tension[capitulo - 1] != derivados.tension:
                     motivos.append(f"tension_real del capítulo {nn} ya registrada con otro valor")

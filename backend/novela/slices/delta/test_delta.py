@@ -1,14 +1,18 @@
 import json
+import shutil
 import sqlite3
+import time
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 from typer.testing import Result
 
+from novela.dominio import frontmatter
 from novela.dominio.artefactos import Memoria
 from novela.dominio.estado import Delta, Estado
-from novela.plataforma import estado_db
+from novela.plataforma import estado_db, versiones
 from novela.plataforma.workspace import WorkspaceRepository
 from tests.fixtures import fabrica
 
@@ -151,3 +155,119 @@ def test_renderiza_memoria(novelas: Novelas) -> None:
         resumen.escena,
     )
     assert set(memoria.escena) == {"esc-08-1", "esc-08-2"}
+
+
+# --- spec 0007: --reaplicar ------------------------------------------------------------------
+
+
+def _cambiado(novelas: Novelas, slug: str = "demo-cambio") -> WorkspaceRepository:
+    ws = novelas(slug)
+    resultado = fabrica.pedir_cambio(ws.raiz.parent, ws.slug)
+    assert resultado.exit_code == 0, resultado.output
+    return ws
+
+
+def _v2(ws: WorkspaceRepository, *orden: str) -> Result:
+    """Una orden de la versión 2, en el run v2 de su capítulo."""
+    return fabrica.cli(
+        ws.raiz.parent, orden[0], ws.slug, *orden[1:], run=fabrica.run_v2(int(orden[1]))
+    )
+
+
+def _log(ws: WorkspaceRepository, n: int) -> str:
+    return (ws.raiz / "runs" / fabrica.run_v2(n) / "harness.log").read_text(encoding="utf-8")
+
+
+def _reaplicar(ws: WorkspaceRepository, n: int) -> None:
+    for orden in (("aplicar-delta", str(n), "--reaplicar"), ("checkpoint", str(n))):
+        resultado = _v2(ws, *orden)
+        assert resultado.exit_code == 0, (orden, resultado.output)
+
+
+def test_reaplicar(novelas: Novelas) -> None:
+    """CA-23 (RF-25) y la línea de RF-44: el capítulo 1 se copia de v1 byte a byte, se aplica y
+    registra sus usos."""
+    ws = _cambiado(novelas)
+    _reaplicar(ws, 1)
+    v1 = ws.raiz / "versiones" / "v1"
+    rutas = ["capitulos/01.md", "estado/deltas/01.json", "memoria/resumenes/01.md"]
+    rutas += [p.relative_to(v1).as_posix() for p in sorted(v1.glob("qa/01-*.json"))]
+    assert len(rutas) == 7
+    for relativa in rutas:
+        assert fabrica.sha256(ws.raiz / relativa) == fabrica.sha256(v1 / relativa), relativa
+    with estado_db.abrir(ws.estado_db, solo_lectura=True) as conn:
+        assert estado_db.capitulos_que_usan(conn, "hec-001") == [1]
+    assert "aplicar-delta 01 --reaplicar -> 0" in _log(ws, 1)
+
+
+def test_reaplicar_rendimiento(novelas: Novelas) -> None:
+    """RNF-03 (R49): --reaplicar y checkpoint, en menos de 2 s por capítulo en demo-terminado."""
+    ws = _cambiado(novelas, "demo-terminado")
+    inicio = time.perf_counter()
+    _reaplicar(ws, 1)
+    assert time.perf_counter() - inicio < 2
+
+
+def test_reaplicar_fuera_de_modo(novelas: Novelas, tmp_path: Path) -> None:
+    """CA-24 (RF-26): sin cambio, sobre un afectado, fuera de orden o un reaplicable sin
+    --reaplicar, 2 sin escribir nada."""
+    sin_cambio = novelas("demo-cambio")
+    cambiado = WorkspaceRepository(tmp_path / "otra" / sin_cambio.slug)
+    shutil.copytree(sin_cambio.raiz, cambiado.raiz)
+    assert fabrica.pedir_cambio(cambiado.raiz.parent, cambiado.slug).exit_code == 0
+    for ws, orden in (
+        (sin_cambio, ("aplicar-delta", "1", "--reaplicar")),
+        (cambiado, ("aplicar-delta", "2", "--reaplicar")),
+        (cambiado, ("aplicar-delta", "3", "--reaplicar")),
+        (cambiado, ("aplicar-delta", "1")),
+    ):
+        antes = fabrica.huella(ws.raiz)
+        resultado = _v2(ws, *orden)
+        assert resultado.exit_code == 2, (orden, resultado.output)
+        assert fabrica.huella(ws.raiz) == antes, orden
+
+
+def _regenerar(ws: WorkspaceRepository, n: int, sin_hilo: str | None = None) -> None:
+    """El bucle de un capítulo afectado con el agente falso; `sin_hilo` omite abrirlo."""
+    peticion = versiones.cambio_en_curso(ws)
+    assert peticion is not None
+    vigente, anterior = fabrica.estados(ws.raiz, peticion.version_base)
+    texto = fabrica.capitulo_regenerado(fabrica.CAMBIO, n)
+    delta = fabrica.delta_regenerado(fabrica.CAMBIO, n, peticion, vigente, anterior)
+    if sin_hilo:
+        meta, cuerpo = frontmatter.partir(texto)
+        meta["hilos_abiertos"] = [h for h in meta["hilos_abiertos"] if h != sin_hilo]
+        texto = frontmatter.unir(meta, cuerpo)
+        delta["hilos"] = [h for h in delta["hilos"] if h["id"] != sin_hilo]
+    base = ws.raiz.parent
+    run = fabrica.run_v2(n)
+    fabrica.preparar_capitulo(base, ws.slug, fabrica.CAMBIO, n, texto, delta, run)
+    for orden in ("aplicar-delta", "checkpoint"):
+        resultado = _v2(ws, orden, str(n))
+        assert resultado.exit_code == 0, (orden, resultado.output)
+
+
+def test_reaplicar_rechazado(novelas: Novelas) -> None:
+    """CA-25 (RF-27): el 2 regenerado no abre hil-002 y el 3, reaplicado, lo cierra: 1, línea en
+    el log y la base intacta."""
+    ws = _cambiado(novelas)
+    _reaplicar(ws, 1)
+    _regenerar(ws, 2, sin_hilo="hil-002")
+    antes = ws.estado_db.read_bytes()
+    resultado = _v2(ws, "aplicar-delta", "3", "--reaplicar")
+    assert resultado.exit_code == 1, resultado.output
+    assert "hil-002" in resultado.output
+    assert "aplicar-delta 03 --reaplicar -> 1 · " in _log(ws, 3)
+    assert ws.estado_db.read_bytes() == antes
+
+
+def test_reaplicar_instantanea_alterada(novelas: Novelas) -> None:
+    """Un fichero de la instantánea que no casa con version.json: 4, y la base intacta."""
+    ws = _cambiado(novelas)
+    copia = ws.raiz / "versiones" / "v1" / "capitulos" / "01.md"
+    copia.write_bytes(copia.read_bytes() + b"\n")
+    antes = ws.estado_db.read_bytes()
+    resultado = _v2(ws, "aplicar-delta", "1", "--reaplicar")
+    assert resultado.exit_code == 4, resultado.output
+    assert "capitulos/01.md" in resultado.output
+    assert ws.estado_db.read_bytes() == antes
