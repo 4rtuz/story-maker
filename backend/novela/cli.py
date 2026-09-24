@@ -16,6 +16,7 @@ from novela.slices.estado.cmd import estado, pendiente
 from novela.slices.export.cmd import exportar
 from novela.slices.nueva.cmd import nueva
 from novela.slices.validacion.cmd import validar
+from novela.slices.versiones.cmd import listar_versiones
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, pretty_exceptions_enable=False)
 
@@ -40,4 +41,5 @@ app.command()(con_codigos(checkpoint))
 app.command()(con_codigos(auditar))
 app.command()(con_codigos(exportar))
 app.command()(con_codigos(cambio))
+app.command("versiones")(con_codigos(listar_versiones))
 app.command("comprobar-entorno")(con_codigos(comprobar_entorno))

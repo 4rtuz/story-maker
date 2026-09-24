@@ -37,27 +37,6 @@ def _cli(raiz: Path, *orden: str) -> Result:
     return fabrica.cli(raiz.parent, *orden, run="", entorno={"NOVELAS_DIR": str(raiz.parent)})
 
 
-def _siguiente(raiz: Path) -> str:
-    resultado = _cli(raiz, "cambio", raiz.name, "--siguiente")
-    assert resultado.exit_code == 0, resultado.output
-    return resultado.output.strip()
-
-
-def _completar(raiz: Path, novela: Novela) -> list[str]:
-    """La versión nueva hasta `completo`, como el procedimiento; devuelve cada paso."""
-    pasos = []
-    while (paso := _siguiente(raiz)) != "completo":
-        pasos.append(paso)
-        numero, que = paso.split()
-        if que == "reaplicar":
-            fabrica.reaplicar(raiz, int(numero))
-        else:
-            texto, delta = fabrica.regenerado(raiz, novela, int(numero))
-            fabrica.cerrar_regenerado(raiz, novela, int(numero), texto, delta)
-        assert len(pasos) <= novela.num_capitulos, pasos
-    return pasos
-
-
 def _pendiente(raiz: Path) -> int:
     return _cli(raiz, "pendiente", raiz.name).exit_code
 
@@ -81,9 +60,9 @@ def test_recorrido_demo_cambio(novelas: Novelas) -> None:
     ws = novelas("demo-cambio")
     antes, terminada = _shas(ws.raiz), _pendiente(ws.raiz)
     assert fabrica.pedir_cambio(ws.raiz.parent, ws.slug).exit_code == 0
-    pasos = _completar(ws.raiz, fabrica.CAMBIO)
+    pasos = fabrica.completar(ws.raiz, fabrica.CAMBIO)
     assert pasos == [f"{n:02d} {'regenerar' if n % 2 == 0 else 'reaplicar'}" for n in range(1, 7)]
-    assert _siguiente(ws.raiz) == "completo"
+    assert fabrica.siguiente(ws.raiz) == "completo"
     assert _pendiente(ws.raiz) == terminada != 0
 
     v1 = ws.raiz / "versiones" / "v1"
@@ -129,7 +108,7 @@ def test_regeneracion_no_toca_reaplicables_property(caso: tuple[Novela, str]) ->
         antes = _shas(raiz)
         resultado = fabrica.pedir_cambio(base, "demo-prop", hecho=hecho)
         assert resultado.exit_code == 0, resultado.output
-        _completar(raiz, novela)
+        fabrica.completar(raiz, novela)
         v1 = raiz / "versiones" / "v1"
         ruta = raiz / "cambios" / "cam-001.json"
         cambio = WorkspaceRepository(raiz).leer_json(ruta, PeticionDeCambio)

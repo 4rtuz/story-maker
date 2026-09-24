@@ -79,6 +79,17 @@ def plantillas(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return base
 
 
+@pytest.fixture(scope="session")
+def regenerada(plantillas: Path) -> str:
+    """demo-cambio tras CA-29: cam-001 pedido y la versión 2 completa. Devuelve el slug de la
+    plantilla, que se copia con `novelas`."""
+    raiz = plantillas / "demo-cambio-v2"
+    shutil.copytree(plantillas / "demo-cambio", raiz)
+    assert fabrica.pedir_cambio(plantillas, raiz.name).exit_code == 0
+    fabrica.completar(raiz, fabrica.CAMBIO)
+    return raiz.name
+
+
 @pytest.fixture
 def novelas(
     plantillas: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

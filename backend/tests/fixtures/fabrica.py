@@ -643,6 +643,29 @@ def cerrar_regenerado(
         assert resultado.exit_code == 0, f"{orden} {n}: {resultado.output}"
 
 
+def siguiente(raiz: Path) -> str:
+    """`novela cambio --siguiente`, sin NOVELA_RUN_ID."""
+    entorno = {"NOVELAS_DIR": str(raiz.parent)}
+    resultado = cli(raiz.parent, "cambio", raiz.name, "--siguiente", run="", entorno=entorno)
+    assert resultado.exit_code == 0, resultado.output
+    return resultado.output.strip()
+
+
+def completar(raiz: Path, novela: Novela) -> list[str]:
+    """La versión nueva hasta `completo`, como el procedimiento; devuelve cada paso."""
+    pasos = []
+    while (paso := siguiente(raiz)) != "completo":
+        pasos.append(paso)
+        numero, que = paso.split()
+        if que == "reaplicar":
+            reaplicar(raiz, int(numero))
+        else:
+            texto, delta_ = regenerado(raiz, novela, int(numero))
+            cerrar_regenerado(raiz, novela, int(numero), texto, delta_)
+        assert len(pasos) <= novela.num_capitulos, pasos
+    return pasos
+
+
 def construir(
     base: Path, slug: str, novela: Novela, cerrados: int, instantaneas: dict[int, str] | None = None
 ) -> Path:

@@ -46,6 +46,16 @@ def version_vigente(conn: sqlite3.Connection) -> int:
     return int(_meta(conn, "version") or 1)
 
 
+def sello(ws: WorkspaceRepository, numero: int, vigente: int) -> dict[int, str]:
+    """Los sha256 de los capítulos cerrados de la versión `numero`: de la vigente, los del último
+    checkpoint; de una guardada, los de su `version.json`."""
+    if numero == vigente:
+        punto = ws.ultimo_checkpoint()
+        return dict(punto.capitulos_sha256) if punto else {}
+    ruta = ws.raiz / "versiones" / f"v{numero}" / "version.json"
+    return dict(ws.leer_json(ruta, Version).capitulos_sha256)
+
+
 def _ruta_cambio(ws: WorkspaceRepository, cambio: str) -> Path:
     return ws.raiz / "cambios" / f"{cambio}.json"
 
