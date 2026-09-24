@@ -11,11 +11,21 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from api.mcp.servidor import servidor as mcp
 from api.routers import capitulos, lanzamientos, novelas
 from novela.plataforma.estado_db import EstadoIlegible
 from novela.plataforma.workspace import WorkspaceInvalido
 
-app = FastAPI(title="novela", summary="Estado, capítulos y manifiestos; lanzamiento de novelas")
+# El servidor MCP de solo lectura (docs/mcp.md), por streamable HTTP en /mcp/. Host local y
+# origen del panel, como /lanzamientos: sin eso, DNS rebinding leería las novelas.
+mcp_app = mcp.http_app(
+    path="/", host_origin_protection=True, allowed_origins=sorted(lanzamientos.ORIGENES)
+)
+app = FastAPI(
+    title="novela",
+    summary="Estado, capítulos y manifiestos; lanzamiento de novelas",
+    lifespan=mcp_app.lifespan,
+)
 # El dev server de Vite. POST solo lo usa /lanzamientos, que además tiene sus propias guardas.
 app.add_middleware(
     CORSMiddleware,
@@ -26,6 +36,7 @@ app.add_middleware(
 app.include_router(novelas.router)
 app.include_router(capitulos.router)
 app.include_router(lanzamientos.router)
+app.mount("/mcp", mcp_app)
 
 
 @app.exception_handler(WorkspaceInvalido)
