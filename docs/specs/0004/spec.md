@@ -1177,6 +1177,25 @@ T-18 y T-22 son manuales y no entran en `docs/validators.md` §6 (ver D55).
 
 **Resultados de las comprobaciones manuales.** Se anotan aquí al cerrarse T-18 —la orden exacta del conductor, la mediana de fps, la versión del navegador, el recuento de `PermissionError` y la fecha— y cada vez que se hace T-22 —cada punto de la lista, el rol del revisor, sin su nombre, y la fecha de aprobación de las referencias—.
 
+*T-18, 2026-09-24, máquina de desarrollo (Windows 11).* Workspace generado con `uv run python -m tests.fixtures.panel <destino>`; la API con `NOVELAS_DIR=<destino> uv run uvicorn api.main:app --host 127.0.0.1 --port 8000` y el build servido con `npx vite preview --port 5173 --strictPort`. Progreso y Lectura de `demo-24` abiertos en dos pestañas mientras el conductor, desde `backend/`, corría `uv run python conductor_t18.py <destino>`, con este contenido:
+
+```python
+import sys, time
+from pathlib import Path
+from tests.fixtures import fabrica, panel
+
+base = Path(sys.argv[1])
+with panel._sin_claves():
+    for n in range(8, 13):
+        fabrica.cerrar_capitulo(base, "demo-24", fabrica.DEMO, n)
+        time.sleep(1.5)
+```
+
+- Navegador: Chromium 153.0.8010.12, el de Playwright 1.63.0, sin ventana, con WebGL por ANGLE sobre Direct3D 11 en una Intel Iris Xe Graphics.
+- fps: fotogramas por segundo con `requestAnimationFrame` durante 10 s navegando `demo-24` con una flecha cada 350 ms, de modo que la cámara estaba siempre en transición y la escena se dibujaba en cada fotograma: 61, 61, 60, 61, 61, 60, 61, 61, 60 y 60; **mediana 61** (RNF-04 ≥ 30: se cumple).
+- Conductor: salida 0, con los capítulos 8 a 12 cerrados; Progreso pasó a «cerrados: 12 de 24» sin recargar.
+- `PermissionError` en los `harness.log` del workspace: **0**, y ningún reintento de `atomic.py` registrado en ellos; ningún `console.error` ni `pageerror` en las dos pestañas.
+
 ## 14. Matriz de trazabilidad
 
 | RF | Criterios de aceptación | Tareas | Tests |
