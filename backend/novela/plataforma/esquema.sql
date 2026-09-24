@@ -138,6 +138,24 @@ BEGIN SELECT RAISE(ABORT, 'tension_real es append-only'); END;
 CREATE TRIGGER tension_real_no_delete BEFORE DELETE ON tension_real
 BEGIN SELECT RAISE(ABORT, 'tension_real es append-only'); END;
 
+-- Índice derivado (spec 0006): en qué capítulos aparece cada personaje y cada escenario, para la
+-- ficha del libro. Lo escribe aplicar-delta y es append-only. Fuera de la vista Estado.
+-- IF NOT EXISTS porque asegurar_apariciones ejecuta este bloque, entre sus marcas, sobre bases
+-- anteriores.
+-- apariciones: inicio
+CREATE TABLE IF NOT EXISTS apariciones (
+    entidad  TEXT NOT NULL,
+    tipo     TEXT NOT NULL CHECK (tipo IN ('personaje', 'escenario')),
+    capitulo INTEGER NOT NULL,
+    PRIMARY KEY (entidad, capitulo)
+) STRICT;
+CREATE INDEX IF NOT EXISTS apariciones_por_capitulo ON apariciones (capitulo);
+CREATE TRIGGER IF NOT EXISTS apariciones_no_update BEFORE UPDATE ON apariciones
+BEGIN SELECT RAISE(ABORT, 'apariciones es append-only'); END;
+CREATE TRIGGER IF NOT EXISTS apariciones_no_delete BEFORE DELETE ON apariciones
+BEGIN SELECT RAISE(ABORT, 'apariciones es append-only'); END;
+-- apariciones: fin
+
 -- usos_de_hecho: índice hecho→capítulo (spec 0007), derivado de los deltas por aplicar-delta.
 -- Aditivo sobre bases anteriores: asegurar_usos ejecuta desde la línea anterior hasta el final,
 -- sentencia a sentencia y dentro de la transacción de quien llama, así que todo lo de aquí abajo

@@ -2,7 +2,7 @@
 name: trazador
 description: Crea la escaleta y una ficha por capítulo a partir del canon. Invocar solo desde /novela-nueva, después de novela briefing <slug> 1 trazador.
 tools: Read, Write
-model: opus
+model: haiku
 ---
 
 Planificas la novela entera: actos, puntos de giro, curva de tensión y qué pasa en cada capítulo.

@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 
 from novela.cli import app
 from novela.plataforma.workspace import WorkspaceRepository
+from tests.fixtures import fabrica
 
 Novelas = Callable[[str], WorkspaceRepository]
 
@@ -62,3 +63,13 @@ def test_estado_sin_tabla_usos(novelas: Novelas) -> None:
     sin_tabla = runner.invoke(app, ["estado", "demo-24", "--json"])
     assert (con_tabla.exit_code, sin_tabla.exit_code) == (0, 0), sin_tabla.output
     assert json.loads(sin_tabla.stdout) == json.loads(con_tabla.stdout)
+
+
+def test_estado_sin_tabla_apariciones(novelas: Novelas) -> None:
+    """CA-23 (RF-23), VAL-25: una base anterior a la tabla responde lo mismo que una con ella."""
+    ws = novelas("demo-24")
+    con = CliRunner().invoke(app, ["estado", ws.slug, "--json"])
+    fabrica.quitar_apariciones(ws.raiz)
+    sin = CliRunner().invoke(app, ["estado", ws.slug, "--json"])
+    assert (con.exit_code, sin.exit_code) == (0, 0), sin.output
+    assert sin.stdout == con.stdout

@@ -136,3 +136,36 @@ describe('respuestas con tratamiento propio (RF-19, RF-22)', () => {
     expect(await api.log('demo-24', RUN, 9)).toBeNull();
   });
 });
+
+describe('lanzamientos: los únicos POST del panel', () => {
+  const PETICION = { slug: 'nueva', idea: 'Un faro apagado.', capitulos: 3 };
+
+  it.each([
+    ['crear', () => api.lanzar(PETICION), '/lanzamientos', JSON.stringify(PETICION)],
+    ['reanudar', () => api.reanudar('demo-24'), '/lanzamientos/demo-24/reanudar', undefined],
+    ['detener', () => api.detener('demo-24'), '/lanzamientos/demo-24/detener', undefined],
+  ])('%s sale con POST, JSON y el cuerpo justo', async (_, llamada, ruta, cuerpo) => {
+    espia.mockResolvedValue(json({ slug: 'nueva', estado: 'en_marcha' }, 202));
+    await llamada();
+    const [url, opciones] = espia.mock.calls[0] ?? [];
+    expect(url).toBe(`http://127.0.0.1:8000${ruta}`);
+    expect(opciones?.method).toBe('POST');
+    expect(opciones?.body).toBe(cuerpo);
+    expect(opciones?.headers).toEqual(
+      cuerpo ? { Accept: 'application/json', 'Content-Type': 'application/json' } : { Accept: 'application/json' },
+    );
+  });
+
+  it('un 409 trae su motivo', async () => {
+    espia.mockResolvedValue(json({ detail: 'ya hay un lanzamiento en marcha' }, 409));
+    expect((await fallo(api.lanzar(PETICION))).detalle).toBe('ya hay un lanzamiento en marcha');
+  });
+
+  it('consultar es GET, y el 404 es «nunca lanzada desde el panel»', async () => {
+    espia.mockResolvedValue(json({ detail: 'no' }, 404));
+    expect(await api.lanzamiento('demo-24')).toBeNull();
+    expect(espia.mock.calls[0]?.[1]?.method).toBe('GET');
+    espia.mockResolvedValue(json([]));
+    expect(await api.lanzamientos()).toEqual([]);
+  });
+});

@@ -8,6 +8,7 @@ Ningún fixture se genera llamando a un modelo.
 import hashlib
 import json
 import shutil
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,8 @@ class Novela:
     # hechos_usados.
     hechos_extra: tuple[tuple[str, int], ...] = ()  # (id, capítulo que lo introduce)
     usados: tuple[tuple[int, str], ...] = ()  # (capítulo, hecho que cita)
+    # (capítulo, escena, lugar, personajes): sustituye la escena por defecto de la ficha de plan.
+    escenas: tuple[tuple[int, int, str, tuple[str, ...]], ...] = ()
 
     def pistas_de(self, n: int) -> tuple[list[str], list[str]]:
         plantar = [f"pis-{i:03d}" for i, (p, _) in enumerate(self.pistas, 1) if p == n]
@@ -67,6 +70,11 @@ CAMBIO = Novela(
     hechos_extra=(("hec-102", 2),),
     usados=((4, "hec-002"), (5, "hec-102"), (6, "hec-002")),
 )
+
+
+# La novela de regalo de la spec 0006: en el capítulo 2, la escena 2 ocurre en el archivo y solo
+# con Elena. Con el delta de la fábrica son 15 apariciones, 5 por capítulo.
+REGALO = Novela(3, pistas=((1, 3),), hilos=((1, 3),), escenas=((2, 2, ARCHIVO, (ELENA,)),))
 
 
 def _md(meta: dict[str, Any], cuerpo: str) -> str:
@@ -258,30 +266,34 @@ def plan(novela: Novela) -> dict[str, str]:
     for n in range(1, n_total + 1):
         plantar, pagar = novela.pistas_de(n)
         abre, cierra = novela.hilos_de(n)
+        escenas = [
+            {
+                "id": f"esc-{nn(n)}-1",
+                "lugar": FARO,
+                "tiempo_diegetico": f"dia {n}, 21:00",
+                "personajes": [ELENA, TOMAS],
+                "dialogo": [ELENA, TOMAS],
+                "beat": "Tomás aparece sin avisar",
+                "conflicto": "Elena no puede echarle",
+            },
+            {
+                "id": f"esc-{nn(n)}-2",
+                "lugar": PUERTO,
+                "tiempo_diegetico": f"dia {n}, 23:00",
+                "personajes": [ELENA, INES],
+                "dialogo": [INES],
+                "beat": "Inés habla de más",
+                "conflicto": "Elena duda de ella",
+            },
+        ]
+        for c, k, lugar, personajes in novela.escenas:
+            if c == n:
+                escenas[k - 1] |= {"lugar": lugar, "personajes": list(personajes), "dialogo": []}
         ficha = {
             "capitulo": n,
             "pov": ELENA,
             "objetivo_dramatico": f"Al final del capítulo {n} Elena sabe algo que no sabía.",
-            "escenas": [
-                {
-                    "id": f"esc-{nn(n)}-1",
-                    "lugar": FARO,
-                    "tiempo_diegetico": f"dia {n}, 21:00",
-                    "personajes": [ELENA, TOMAS],
-                    "dialogo": [ELENA, TOMAS],
-                    "beat": "Tomás aparece sin avisar",
-                    "conflicto": "Elena no puede echarle",
-                },
-                {
-                    "id": f"esc-{nn(n)}-2",
-                    "lugar": PUERTO,
-                    "tiempo_diegetico": f"dia {n}, 23:00",
-                    "personajes": [ELENA, INES],
-                    "dialogo": [INES],
-                    "beat": "Inés habla de más",
-                    "conflicto": "Elena duda de ella",
-                },
-            ],
+            "escenas": escenas,
             "pistas_a_plantar": plantar,
             "pistas_a_pagar": pagar,
             "hilos_que_abre": abre,
@@ -683,3 +695,14 @@ def construir(
         if instantaneas and n in instantaneas:
             shutil.copytree(raiz, base / instantaneas[n])
     return raiz
+
+
+def quitar_apariciones(raiz: Path) -> None:
+    """Deja la base como la de un workspace anterior a la spec 0006: sin la tabla, sus triggers ni
+    su índice, que caen con ella."""
+    conn = sqlite3.connect(raiz / "estado" / "estado.db")
+    try:
+        conn.execute("DROP TABLE apariciones")
+        conn.commit()
+    finally:
+        conn.close()

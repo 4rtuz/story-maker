@@ -102,7 +102,7 @@ const COMPONENTES: [string, string, string][] = [
 ];
 
 for (const [nombre, ruta, selector] of COMPONENTES) {
-  // Sin estado deshabilitado: el único botón que lo tiene, «Copiar», solo se muestra habilitado.
+  // Sin estado deshabilitado: los botones solo se deshabilitan mientras dura su petición.
   for (const estado of ['reposo', 'hover', 'foco'] as const) {
     test(`${nombre}: ${estado} (CA-57)`, async ({ page }) => {
       await preparar(page);

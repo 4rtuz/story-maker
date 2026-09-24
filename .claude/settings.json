@@ -19,6 +19,18 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/validar-capitulo.py\"",
+            "timeout": 60
+          }
+        ]
+      }
     ]
   }
 }

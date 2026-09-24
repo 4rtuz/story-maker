@@ -1,7 +1,12 @@
+import sqlite3
+from collections.abc import Iterable
+
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from novela.dominio.estado import Cursor, Delta, Estado
+from novela.dominio.estado import Aparicion, Cursor, Delta, Estado
+from novela.dominio.plan import FichaCapitulo
+from novela.plataforma import estado_db
 from novela.slices.delta import apply
 from tests import estrategias
 
@@ -182,3 +187,103 @@ def test_dos_capitulos_seguidos() -> None:
     assert (e2.pistas["pis-002"].estado, e2.pistas["pis-002"].plantada_en) == ("huerfana", 1)
     assert e2.metricas.desviacion_vs_plan == 0.0  # sin objetivo no hay desviación
     assert e2.tension_real.entradas == (5, 5)
+
+
+def _registrar_en_memoria(*tandas: Iterable[Aparicion]) -> list[Aparicion]:
+    """La tabla real: el INSERT OR IGNORE de la base es lo que acumula."""
+    conn = sqlite3.connect(":memory:", isolation_level=None)
+    estado_db.inicializar(conn)
+    for tanda in tandas:
+        with estado_db.transaccion(conn):
+            estado_db.registrar_apariciones(conn, tanda)
+    return estado_db.apariciones(conn, 999)
+
+
+@settings(max_examples=200)
+@given(st.data())
+def test_apariciones_property(datos: st.DataObject) -> None:
+    """CA-20 (RF-19, RF-20), VER-7: registrar dos veces el mismo capítulo es registrarlo una; el
+    pov está siempre; los capítulos anteriores no cambian."""
+    n = datos.draw(st.integers(2, 30))
+    delta = datos.draw(estrategias.deltas(capitulo=n))
+    ficha = datos.draw(estrategias.fichas_de(n))
+    declaradas = datos.draw(st.lists(st.sampled_from([e.id for e in ficha.escenas]), min_size=1))
+    fm = estrategias.frontmatter_de(delta).model_copy(
+        update={"pov": ficha.pov, "escenas": declaradas}
+    )
+    anteriores = datos.draw(
+        st.lists(
+            st.builds(
+                Aparicion,
+                entidad=estrategias.personaje_id,
+                tipo=st.just("personaje"),
+                capitulo=st.integers(1, n - 1),
+            ),
+            unique_by=lambda a: (a.entidad, a.capitulo),
+        )
+    )
+    filas = apply.apariciones(n, fm, ficha, delta)
+    assert len({f.entidad for f in filas}) == len(filas)  # sin duplicados
+    assert filas[0].entidad == fm.pov and all(f.capitulo == n for f in filas)
+    una = _registrar_en_memoria(anteriores, filas)
+    assert _registrar_en_memoria(anteriores, filas, filas) == una
+    assert [a for a in una if a.capitulo < n] == sorted(
+        anteriores, key=lambda a: (a.entidad, a.capitulo)
+    )
+
+
+def _aparicion_persona(ubicacion: str | None, ultima: int) -> dict[str, object]:
+    return {
+        "ubicacion": ubicacion,
+        "estado_fisico": "f",
+        "estado_emocional": "e",
+        "condicion": "viva",
+        "objetivo_activo": "o",
+        "ultima_aparicion": ultima,
+    }
+
+
+def test_apariciones_en_orden() -> None:
+    """VER-7 y spec §9: pov, personajes y lugar de cada escena declarada, y lo del delta de este
+    capítulo con su ubicación. La escena no declarada, la que no está en la ficha, la ubicación
+    nula y el personaje de otro capítulo no cuentan."""
+    elena, tomas, ines, bruno = "per-elena", "per-tomas", "per-ines", "per-bruno"
+    ficha = FichaCapitulo.model_validate(
+        {
+            "capitulo": 4,
+            "pov": elena,
+            "objetivo_dramatico": "o",
+            "escenas": [
+                {
+                    "id": f"esc-04-{k}",
+                    "lugar": lugar,
+                    "tiempo_diegetico": "t",
+                    "personajes": gente,
+                    "beat": "b",
+                    "conflicto": "c",
+                }
+                for k, lugar, gente in ((1, "esc-faro", [elena, tomas]), (2, "esc-cueva", [ines]))
+            ],
+            "gancho_final": "amenaza",
+            "restriccion_de_apertura": "r",
+        }
+    )
+    delta = _delta(
+        4,
+        personajes={
+            tomas: _aparicion_persona("esc-puerto", 4),
+            bruno: _aparicion_persona(None, 4),
+            ines: _aparicion_persona("esc-cueva", 3),
+        },
+    )
+    fm = estrategias.frontmatter_de(delta).model_copy(
+        update={"pov": elena, "escenas": ["esc-04-1", "esc-04-9"]}
+    )
+    filas = apply.apariciones(4, fm, ficha, delta)
+    assert [(f.entidad, f.tipo) for f in filas] == [
+        (elena, "personaje"),
+        (tomas, "personaje"),
+        ("esc-faro", "escenario"),
+        ("esc-puerto", "escenario"),
+        (bruno, "personaje"),
+    ]

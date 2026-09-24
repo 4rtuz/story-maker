@@ -6,7 +6,7 @@ Documentación de referencia, solo cuando la necesites: `docs/architecture.md` (
 
 ## Qué es este proyecto
 
-Un sistema multiagente que escribe una novela de suspense completa a partir de una idea inicial. Siete roles se reparten el trabajo: `arquitecto`, `trazador`, `escritor`, `continuista`, `editor-estilo`, `lector-suspense` y `cronista`. Un orquestador los invoca en un bucle por capítulo y aplica gates de calidad entre paso y paso.
+Un sistema multiagente que escribe una novela de suspense completa a partir de una idea inicial. Los roles se reparten el trabajo: `arquitecto`, `trazador`, `escritor`, `continuista`, `editor-estilo`, `lector-suspense` y `cronista`, y en una novela de regalo, antes, el `entrevistador`. Un orquestador los invoca en un bucle por capítulo y aplica gates de calidad entre paso y paso.
 
 ## Monorepo
 
@@ -14,13 +14,14 @@ Dos carpetas grandes. Todo lo demás en la raíz es compartido.
 
 | Carpeta | Stack | Qué hace |
 |---|---|---|
-| `backend/` | Python 3.12, FastAPI, Typer, Pydantic v2, `uv` | CLI `novela` (escribe) y API REST (`backend/api/`, solo lectura) |
-| `frontend/` | Vite + TypeScript + Three.js | Panel de solo lectura; consume la API del backend |
+| `backend/` | Python 3.12, FastAPI, Typer, Pydantic v2, `uv` | CLI `novela` (escribe) y API REST (`backend/api/`: lee, y lanza el CLI) |
+| `frontend/` | Vite + TypeScript + Three.js | Panel: consulta la API y lanza novelas a través de ella |
 
 Reglas:
 
 - El backend es lo único que toca `novelas/<slug>/`. El frontend nunca lee el disco: pasa por la API.
-- La API **no escribe**. No hay `POST` que mute una novela; mutar es trabajo del orquestador vía CLI. Si hace falta escribir, se añade un subcomando al CLI, no un verbo a la API.
+- La API **no escribe en ningún workspace**. Sus únicos `POST` son los de `/lanzamientos`, que lanzan `novela producir` en segundo plano; mutar sigue siendo trabajo del CLI. Si hace falta escribir, se añade un subcomando al CLI y, si el panel debe dispararlo, un paso de `producir`, nunca una orden libre.
+- `/lanzamientos` ejecuta `claude` sin preguntar: solo admite loopback, `Host` local y `Origin` del panel, cuerpo JSON validado, y un lanzamiento a la vez. No relajes esas guardas; sus tests están en `backend/tests/test_lanzamientos.py`.
 - Los modelos Pydantic de `backend/novela/dominio/` son también los de respuesta de la API. Una sola ontología.
 - FastAPI no contradice el «nunca añadir un SDK de API»: esa regla es sobre proveedores de modelos, y la API no llama a ninguno.
 
@@ -71,6 +72,7 @@ Operaciones deterministas. No llaman a ningún modelo y no consumen cuota.
 
 ```
 novela nueva <slug> --idea "..."      crea el workspace y estado.db
+novela nueva <slug> --brief           lo mismo, con la obra derivada de brief/brief.json
 novela estado <slug> --breve          cursor, hilos abiertos, capítulos hechos
 novela estado <slug> --json           estado completo serializado, para inspección
 novela briefing <slug> <cap> <agente> genera el contexto de una invocación
@@ -79,8 +81,13 @@ novela aplicar-delta <slug> <cap>     única vía de escritura de estado.db
 novela checkpoint <slug> <cap>
 novela pendiente <slug>               salida 0 si quedan capítulos
 novela auditar <slug>                 pistas huérfanas, hilos sin cerrar
-novela exportar <slug> --formato epub
+novela exportar <slug> --formato md|epub|pdf
 novela comprobar-entorno [--limpio]   hook, python, settings.local.json y .env antes de lanzar
+novela producir <slug> [--idea "..."] la novela entera, una sesión de claude por paso; sin idea, reanuda
+novela brief iniciar <slug> --ocasion <o>            novela de regalo: workspace del brief
+novela brief entrada <slug> --tipo <t> --fichero <f> ingiere lo que aporta el cliente
+novela brief preparar <slug>                         briefing del entrevistador
+novela brief validar <slug>                          informe y, si valida, brief.json
 novela cambio <slug> --hecho <hec> --texto "..." [--simular]   versión nueva; --siguiente: qué toca
 novela versiones <slug> [--novedades | --verificar | --diff vA vB --capitulo N]   solo lectura
 ```
@@ -167,12 +174,14 @@ Las claves de los scores, si se quieren, van en `.env` en la raíz, que git igno
 **Desarrollo**
 
 ```bash
-cd backend  && uv run uvicorn api.main:app --reload  # API, solo lectura
+cd backend  && NOVELAS_DIR=../novelas uv run uvicorn api.main:app --reload  # API
 cd frontend && npm run dev                           # panel, consume la API
 cd backend  && uv run pytest                         # sin llamadas a modelo, sin cuota
 ```
 
-**Escribir una novela.** Interactivo, en una sesión del harness y con `/clear` entre actos. La sesión se abre aislada del ámbito de usuario y con la variable que activa la regla 5 del hook; las sesiones de desarrollo del harness no la exportan:
+**Escribir una novela.** Desde el panel (`#/lanzar`): un clic lanza `novela producir`, que hace el bucle desatendido de abajo de principio a fin —`/novela-nueva`, un `/novela-continuar` por capítulo y `/novela-auditar`— y se detiene o reanuda desde la misma vista. La API tiene que servir `<repo>/novelas`, o se niega a lanzar. A mano, lo mismo es `novela producir <slug> --idea "..."` desde la raíz.
+
+Interactivo, en una sesión del harness y con `/clear` entre actos. La sesión se abre aislada del ámbito de usuario y con la variable que activa la regla 5 del hook; las sesiones de desarrollo del harness no la exportan:
 
 ```bash
 export NOVELA_SESSION_ID=$(python -c "import uuid; print(uuid.uuid4())")
@@ -211,7 +220,7 @@ El CLI no accede a la red salvo para emitir scores a Langfuse.
 ## Nunca
 
 - Añadir un proveedor de modelos, un gateway o un SDK de API de modelos. Todo corre sobre la suscripción de Claude Code.
-- Dar al frontend acceso directo al workspace, o a la API capacidad de escritura.
+- Dar al frontend acceso directo al workspace, o a la API capacidad de escribir en él o de ejecutar algo distinto de `novela producir`.
 - Escribir claves en ficheros versionados.
 - Dejar prosa dentro de un fichero que el contrato define como JSON.
 - Ampliar `CLAUDE.md` o este fichero sin necesidad: se cargan en cada sesión y en cada subagente, y cada línea se paga muchas veces.

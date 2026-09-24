@@ -1,0 +1,301 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Destinatario": {
+      "additionalProperties": false,
+      "properties": {
+        "nombre": {
+          "$ref": "#/$defs/ValorTexto"
+        },
+        "edad": {
+          "$ref": "#/$defs/ValorEdad"
+        },
+        "rasgos": {
+          "items": {
+            "$ref": "#/$defs/ValorTexto"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "title": "Rasgos",
+          "type": "array"
+        }
+      },
+      "required": [
+        "nombre",
+        "edad",
+        "rasgos"
+      ],
+      "title": "Destinatario",
+      "type": "object"
+    },
+    "EntradaMeta": {
+      "additionalProperties": false,
+      "description": "Frontmatter de `brief/entradas/ent-NN.md`: el sha256 es del cuerpo, ya normalizado.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^ent-[0-9]{2}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "tipo": {
+          "enum": [
+            "respuesta",
+            "texto_libre"
+          ],
+          "title": "Tipo",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "caracteres": {
+          "maximum": 20000,
+          "minimum": 1,
+          "title": "Caracteres",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "tipo",
+        "sha256",
+        "caracteres"
+      ],
+      "title": "EntradaMeta",
+      "type": "object"
+    },
+    "Fuente": {
+      "additionalProperties": false,
+      "properties": {
+        "entrada": {
+          "pattern": "^ent-[0-9]{2}$",
+          "title": "Entrada",
+          "type": "string"
+        },
+        "cita": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Cita",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entrada",
+        "cita"
+      ],
+      "title": "Fuente",
+      "type": "object"
+    },
+    "Prohibidos": {
+      "additionalProperties": false,
+      "description": "`terminos: []` es «ninguno»; `prohibidos: null` en el borrador, «no preguntado».",
+      "properties": {
+        "terminos": {
+          "items": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Terminos",
+          "type": "array"
+        },
+        "fuente": {
+          "$ref": "#/$defs/Fuente"
+        }
+      },
+      "required": [
+        "terminos",
+        "fuente"
+      ],
+      "title": "Prohibidos",
+      "type": "object"
+    },
+    "ValorCerrado_Literal__corta____media____larga___": {
+      "additionalProperties": false,
+      "properties": {
+        "valor": {
+          "enum": [
+            "corta",
+            "media",
+            "larga"
+          ],
+          "title": "Valor",
+          "type": "string"
+        },
+        "fuente": {
+          "$ref": "#/$defs/Fuente"
+        }
+      },
+      "required": [
+        "valor",
+        "fuente"
+      ],
+      "title": "ValorCerrado[Literal['corta', 'media', 'larga']]",
+      "type": "object"
+    },
+    "ValorCerrado_Literal__ligero____tierno____emotivo____intrigante____oscuro___": {
+      "additionalProperties": false,
+      "properties": {
+        "valor": {
+          "enum": [
+            "ligero",
+            "tierno",
+            "emotivo",
+            "intrigante",
+            "oscuro"
+          ],
+          "title": "Valor",
+          "type": "string"
+        },
+        "fuente": {
+          "$ref": "#/$defs/Fuente"
+        }
+      },
+      "required": [
+        "valor",
+        "fuente"
+      ],
+      "title": "ValorCerrado[Literal['ligero', 'tierno', 'emotivo', 'intrigante', 'oscuro']]",
+      "type": "object"
+    },
+    "ValorCerrado_Literal__thriller_psicologico____noir____domestic_suspense____procedural___": {
+      "additionalProperties": false,
+      "properties": {
+        "valor": {
+          "enum": [
+            "thriller_psicologico",
+            "noir",
+            "domestic_suspense",
+            "procedural"
+          ],
+          "title": "Valor",
+          "type": "string"
+        },
+        "fuente": {
+          "$ref": "#/$defs/Fuente"
+        }
+      },
+      "required": [
+        "valor",
+        "fuente"
+      ],
+      "title": "ValorCerrado[Literal['thriller_psicologico', 'noir', 'domestic_suspense', 'procedural']]",
+      "type": "object"
+    },
+    "ValorEdad": {
+      "additionalProperties": false,
+      "properties": {
+        "valor": {
+          "maximum": 120,
+          "minimum": 0,
+          "title": "Valor",
+          "type": "integer"
+        },
+        "fuente": {
+          "$ref": "#/$defs/Fuente"
+        }
+      },
+      "required": [
+        "valor",
+        "fuente"
+      ],
+      "title": "ValorEdad",
+      "type": "object"
+    },
+    "ValorTexto": {
+      "additionalProperties": false,
+      "properties": {
+        "valor": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Valor",
+          "type": "string"
+        },
+        "fuente": {
+          "$ref": "#/$defs/Fuente"
+        }
+      },
+      "required": [
+        "valor",
+        "fuente"
+      ],
+      "title": "ValorTexto",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "INMUTABLE una vez escrito: `novela brief` no lo reescribe tras `novela nueva` (RF-07).",
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "ocasion": {
+      "enum": [
+        "hijo",
+        "pareja",
+        "boda",
+        "aniversario",
+        "jubilacion"
+      ],
+      "title": "Ocasion",
+      "type": "string"
+    },
+    "destinatario": {
+      "$ref": "#/$defs/Destinatario"
+    },
+    "recuerdos": {
+      "items": {
+        "$ref": "#/$defs/Fuente"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Recuerdos",
+      "type": "array"
+    },
+    "genero": {
+      "$ref": "#/$defs/ValorCerrado_Literal__thriller_psicologico____noir____domestic_suspense____procedural___"
+    },
+    "tono": {
+      "$ref": "#/$defs/ValorCerrado_Literal__ligero____tierno____emotivo____intrigante____oscuro___"
+    },
+    "extension": {
+      "$ref": "#/$defs/ValorCerrado_Literal__corta____media____larga___"
+    },
+    "prohibidos": {
+      "$ref": "#/$defs/Prohibidos"
+    },
+    "entradas": {
+      "items": {
+        "$ref": "#/$defs/EntradaMeta"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Entradas",
+      "type": "array"
+    }
+  },
+  "required": [
+    "ocasion",
+    "destinatario",
+    "recuerdos",
+    "genero",
+    "tono",
+    "extension",
+    "prohibidos",
+    "entradas"
+  ],
+  "title": "Brief",
+  "type": "object"
+}

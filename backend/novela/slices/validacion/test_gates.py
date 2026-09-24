@@ -1,12 +1,18 @@
+import json
 from typing import Any
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from pydantic import BaseModel
 
+from novela.dominio import frontmatter
 from novela.dominio.artefactos import FrontmatterCapitulo
 from novela.dominio.config import PalabrasPorCapitulo
 from novela.dominio.plan import FichaCapitulo
+from novela.slices.checkpoint import cmd as checkpoint
 from novela.slices.validacion import gates
+from tests import estrategias
+from tests.fixtures import fabrica
 
 PISTAS = [f"pis-{i:03d}" for i in range(1, 7)]
 HILOS = [f"hil-{i:03d}" for i in range(1, 7)]
@@ -192,3 +198,186 @@ def test_regeneracion_altera_contrato_property(
     hallazgos = gates.regeneracion_altera_contrato(fm, anterior)
     assert sorted(h.referencia or "" for h in hallazgos) == esperados
     assert all((h.tipo, h.gravedad) == ("regeneracion_altera_contrato", "alta") for h in hallazgos)
+
+
+# --- vp_nombres (spec 0009) --------------------------------------------------------------------
+
+TILDE = dict(zip("aeiounAEIOUNáéíóúñÁÉÍÓÚÑ", "áéíóúñÁÉÍÓÚÑaeiounAEIOUN", strict=True))
+
+
+def _personaje(referencia: str, texto: str) -> gates.FormaCanonica:
+    return gates.FormaCanonica(referencia, texto, f"canon/personajes/{referencia}.md")
+
+
+def _variante(token: str, cambio: str, posicion: int) -> str:
+    if cambio == "minuscula":
+        return token[0].lower() + token[1:]
+    if cambio == "mayusculas":
+        return token.upper()
+    con_tilde = [i for i, c in enumerate(token) if c in TILDE]
+    if cambio == "tilde" and con_tilde:
+        i = con_tilde[posicion % len(con_tilde)]
+        return token[:i] + TILDE[token[i]] + token[i + 1 :]
+    i = 1 + posicion % (len(token) - 1)  # caja de una letra que no es la inicial
+    return token[:i] + token[i].swapcase() + token[i + 1 :]
+
+
+@given(
+    estrategias.nombres_en_cuerpo(),
+    st.sampled_from(["nada", "tilde", "caja", "minuscula", "mayusculas"]),
+    st.data(),
+)
+def test_nombres_property(
+    caso: tuple[list[tuple[str, str]], list[list[str]]], cambio: str, datos: st.DataObject
+) -> None:
+    """CA-06: las formas exactas nunca dan hallazgo; una variante, exactamente uno, con la
+    referencia de su forma y su línea; una variante en minúscula o gritada, ninguno."""
+    textos, lineas = caso
+    formas = [_personaje(r, t) for r, t in textos]
+    de = {token: r for r, t in textos for token in t.split()}
+    if cambio != "nada":
+        linea, j = datos.draw(
+            st.sampled_from(
+                [(n, j) for n, ws in enumerate(lineas) for j, w in enumerate(ws) if w in de]
+            )
+        )
+        original = lineas[linea][j]
+        lineas = [list(ws) for ws in lineas]
+        lineas[linea][j] = _variante(original, cambio, datos.draw(st.integers(0, 20)))
+    hallazgos = gates.nombres("\n".join(" ".join(ws) for ws in lineas), formas)
+    if cambio in ("nada", "minuscula", "mayusculas"):
+        assert hallazgos == []
+    else:
+        assert [(h.tipo, h.referencia, h.ubicacion) for h in hallazgos] == [
+            ("nombre_mal_escrito", de[original], f"línea {linea + 1}")
+        ]
+
+
+def test_nombres_casos_fijos() -> None:
+    """CA-07 (gate) y los límites de la regla, para la mutación."""
+    formas = [_personaje("per-elena-vidal", "Elena Vidal"), _personaje("per-munoz", "Muñoz")]
+    cuerpo = "Elena Vídal llegó.\nMunoz calló.\nelena\n¡ELENA!\nElena Vidal"
+    hallazgos = gates.nombres(cuerpo, formas)
+    assert [(h.tipo, h.gravedad, h.referencia, h.ubicacion) for h in hallazgos] == [
+        ("nombre_mal_escrito", "alta", "per-elena-vidal", "línea 1"),
+        ("nombre_mal_escrito", "alta", "per-munoz", "línea 2"),
+    ]
+    assert hallazgos[0].descripcion == "«Vídal» no es la grafía de per-elena-vidal: «Vidal»"
+
+    # Una fila por variante, con sus líneas sin repetir; otra variante del mismo nombre, otra fila.
+    repetida = gates.nombres("Vídal y Vídal\nnada\nVídal\nVIdal", formas)
+    assert [(h.referencia, h.ubicacion) for h in repetida] == [
+        ("per-elena-vidal", "línea 1, 3"),
+        ("per-elena-vidal", "línea 4"),
+    ]
+    # Tres letras cuentan; dos, no.
+    cortos = [_personaje("per-ana", "Ana"), _personaje("per-li", "Li")]
+    assert [h.referencia for h in gates.nombres("Ána y Lí", cortos)] == ["per-ana"]
+    # Un alias en minúscula no da tokens canónicos.
+    assert gates.nombres("La Jefa", [_personaje("per-j", "la jefa")]) == []
+    # Dos personajes que difieren en una tilde: las dos grafías son exactas.
+    tilde = [_personaje("per-a", "Martín"), _personaje("per-b", "Martin")]
+    assert gates.nombres("Martín y Martin", tilde) == []
+    # Mismo apellido en dos formas: la variante se atribuye a la primera (plan P5).
+    apellido = [_personaje("per-a", "Ana Muñoz"), _personaje("per-b", "Luis Muñoz")]
+    assert [h.referencia for h in gates.nombres("Munoz", apellido)] == ["per-a"]
+    assert gates.nombres("", formas) == [] and gates.nombres("Munoz", []) == []
+
+
+def test_nombres_conflicto_canon() -> None:
+    """CA-08: el canon escribe el nombre del destinatario con otra grafía."""
+    brief = gates.FormaCanonica("destinatario", "Aurora Ficticia", "brief/brief.json")
+    distinto = [_personaje("per-aurora", "Aurora Fictícia"), brief]
+    hallazgos = gates.nombres("Nadie la nombra.", distinto)
+    assert [(h.tipo, h.referencia, h.ubicacion) for h in hallazgos] == [
+        ("nombre_mal_escrito", "per-aurora", "canon/personajes/per-aurora.md")
+    ]
+    assert gates.nombres("Nadie.", [_personaje("per-aurora", "Aurora Ficticia"), brief]) == []
+    # Solo contra el brief: dos personajes que difieren en una tilde no son conflicto.
+    assert gates.nombres("", [_personaje("per-a", "Martín"), _personaje("per-b", "Martin")]) == []
+    # Un token gritado en el canon no es variante.
+    assert gates.nombres("", [_personaje("per-aurora", "AURORA"), brief]) == []
+
+
+# --- vp_schema (spec 0009) ---------------------------------------------------------------------
+
+CONTEXTO = {"num_capitulos": fabrica.DEMO.num_capitulos}
+
+
+def _documentos() -> dict[str, tuple[type[BaseModel], object | None, bool]]:
+    """Las salidas reales del agente falso para el capítulo 8 de DEMO: todas validan."""
+    textos = (
+        fabrica.canon(fabrica.DEMO) | fabrica.plan(fabrica.DEMO) | fabrica.informes(fabrica.DEMO, 8)
+    )
+    textos |= {
+        "capitulos/08.md": fabrica.capitulo(fabrica.DEMO, 8),
+        "qa/08-validacion.json": fabrica.informe(8, "validar"),
+        "estado/deltas/08.json": json.dumps(fabrica.delta(fabrica.DEMO, 8)),
+    }
+    personajes = [r.removeprefix("canon/personajes/") for r in textos if "personajes/" in r]
+    return {
+        ruta: (
+            modelo,
+            frontmatter.partir(textos[ruta])[0]
+            if ruta.endswith(".md")
+            else json.loads(textos[ruta]),
+            obligatorio,
+        )
+        for ruta, (modelo, obligatorio) in checkpoint.artefactos("08", personajes).items()
+    }
+
+
+@given(st.data())
+def test_esquemas_property(datos: st.DataObject) -> None:
+    """CA-03: los documentos válidos no dan hallazgo; un campo extra, uno obligatorio borrado o
+    uno de otro tipo, exactamente uno, sobre el documento mutado."""
+    documentos = _documentos()
+    assert gates.esquemas(documentos, CONTEXTO) == []
+    ruta = datos.draw(st.sampled_from(sorted(documentos)))
+    modelo, original, obligatorio = documentos[ruta]
+    assert isinstance(original, dict)
+    requeridos = sorted(
+        k for k, f in modelo.model_fields.items() if f.is_required() and k in original
+    )
+    cambio = datos.draw(st.sampled_from(["extra", "borrar", "tipo"] if requeridos else ["extra"]))
+    campo = datos.draw(st.sampled_from(requeridos or ["campo_extra"]))
+    if cambio == "extra":
+        mutado = {**original, "campo_extra": 1}
+    elif cambio == "borrar":
+        mutado = {k: v for k, v in original.items() if k != campo}
+    else:
+        mutado = {**original, campo: [[None]]}  # ni texto, ni número, ni mapa, ni modelo
+    hallazgos = gates.esquemas({**documentos, ruta: (modelo, mutado, obligatorio)}, CONTEXTO)
+    assert [(h.tipo, h.referencia) for h in hallazgos] == [("esquema_invalido", ruta)]
+
+
+def test_esquemas_casos_fijos() -> None:
+    """Ausente, ilegible y la forma del hallazgo (VER-9, VER-10), para la mutación."""
+    documentos = _documentos()
+    ruta = "qa/08-estilo.json"
+    modelo, informe, _ = documentos[ruta]
+    assert isinstance(informe, dict)
+    assert gates.esquemas({**documentos, ruta: (modelo, None, False)}, CONTEXTO) == []
+    ausente = gates.esquemas({**documentos, ruta: (modelo, None, True)}, CONTEXTO)
+    assert [(h.referencia, h.ubicacion, h.gravedad) for h in ausente] == [
+        (ruta, "(ausente)", "alta")
+    ]
+    roto = gates.esquemas({ruta: (modelo, "{roto", True)})
+    assert [(h.referencia, h.ubicacion) for h in roto] == [(ruta, "(raíz)")]
+
+    # Cada loc unido por «.», los errores por «, »; ningún valor del documento en el hallazgo.
+    sin_veredicto = {k: v for k, v in informe.items() if k != "veredicto"}
+    malo = {**sin_veredicto, "agente": "Aurora Ficticia", "hallazgos": [{"tipo": "x"}]}
+    (hallazgo,) = gates.esquemas({ruta: (modelo, malo, True)})
+    assert hallazgo.ubicacion is not None and hallazgo.ubicacion.startswith(
+        "agente, veredicto, hallazgos.0."
+    )
+    assert "Aurora" not in hallazgo.model_dump_json()
+
+    # La escaleta necesita el contexto: sin él, rechaza siempre.
+    escaleta = {"plan/escaleta.md": documentos["plan/escaleta.md"]}
+    assert gates.esquemas(escaleta, CONTEXTO) == []
+    assert [h.referencia for h in gates.esquemas(escaleta)] == ["plan/escaleta.md"]
+    # Varios documentos, en su orden.
+    dos = {"b": (modelo, None, True), "a": (modelo, None, True)}
+    assert [h.referencia for h in gates.esquemas(dos)] == ["b", "a"]

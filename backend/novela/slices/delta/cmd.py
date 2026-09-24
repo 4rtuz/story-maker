@@ -20,6 +20,7 @@ from novela.dominio.artefactos import (
 )
 from novela.dominio.canon import Misterio
 from novela.dominio.estado import Delta, Estado
+from novela.dominio.plan import FichaCapitulo
 from novela.dominio.qa import InformeQA
 from novela.dominio.version import PeticionDeCambio, Version
 from novela.plataforma import estado_db, run, versiones
@@ -169,6 +170,9 @@ def aplicar_delta(
             )
             fm = FrontmatterCapitulo.model_validate(meta)  # pasó validar: la custodia lo asegura
             derivados = _derivados(ws, capitulo, fm)
+            # Antes de abrir la base: sin ficha válida, salida 4 sin tocar nada (spec 0006, RF-21).
+            ficha = ws.leer_md(ws.raiz / "plan" / "capitulos" / f"{nn}.md", FichaCapitulo)
+            aparecen = apply.apariciones(capitulo, fm, ficha, delta)
 
             with estado_db.abrir(ws.estado_db) as conn:
                 vigente = estado_db.leer(conn)
@@ -189,6 +193,8 @@ def aplicar_delta(
                     estado_db.guardar(conn, nuevo)
                     estado_db.asegurar_usos(conn)  # base anterior a la spec 0007 (RF-05)
                     estado_db.registrar_usos(conn, apply.usos(delta))
+                    estado_db.asegurar_apariciones(conn)  # bases anteriores a la spec 0006
+                    estado_db.registrar_apariciones(conn, aparecen)
 
             # Derivado de verdad: se reconstruye recorriendo estado/deltas/*.json, sin cuota.
             memoria = Memoria(capitulo=capitulo, **delta.resumen.model_dump())

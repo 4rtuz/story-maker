@@ -1,8 +1,8 @@
 # Valores por defecto de config.yaml. `novela nueva` los combina con sus flags y valida el
 # resultado contra dominio/config.py; idea_semilla la pone siempre el flag --idea.
 parametros_obra:
-  longitud_total_palabras: 80000
-  num_capitulos: 24
+  longitud_total_palabras: 12500  # 10 × 1250: la tolerancia del 20 % da 1000–1500 por capítulo
+  num_capitulos: 10
   subgenero: thriller_psicologico
   punto_de_vista: tercera_limitada
   tiempo_verbal: pasado

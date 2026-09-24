@@ -11,7 +11,7 @@ from typing import Annotated, NoReturn
 
 import typer
 
-from novela.dominio.base import normalizar
+from novela.dominio.texto import normalizar
 from novela.dominio.version import PeticionDeCambio
 from novela.plataforma import estado_db, run, versiones
 from novela.plataforma.salida import USO_INCORRECTO, WORKSPACE_INVALIDO

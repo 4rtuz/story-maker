@@ -1,0 +1,80 @@
+{
+  "schema_version": "1.0.0",
+  "destinatario": {
+    "nombre": {
+      "valor": "Aurora Ficticia",
+      "fuente": {
+        "entrada": "ent-01",
+        "cita": "Se llama Aurora Ficticia"
+      }
+    },
+    "edad": {
+      "valor": 34,
+      "fuente": {
+        "entrada": "ent-01",
+        "cita": "Tiene 34 años"
+      }
+    },
+    "rasgos": [
+      {
+        "valor": "valiente",
+        "fuente": {
+          "entrada": "ent-01",
+          "cita": "Es valiente"
+        }
+      },
+      {
+        "valor": "paciente",
+        "fuente": {
+          "entrada": "ent-01",
+          "cita": "siempre fue paciente con todos"
+        }
+      }
+    ]
+  },
+  "recuerdos": [
+    {
+      "entrada": "ent-01",
+      "cita": "El verano en que aprendió a navegar en el lago."
+    },
+    {
+      "entrada": "ent-01",
+      "cita": "La noche que cocinó para cuarenta invitados."
+    },
+    {
+      "entrada": "ent-02",
+      "cita": "Recuerdo la tarde en que nos perdimos en el mercado de flores."
+    }
+  ],
+  "genero": {
+    "valor": "domestic_suspense",
+    "fuente": {
+      "entrada": "ent-01",
+      "cita": "Suspense doméstico"
+    }
+  },
+  "tono": {
+    "valor": "tierno",
+    "fuente": {
+      "entrada": "ent-01",
+      "cita": "Tierno, con algo de humor"
+    }
+  },
+  "extension": {
+    "valor": "media",
+    "fuente": {
+      "entrada": "ent-01",
+      "cita": "Media"
+    }
+  },
+  "prohibidos": {
+    "terminos": [
+      "hospital"
+    ],
+    "fuente": {
+      "entrada": "ent-01",
+      "cita": "Nada de hospital"
+    }
+  },
+  "preguntas": []
+}

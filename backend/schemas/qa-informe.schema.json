@@ -11,7 +11,9 @@
             "pista_ausente",
             "hilo_cerrado_sin_abrir",
             "id_inexistente",
+            "nombre_mal_escrito",
             "regeneracion_altera_contrato",
+            "esquema_invalido",
             "contradiccion_hecho",
             "contradiccion_temporal",
             "contradiccion_personaje",
@@ -26,7 +28,8 @@
             "pista_huerfana",
             "hilo_sin_cerrar",
             "pista_falsa_sin_desmontar",
-            "revelacion_sin_pista"
+            "revelacion_sin_pista",
+            "elemento_sin_cubrir"
           ],
           "title": "Tipo",
           "type": "string"

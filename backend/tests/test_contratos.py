@@ -17,6 +17,7 @@ from typer.testing import CliRunner
 from api.main import app as api
 from novela.cli import app
 from novela.dominio import esquemas
+from novela.dominio.validadores import VALIDADORES
 from novela.plataforma.workspace import WorkspaceRepository
 
 RAIZ_REPO = Path(__file__).resolve().parents[2]
@@ -130,6 +131,82 @@ def test_estado_json_valida_contra_el_esquema(
     jsonschema.validate(json.loads(resultado.stdout), esquema)
 
 
+BRIEF = RAIZ_REPO / "backend" / "tests" / "fixtures" / "brief"
+
+
+def test_brief_valida_contra_el_esquema() -> None:
+    """CA-28 (RF-28): las fixtures del brief validan contra los esquemas commiteados."""
+    for fixture, esquema in (
+        ("brief-completo.json", "brief.schema.json"),
+        ("borrador-completo.json", "brief-borrador.schema.json"),
+    ):
+        datos = json.loads((BRIEF / fixture).read_text(encoding="utf-8"))
+        jsonschema.validate(datos, json.loads((SCHEMAS / esquema).read_text(encoding="utf-8")))
+
+
+# RNF-05: correo, teléfono de 9 dígitos, DNI/NIE y nombres propios fuera de los ficticios (§13).
+_CORREO = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
+_TELEFONO = re.compile(r"(?<!\w)\d{3}[ .-]?\d{3}[ .-]?\d{3}(?!\w)")
+_DNI_NIE = re.compile(r"(?<!\w)[XYZxyz]?\d{7,8}[A-Za-z](?!\w)")
+# Una palabra con mayúscula dentro de una línea, salvo tras fin de frase, dos puntos o título.
+_NOMBRE = re.compile(r"(?<![.:?!…#\-])[ \t]([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)")
+FICTICIOS = {"Aurora", "Ficticia", "Bruno", "Ficticio"}
+
+
+def _datos_personales(texto: str) -> list[str]:
+    hallados = [m[0] for p in (_CORREO, _TELEFONO, _DNI_NIE) for m in p.finditer(texto)]
+    return hallados + [m[1] for m in _NOMBRE.finditer(texto) if m[1] not in FICTICIOS]
+
+
+def test_fixtures_de_brief_sin_datos_personales() -> None:
+    """RNF-05. El control positivo va primero: un escáner que no ve nada no prueba nada."""
+    muestra = "Escribe a nadie@example.com o al 612 345 678, DNI 12345678Z, con Marta Gil."
+    assert len(_datos_personales(muestra)) == 5
+    for fichero in sorted(BRIEF.rglob("*")):
+        if fichero.is_file():
+            texto = fichero.read_bytes().decode("utf-8")
+            assert _datos_personales(texto) == [], fichero.name
+
+
+def _propiedades(esquema: dict[str, object], nodo: object, ruta: str = "") -> set[str]:
+    """Rutas de todas las hojas del esquema, resolviendo $ref a $defs."""
+    if not isinstance(nodo, dict):
+        return set()
+    if "$ref" in nodo:
+        defs = esquema["$defs"]
+        assert isinstance(defs, dict)
+        return _propiedades(esquema, defs[nodo["$ref"].rsplit("/", 1)[1]], ruta)
+    rutas: set[str] = set()
+    for clave in ("items", "anyOf"):
+        hijos = nodo.get(clave, [])
+        for hijo in hijos if isinstance(hijos, list) else [hijos]:
+            rutas |= _propiedades(esquema, hijo, ruta)
+    for nombre, hijo in nodo.get("properties", {}).items():
+        sub = f"{ruta}.{nombre}" if ruta else nombre
+        rutas |= _propiedades(esquema, hijo, sub) or {sub}
+    return rutas
+
+
+def test_brief_minimiza_datos_personales() -> None:
+    """RNF-06 (D19): lo único que el brief guarda de una persona es nombre, edad, rasgos y
+    recuerdos. Todo lo demás son preferencias, procedencia o custodia."""
+    esquema = json.loads((SCHEMAS / "brief.schema.json").read_text(encoding="utf-8"))
+    raices = {r.split(".")[0] for r in _propiedades(esquema, esquema)}
+    assert raices == {
+        "schema_version",
+        "ocasion",
+        "destinatario",
+        "recuerdos",
+        "genero",
+        "tono",
+        "extension",
+        "prohibidos",
+        "entradas",
+    }
+    personales = {r.split(".")[1] for r in _propiedades(esquema, esquema) if r.startswith("dest")}
+    assert personales == {"nombre", "edad", "rasgos"}
+
+
 # Clientes de proveedores de modelos y gateways: AGENTS.md, «Nunca».
 PROHIBIDOS = (
     "anthropic",
@@ -222,16 +299,17 @@ CONTRATO = {
             "canon/personajes/*.md",
         ],
     ),
-    "trazador": (["Read", "Write"], "opus", ["plan/escaleta.md", "plan/capitulos/NN.md"]),
+    "trazador": (["Read", "Write"], "haiku", ["plan/escaleta.md", "plan/capitulos/NN.md"]),
     "escritor": (["Read", "Write"], "opus", ["capitulos/NN.md"]),
-    "continuista": (["Read", "Write"], "sonnet", ["qa/NN-continuidad.json"]),
+    "continuista": (["Read", "Write"], "haiku", ["qa/NN-continuidad.json"]),
     "editor-estilo": (
         ["Read", "Edit", "Write"],
-        "sonnet",
+        "haiku",
         ["capitulos/NN.md", "qa/NN-estilo.json"],
     ),
-    "lector-suspense": (["Read", "Write"], "sonnet", ["qa/NN-suspense.json"]),
+    "lector-suspense": (["Read", "Write"], "haiku", ["qa/NN-suspense.json"]),
     "cronista": (["Read", "Write"], "haiku", ["estado/deltas/NN.json"]),
+    "entrevistador": (["Read", "Write"], "sonnet", ["brief/borrador.json"]),
 }
 ESQUEMAS = {
     "arquitecto": ["backend/schemas/canon.schema.json"],
@@ -244,6 +322,7 @@ ESQUEMAS = {
     "editor-estilo": ["backend/schemas/qa-informe.schema.json"],
     "lector-suspense": ["backend/schemas/qa-informe.schema.json"],
     "cronista": ["backend/schemas/delta.schema.json"],
+    "entrevistador": ["backend/schemas/brief-borrador.schema.json"],
 }
 PROHIBIDAS = {"Glob", "Grep", "Bash", "Task", "Agent", "Skill", "WebFetch", "WebSearch"}
 
@@ -257,7 +336,8 @@ def _agente(rol: str) -> tuple[dict[str, str], str]:
 
 
 def test_agentes_de_claude() -> None:
-    """CA-01 (RF-01 a RF-03): los siete roles, con name, tools y model de la spec 0003 §5.1."""
+    """CA-01 (RF-01 a RF-03): los roles de CONTRATO, con name, tools y model de la spec 0003 §5.1
+    y de la 0005."""
     assert {p.stem for p in AGENTES_DIR.glob("*.md")} == set(CONTRATO)
     for rol, (tools, model, _) in CONTRATO.items():
         meta, _ = _agente(rol)
@@ -306,6 +386,42 @@ def test_settings_de_claude() -> None:
     assert orden.startswith("python "), "python3 es el alias de la Store en Windows (E-11)"
 
 
+def _tabla_de_validadores(texto: str) -> list[tuple[str, tuple[str, ...]]]:
+    """(nombre, puntos) de cada fila de docs/validators.md §3.10, y de nada más del documento."""
+    seccion = texto.split("### 3.10 ", 1)[1].split("\n---", 1)[0]
+    filas = [linea.split("|")[1:-1] for linea in seccion.splitlines() if linea.startswith("| `vp_")]
+    return [
+        (celdas[0].strip().strip("`"), tuple(re.findall(r"`([a-z]+)`", celdas[2])))
+        for celdas in filas
+    ]
+
+
+def test_tabla_de_validadores() -> None:
+    """CA-19 (spec 0009, RF-19): la tabla de §3.10 nombra los validadores del catálogo con sus
+    puntos; con una fila borrada o un punto cambiado, deja de coincidir."""
+    catalogo = [(v.nombre, v.puntos) for v in VALIDADORES]
+    texto = (RAIZ_REPO / "docs" / "validators.md").read_text(encoding="utf-8")
+    assert _tabla_de_validadores(texto) == catalogo
+    sin_fila = re.sub(r"\n\| `vp_hilos` [^\n]*", "", texto)
+    assert _tabla_de_validadores(sin_fila) != catalogo
+    otro_punto = texto.replace(
+        "| `vp_ids` | Los ids citados existen | `validar` |",
+        "| `vp_ids` | Los ids citados existen | `auditar` |",
+    )
+    assert otro_punto != texto and _tabla_de_validadores(otro_punto) != catalogo
+
+
+def test_hook_de_validacion_registrado() -> None:
+    """CA-10 de la 0008 (RF-09, VER-17): el matcher literal, no como conjunto: un separador que
+    Claude Code no interpreta dejaría el hook sin disparar."""
+    [registro] = json.loads(SETTINGS.read_text(encoding="utf-8"))["hooks"]["PostToolUse"]
+    assert registro["matcher"] == "Write|Edit|MultiEdit"
+    [hook] = registro["hooks"]
+    assert hook["command"] == 'python "$CLAUDE_PROJECT_DIR/.claude/hooks/validar-capitulo.py"'
+    assert hook["timeout"] == 60 and hook["type"] == "command"
+    assert (RAIZ_REPO / ".claude" / "hooks" / "validar-capitulo.py").is_file()
+
+
 def test_adr_de_versiones() -> None:
     """CA-42 (RF-45): el ADR 0004 existe con su frontmatter y sus cinco secciones, y el
     invariante 7 de AGENTS.md admite versiones sin dejar de prohibir la reescritura en sitio."""
@@ -331,3 +447,31 @@ def test_adr_de_versiones() -> None:
     ]
     assert "versiones/" in invariante
     assert "novela cambio" in invariante
+
+
+ADR_ENTREGA = RAIZ_REPO / "docs" / "adr" / "0003-entrega-del-libro-en-pdf.md"
+SECCIONES_ADR = (
+    "Contexto",
+    "Opciones",
+    "Criterios",
+    "Decisión",
+    "Alternativas descartadas",
+    "Consecuencias",
+    "Cuándo reabrirla",
+)
+
+
+def test_adr_de_entrega() -> None:
+    """CA-31 (RF-31) y VAL-33: las opciones se buscan en su sección, no en todo el fichero."""
+    texto = ADR_ENTREGA.read_text(encoding="utf-8")
+    _, meta_texto, cuerpo = texto.split("---\n", 2)
+    meta = yaml.safe_load(meta_texto)
+    assert set(meta) == {"adr", "titulo", "estado", "fecha", "decide", "specs"}
+    assert (meta["adr"], meta["estado"], meta["specs"]) == (3, "aceptada", [6])
+    partes = re.split(r"^## (.+)$", cuerpo, flags=re.M)[1:]
+    secciones = dict(zip(partes[::2], partes[1::2], strict=True))
+    assert tuple(secciones) == SECCIONES_ADR
+    for opcion in ("web servida por la API", "PDF", "epub"):
+        assert opcion in secciones["Opciones"], opcion
+    for consecuencia in ("revisión humana", "LGPL"):  # VER-1
+        assert consecuencia.lower() in secciones["Consecuencias"].lower(), consecuencia

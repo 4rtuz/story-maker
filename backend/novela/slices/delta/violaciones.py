@@ -7,8 +7,8 @@ devuelve las causas de rechazo. Vacío: el delta se puede aplicar.
 from collections import Counter
 
 from novela.dominio.artefactos import FrontmatterCapitulo
-from novela.dominio.base import normalizar
 from novela.dominio.estado import Delta, Estado
+from novela.dominio.texto import normalizar
 from novela.dominio.version import PeticionDeCambio
 
 

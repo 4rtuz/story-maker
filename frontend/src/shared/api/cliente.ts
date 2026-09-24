@@ -1,6 +1,6 @@
 // El cliente de la API: el único módulo del panel que sale a la red (RF-03; eslint lo hace cumplir).
-// Una función por GET, tipada con esquema.gen.ts, con method GET, solo la cabecera Accept y una
-// señal que combina la de la vista con el plazo de 5 s.
+// Una función por petición, tipada con esquema.gen.ts, con una señal que combina la de la vista con
+// el plazo de 5 s. Los GET llevan solo la cabecera Accept; los únicos POST son los de /lanzamientos.
 import type { components } from './esquema.gen';
 import { deHttp, deRed, deTiempo, PLAZO_MS } from './errores';
 
@@ -23,7 +23,12 @@ interface Respuesta {
 /** Estado y cuerpo, leídos dentro del plazo, o un ErrorDeApi. Si la vista aborta, rechaza con el
  * AbortError tal cual: no es un fallo de la API y nadie lo muestra. Los temporizadores son los de
  * la página, así que el reloj simulado de los tests los controla (VER-11). */
-async function pedir(ruta: string, aceptar: string, senal?: AbortSignal): Promise<Respuesta> {
+async function pedir(
+  ruta: string,
+  aceptar: string,
+  senal?: AbortSignal,
+  envio?: { cuerpo?: unknown },
+): Promise<Respuesta> {
   const base = urlBase();
   const controlador = new AbortController();
   const plazo = setTimeout(() => controlador.abort(PLAZO), PLAZO_MS);
@@ -31,9 +36,11 @@ async function pedir(ruta: string, aceptar: string, senal?: AbortSignal): Promis
   if (senal?.aborted) propagar();
   senal?.addEventListener('abort', propagar, { once: true });
   try {
+    const conCuerpo = envio?.cuerpo !== undefined;
     const respuesta = await fetch(`${base}${ruta}`, {
-      method: 'GET',
-      headers: { Accept: aceptar },
+      method: envio ? 'POST' : 'GET',
+      headers: conCuerpo ? { Accept: aceptar, 'Content-Type': 'application/json' } : { Accept: aceptar },
+      ...(conCuerpo ? { body: JSON.stringify(envio.cuerpo) } : {}),
       signal: controlador.signal,
     });
     return { status: respuesta.status, texto: await respuesta.text() };
@@ -90,3 +97,20 @@ export async function capitulo(slug: string, n: number, senal?: AbortSignal): Pr
   if (!correcta(respuesta)) throw deHttp(respuesta.status, respuesta.texto);
   return respuesta.texto;
 }
+
+const lanzamientoDe = (slug: string): string => `/lanzamientos/${encodeURIComponent(slug)}`;
+
+async function enviar(ruta: string, cuerpo?: unknown): Promise<E['Lanzamiento']> {
+  const respuesta = await pedir(ruta, 'application/json', undefined, { cuerpo });
+  if (!correcta(respuesta)) throw deHttp(respuesta.status, respuesta.texto);
+  return JSON.parse(respuesta.texto) as E['Lanzamiento'];
+}
+
+/** Lanza `novela producir`: la novela de principio a fin, sin copiar ninguna orden. */
+export const lanzar = (peticion: E['PeticionDeLanzamiento']) => enviar('/lanzamientos', peticion);
+export const reanudar = (slug: string) => enviar(`${lanzamientoDe(slug)}/reanudar`);
+export const detener = (slug: string) => enviar(`${lanzamientoDe(slug)}/detener`);
+export const lanzamientos = (s?: AbortSignal) => json<E['Lanzamiento'][]>('/lanzamientos', s);
+/** null si la novela no se lanzó desde el panel. */
+export const lanzamiento = (slug: string, s?: AbortSignal) =>
+  jsonONull<E['Lanzamiento']>(lanzamientoDe(slug), 404, s);

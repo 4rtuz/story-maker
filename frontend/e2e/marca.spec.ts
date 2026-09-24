@@ -230,7 +230,7 @@ test('CLS ≤ 0,1 en cada vista hasta los primeros datos (RNF-21)', async ({ pag
 test('foco visible con forced-colors y transiciones a 0 s con reduced motion (CA-57)', async ({ page }) => {
   await page.emulateMedia({ forcedColors: 'active' });
   await page.goto('/#/lanzar');
-  await page.getByRole('button', { name: 'Generar orden' }).focus();
+  await page.getByRole('button', { name: 'Lanzar novela' }).focus();
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Tab');
   expect(await page.evaluate(() => getComputedStyle(document.activeElement!).outlineStyle)).not.toBe('none');

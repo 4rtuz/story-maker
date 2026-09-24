@@ -1,8 +1,6 @@
 """Lo que comparten las cuatro ramas: el modelo base, la versión de los contratos y el tipo
 append-only."""
 
-import re
-import unicodedata
 from collections.abc import Iterable, Iterator
 from types import GenericAlias
 from typing import Annotated, Any, Literal, get_args
@@ -18,15 +16,6 @@ SCHEMA_VERSION: SchemaVersion = "1.0.0"
 # Valores que usan varias ramas; aquí para que ninguna importe de otra.
 Nivel = Literal["alta", "media", "baja"]
 Tension = Annotated[int, Field(ge=1, le=10)]
-
-_ESPACIOS = re.compile(r"\s+")
-
-
-def normalizar(texto: str) -> str:
-    """NFC y cada secuencia de espacios en blanco a un espacio. Nada más: ni comillas ni
-    mayúsculas, porque una cita que solo casa aflojando la comparación ya no es una cita. La
-    usan las citas de `aplicar-delta` y la petición de `novela cambio` (spec 0007, RF-11)."""
-    return _ESPACIOS.sub(" ", unicodedata.normalize("NFC", texto))
 
 
 class Modelo(BaseModel):
