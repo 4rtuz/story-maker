@@ -306,6 +306,17 @@ def test_settings_de_claude() -> None:
     assert orden.startswith("python "), "python3 es el alias de la Store en Windows (E-11)"
 
 
+def test_hook_de_validacion_registrado() -> None:
+    """CA-10 de la 0008 (RF-09, VER-17): el matcher literal, no como conjunto: un separador que
+    Claude Code no interpreta dejaría el hook sin disparar."""
+    [registro] = json.loads(SETTINGS.read_text(encoding="utf-8"))["hooks"]["PostToolUse"]
+    assert registro["matcher"] == "Write|Edit|MultiEdit"
+    [hook] = registro["hooks"]
+    assert hook["command"] == 'python "$CLAUDE_PROJECT_DIR/.claude/hooks/validar-capitulo.py"'
+    assert hook["timeout"] == 60 and hook["type"] == "command"
+    assert (RAIZ_REPO / ".claude" / "hooks" / "validar-capitulo.py").is_file()
+
+
 def test_adr_de_versiones() -> None:
     """CA-42 (RF-45): el ADR 0004 existe con su frontmatter y sus cinco secciones, y el
     invariante 7 de AGENTS.md admite versiones sin dejar de prohibir la reescritura en sitio."""

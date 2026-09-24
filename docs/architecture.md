@@ -189,7 +189,7 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │       └── 0001-orquestador-en-claude-code.md
 │
 ├── .claude/                      # compartido; vive en la raíz del monorepo
-│   ├── settings.json             # permisos y registro del hook; ni claves ni plugins, ver §7.1
+│   ├── settings.json             # permisos y registro de los hooks; ni claves ni plugins, ver §7.1
 │   ├── settings.local.json       # solo enabledPlugins, el de Langfuse — en .gitignore
 │   ├── agents/                   # un fichero por subagente
 │   │   ├── arquitecto.md
@@ -204,7 +204,8 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   ├── novela-continuar.md   # el bucle por capítulo
 │   │   └── novela-auditar.md
 │   └── hooks/
-│       └── denegar-escritura-estado.py   # PreToolUse sobre estado/, ver §7.1
+│       ├── denegar-escritura-estado.py   # PreToolUse sobre estado/, ver §7.1
+│       └── validar-capitulo.py   # PostToolUse sobre capitulos/NN.md, ver §7.1
 │
 ├── backend/                      # Python 3.12 — FastAPI + CLI novela
 │   ├── pyproject.toml
@@ -573,6 +574,17 @@ Refuerzo adicional, preventivo en lugar de detectivo: el hook `PreToolUse` de `.
 5. Con `NOVELA_SESSION_ID` definida, que solo exportan el bucle y las sesiones del harness, cualquier subagente que no sea uno de los siete o el `canario` de `validators.md` §4.9.
 
 Debajo quedan los `deny` de `settings.json` sobre `estado.db*`, `state.lock` y `sqlite3`, y los triggers, que cubren lo que el hook no normaliza: nombres cortos 8.3, uniones y enlaces simbólicos.
+
+Un segundo hook, `PostToolUse` (spec 0008): `.claude/hooks/validar-capitulo.py`, registrado para `Write|Edit|MultiEdit` con `timeout` de 60 s. Cuando el `escritor` o el `editor-estilo` —o una llamada sin `agent_type`— escriben `novelas/<slug>/capitulos/NN.md`, ejecuta `novela validar <slug> <NN> --origen hook` con el `NOVELAS_DIR` de esa ruta, así que el gate mecánico corre aunque el orquestador se salte un paso. Solo stdlib, y no escribe nada: lo que queda es lo que ya escribe `validar`.
+
+| Situación | Salida | stderr, que Claude Code entrega al agente |
+|---|---|---|
+| Otra ruta, otra herramienta u otro `agent_type` | 0 | vacío; no ejecuta `novela` |
+| `validar` sale con 0 | 0 | vacío |
+| `validar` sale con 1 | 2 | `validar-capitulo: capitulos/NN.md rechazado…` y una línea por hallazgo de `qa/NN-validacion.json` (`tipo`, `gravedad`, `ubicacion`, `descripcion`), hasta 4.000 caracteres |
+| Entrada ilegible, `novela` sin resolver, `validar` con 2, 3 o 4 o más de 45 s, o un informe tras el 1 que falta o no lleva el sha del capítulo en disco | 2 | `validar-capitulo: fallo del harness, no del capítulo: <causa>. No reescribas el capítulo: termina e informa.` |
+
+`--origen hook` solo cambia la orden de la línea de `harness.log`, `validar-hook NN`, que no contiene `validar NN -> `: no gasta intentos del procedimiento, cuyos pasos 3 y 5 siguen siendo el gate que cuenta. Como el informe es el mismo, la custodia de `aplicar-delta` lo acepta si la última escritura del capítulo pasó. En `PostToolUse` la escritura ya está hecha: el exit 2 no la deshace, devuelve el motivo al agente dentro de su invocación.
 
 ### 7.2 Frontmatter de capítulo
 

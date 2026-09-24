@@ -67,7 +67,7 @@ Decirlo aquí, y no solo en `architecture.md` §12.7, es parte del método: un c
 | 25 | Integridad semántica del delta | A + T | `estado/deltas/NN.json`, `memoria/` | invariantes narrativos en `validar-delta` | v1 |
 | 26 | Sondas ciegas del secreto | I + A | briefing del `escritor`, capítulos del acto | modelo sin misterio predice el culpable; comparación mecánica | v1 |
 | 27 | Auditoría de trayectoria del orquestador | A | transcript de la sesión principal | script en el hook `Stop` + parada en `pendiente` | v1 |
-| 28 | Contención y bucle de `.claude/` | T + A + D | agentes, hook, permisos, procedimientos, bucle, canario | catálogo de fallos F-01 a F-70 (§4.17) | spec 0003 |
+| 28 | Contención y bucle de `.claude/` | T + A + D | agentes, hooks, permisos, procedimientos, bucle, canario | catálogo de fallos F-01 a F-79 (§4.17) | specs 0003 y 0008 |
 | 29 | Verificación a escala de novela | T + A + I + D | secreto, estado, estilo, tensión y orquestador | catálogo de fallos F-80 a F-168 (§4.18) | spec 0002 |
 
 ---
@@ -528,6 +528,22 @@ Un principio se repite en toda la tabla. Una barrera que falla **abierta** no av
 |---|---|---|---|---|---|
 | F-70 | Un baseline de una sola ejecución | Se usa como referencia una sola muestra con σ alta | El baseline declara su número de ejecuciones y no sirve para aceptar cambios de prompt hasta tener varias (§4.8) | — | U (§5.16) |
 
+**Hook `PostToolUse` (spec 0008)**
+
+`.claude/hooks/validar-capitulo.py`, §7.1 de `architecture.md`. Los tests están en `backend/tests/test_hook_validacion.py` salvo que se diga otro fichero; `CA-NN` son los de la spec 0008.
+
+| # | Fallo | Consecuencia | Verificador | Clase | Estado |
+|---|---|---|---|---|---|
+| F-71 | `python` o el script no resuelven, o el registro nombra otra ruta u otro matcher | Claude Code recibe un código distinto de 2 y sigue: el hook falla abierto sin avisar | `test_contratos.py::test_hook_de_validacion_registrado` (matcher literal, ruta existente, `timeout` 60); `comprobar-entorno` avisa de `python` y del script | T + A | activo (CA-10) |
+| F-72 | Las validaciones del hook se cuentan como intentos del gate mecánico | El orquestador agota los reintentos sin haberlos usado y escribe `intervencion.md` | `--origen hook` escribe `validar-hook NN`, sin la subcadena `validar NN -> ` (`test_validacion.py::test_origen_hook_en_el_log`) | T | activo (CA-07) |
+| F-73 | `PostToolUse` llega sin `agent_type`, o con `null` o `""`, en un subagente | Si eso contara como fuera de alcance, el hook se apagaría en silencio | Ausente, `null` o vacío valida igual (falla cerrado) | T | activo (CA-03) |
+| F-74 | El feedback lleva prosa del capítulo o texto de `canon/misterio.md` | El secreto llega al `escritor` o al `editor-estilo` (invariante 3) | Solo se reenvían `tipo`, `gravedad`, `ubicacion` y `descripcion`, hasta 4.000 caracteres; 0 ventanas de 8 palabras del cuerpo y del misterio en stderr. Vale con los gates de hoy: la spec que añada a `validar` un hallazgo que cite texto tiene que revisarlo | T | activo (CA-02) |
+| F-75 | El capítulo se escribe con otro ancho (`008.md` en una novela de dos dígitos) | `validar` valida `08.md` y el hook reenviaría un informe de otro fichero | El hook busca `qa/<NN tal como se escribió>-validacion.json` y exige el sha del fichero escrito. Con un `08.md` válido, `validar` sale con 0 y el hook también, sin avisar del nombre (plan P2) | T | activo (CA-06); con `08.md` válido, propuesto |
+| F-76 | `validar` no termina | Claude Code mata el hook a los 60 s y lo trata como no bloqueante | `timeout` de 45 s en el subproceso → fallo del harness (`test_excepciones`, por parche). En Windows mata el lanzador `.exe`; que el Python hijo caiga con él y suelte `state.lock` no está probado | T + I | activo; el lock huérfano, propuesto |
+| F-77 | Un traceback de `validar` sale con 1 y queda el `qa/NN-validacion.json` de una validación anterior | El agente corrige defectos que ya no existen y el fallo real queda oculto | Tras un 1, el informe tiene que llevar el `capitulo_sha256` del fichero en disco y hallazgos legibles; si no, fallo del harness (`test_informe_ilegible`) | T | activo |
+| F-78 | El agente entra en un bucle de autocorrección, o los `Edit` intermedios del `editor-estilo` generan ruido | Cuota de opus gastada dentro de una invocación | Ninguno en el hook (spec 0008 D8). La demostración T-07 mide las líneas `validar-hook NN -> 1` por invocación; se reabre D8 si alguna pasa de 3 | D | propuesto |
+| F-79 | `PostToolUse` no corre dentro de los subagentes, o su stderr no les llega | Todo pasa en `pytest` y el hook no hace nada en producción | Demostración T-07 de la spec 0008 en una sesión del harness: una línea `validar-hook NN -> ` con `sesion=` y, si hubo un 1, `validar-capitulo:` en la transcripción del subagente | D | propuesto |
+
 Cinco filas se encontraron al implementar la 0003 y entraron en su v0.4: F-09, al escribir los agentes; F-54, al registrar el hook; F-64, en la primera ejecución del canario, y F-55 y F-65, al preparar su enmienda. Las cinco están en `activo`, y también F-28 y F-48, que entraron en la v0.5. Siguen en **propuesto** F-27, F-37 y F-56 a F-59, encontradas al cerrar la 0003: son la entrada de la spec que las recoja. Las que lo estaban antes entraron en la spec 0003 v0.3 (§16, «Enmiendas de la v0.3»), agrupadas en tres bloques:
 
 - **endurecer el hook**: F-14, F-19, F-20 y F-24;
@@ -774,6 +790,7 @@ Cada uno con su condición de revisión: un riesgo aceptado sin criterio para re
 |---|---|---|---|
 | Pre-commit | Type checking, SAST, tests unitarios; `npm --prefix frontend run lint` si el índice tiene ficheros de `frontend/` (spec 0004) | A, T | segundos |
 | Cada escritura o `Bash` de Claude Code | hook `PreToolUse`: `estado/`, salidas por rol, misterio y `estado.db` en órdenes (spec 0003) | A | < 300 ms |
+| Cada escritura de `capitulos/NN.md` por el `escritor` o el `editor-estilo` | hook `PostToolUse`: `novela validar --origen hook`, con los hallazgos devueltos al agente con exit 2; su línea `validar-hook NN` no cuenta intentos (spec 0008) | A | ≤ 3 s |
 | Antes del bucle desatendido y del canario | `novela comprobar-entorno`: `novela` en el PATH, `python` real, hook presente, `settings.local.json` solo con `enabledPlugins`, `.env` ignorado y, con el trazado de scores pedido, sus claves; con `--limpio` en el canario (spec 0003) | A | gratis |
 | Tras cada sesión del bucle | freno: sin avance de `checkpoints/latest.json`, el bucle para (spec 0003) | A | gratis |
 | CI del harness | + mutación sobre gates, contrato API, contrato de `.claude/`, model checking; job `frontend`: `npm ci`, `tipos:comprobar`, `lint`, `typecheck`, `test`, `build`, `presupuesto` y `npm audit --omit=dev --audit-level=high`; job `frontend-e2e`, en la imagen de Playwright de la versión fijada en `package-lock.json`: `uv sync --locked`, `npm ci` y `npm run e2e`, que genera los workspaces con `tests.fixtures.panel` y levanta la API y `vite preview` (spec 0004) | T, A | minutos |
