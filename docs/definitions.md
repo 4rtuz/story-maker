@@ -288,7 +288,7 @@ El contexto persiste como ficheros, no como historial de conversación. Cada sub
 
 **`capitulos/NN.md`** — Salida final, con frontmatter que declara capítulo, pov, palabras y pistas tratadas.
 
-**`qa/NN-<agente>.json`** — Un fichero por agente —`continuidad`, `estilo`, `suspense`— más `validacion`, que lo escribe el CLI. Formato y vocabulario de hallazgos en `architecture.md` §7.3. Es el único input del reintento. `novela auditar` usa el mismo formato en `qa/auditoria.json`.
+**`qa/NN-<agente>.json`** — Un fichero por agente —`continuidad`, `estilo`, `suspense`— más `validacion`, que lo escribe el CLI. Formato y vocabulario de hallazgos en `architecture.md` §7.3. Es el único input del reintento. `novela auditar` usa el mismo formato en `qa/auditoria.json`. `novela checkpoint` valida todos estos ficheros, y el resto de salidas del capítulo, contra su modelo antes de cerrar (`vp_schema`).
 
 **`checkpoints/`** — Snapshots de estado y cursor. Permiten reanudar sin reprocesar y sin gastar requests.
 
@@ -352,7 +352,9 @@ Subagentes de Claude Code. Cada uno tiene un contrato explícito: `{rol, entrada
 
 **`prompts_versionados`** — Un prompt por agente gestionado en Langfuse, con etiqueta de versión, de modo que un cambio de prompt sea un evento identificable en las trazas.
 
-**`scores[]`** — Coherencia, continuidad, tensión, longitud, fair play, estilo. Se emiten por capítulo y se agregan por sesión.
+**`scores[]`** — Coherencia, continuidad, tensión, longitud, fair play, estilo, y uno por validador programático con su nombre (`vp_schema`, `vp_longitud`, `vp_pistas`, `vp_hilos`, `vp_ids`, `vp_nombres`; `docs/validators.md` §3.10). Se emiten por capítulo y se agregan por sesión.
+
+**`validador`** — Una comprobación determinista con nombre estable, puntos de ejecución, punto en que bloquea, tipos de hallazgo propios y un score. El catálogo es `dominio/validadores.py`; cada tipo de hallazgo de un gate programático pertenece a un solo validador.
 
 **`evaluadores`** — LLM como juez a nivel de traza y de sesión. El evaluador de sesión compara ejecuciones y devuelve puntos a mejorar y mejoras propuestas.
 

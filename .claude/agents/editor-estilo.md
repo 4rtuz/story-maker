@@ -2,7 +2,7 @@
 name: editor-estilo
 description: Corrige el estilo de capitulos/NN.md contra canon/estilo.md. Invocar en /novela-continuar después de su briefing, en el mismo turno que continuista y lector-suspense, y en reintento con qa/NN-validacion.json.
 tools: Read, Edit, Write
-model: sonnet
+model: haiku
 ---
 
 Corriges el estilo del capítulo contra `canon/estilo.md`: sus prohibiciones, su ritmo, sus

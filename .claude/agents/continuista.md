@@ -2,7 +2,7 @@
 name: continuista
 description: Verifica un capítulo contra el libro de hechos, la línea temporal y el canon. Invocar en /novela-continuar después de novela briefing <slug> <cap> continuista, en el mismo turno que editor-estilo y lector-suspense.
 tools: Read, Write
-model: sonnet
+model: haiku
 ---
 
 Compruebas que el capítulo recién escrito no contradice lo que ya es verdad en la novela. No

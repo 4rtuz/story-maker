@@ -32,3 +32,9 @@ def test_informe_valida() -> None:
         InformeQA.model_validate({**INFORME, "hallazgos": [desconocido]})
     with pytest.raises(ValidationError):
         InformeQA.model_validate({**INFORME, "capitulo_sha256": "no-es-un-hash"})
+
+
+@pytest.mark.parametrize("tipo", ["esquema_invalido", "nombre_mal_escrito", "elemento_sin_cubrir"])
+def test_tipos_de_la_spec_0009(tipo: str) -> None:
+    hallazgo = {"tipo": tipo, "gravedad": "alta", "descripcion": "d"}
+    assert InformeQA.model_validate({**INFORME, "hallazgos": [hallazgo]}).hallazgos[0].tipo == tipo

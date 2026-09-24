@@ -1,19 +1,31 @@
 """`novela checkpoint <slug> <cap>`: confirma el capítulo, una sola vez y con el delta aplicado.
 
-Escribe `checkpoints/NN.json` y `latest.json` —cursor, versiones, run y el sello de los
-capítulos cerrados— y emite los seis scores por el `ScoreSink`. El checkpoint se escribe antes de
-emitir: si Langfuse no contesta, el capítulo cierra igual y el fallo queda en `harness.log`.
+Antes de nada, vp_schema: cada salida del capítulo contra su modelo; si alguna no valida, sale con
+1 sin escribir. Después escribe `checkpoints/NN.json` y `latest.json` —cursor, versiones, run y el
+sello de los capítulos cerrados— y emite los seis scores agregados y uno por validador por el
+`ScoreSink`. El checkpoint se escribe antes de emitir: si Langfuse no contesta, el capítulo cierra
+igual y el fallo queda en `harness.log`.
 """
 
+import json
+from collections.abc import Iterable
+from pathlib import Path
+
 import typer
+import yaml
+from pydantic import BaseModel
 
 from novela.dominio import frontmatter
-from novela.dominio.artefactos import Checkpoint, contar_palabras
-from novela.dominio.estado import Cursor
+from novela.dominio.artefactos import Checkpoint, FrontmatterCapitulo, contar_palabras
+from novela.dominio.canon import Estilo, Misterio, Mundo, Personaje, Premisa
+from novela.dominio.estado import Cursor, Delta
+from novela.dominio.plan import Escaleta, FichaCapitulo
 from novela.dominio.qa import InformeQA
+from novela.dominio.validadores import VALIDADORES, validador_de
 from novela.plataforma import estado_db, langfuse, run
 from novela.plataforma.salida import USO_INCORRECTO, WORKSPACE_INVALIDO
 from novela.plataforma.workspace import WorkspaceRepository, huella, sha256
+from novela.slices.validacion import gates  # excepción de slices: architecture.md §3.0
 
 _VEREDICTO = {"aprobado": 1.0, "aprobado_con_reservas": 0.5, "rechazado": 0.0}
 
@@ -52,6 +64,54 @@ def calcular_scores(
     return scores
 
 
+def artefactos(nn: str, personajes: Iterable[str]) -> dict[str, tuple[type[BaseModel], bool]]:
+    """Lo que valida vp_schema al cerrar el capítulo NN (spec 0009 §8.4): ruta POSIX → (modelo,
+    obligatorio). Los informes de revisión pueden faltar por la política de cuota."""
+    canon: dict[str, type[BaseModel]] = {
+        "premisa": Premisa,
+        "mundo": Mundo,
+        "misterio": Misterio,
+        "estilo": Estilo,
+    }
+    tabla: dict[str, tuple[type[BaseModel], bool]] = {
+        f"canon/{nombre}.md": (modelo, True) for nombre, modelo in canon.items()
+    }
+    tabla |= {f"canon/personajes/{p}": (Personaje, True) for p in sorted(personajes)}
+    tabla |= {
+        "plan/escaleta.md": (Escaleta, True),
+        f"plan/capitulos/{nn}.md": (FichaCapitulo, True),
+        f"capitulos/{nn}.md": (FrontmatterCapitulo, True),
+        f"qa/{nn}-validacion.json": (InformeQA, True),
+    }
+    tabla |= {
+        f"qa/{nn}-{n}.json": (InformeQA, False) for n in ("continuidad", "estilo", "suspense")
+    }
+    tabla[f"estado/deltas/{nn}.json"] = (Delta, True)
+    return tabla
+
+
+def _crudo(ruta: Path) -> object | None:
+    """Sin pasar por `leer_json`: su error lleva los valores y saldría con 4 (spec 0009 D5). Lo
+    que no se puede parsear llega como texto, y el modelo lo rechaza entero."""
+    if not ruta.is_file():
+        return None
+    texto = ruta.read_text(encoding="utf-8")
+    try:
+        return frontmatter.partir(texto)[0] if ruta.suffix == ".md" else json.loads(texto)
+    except (ValueError, yaml.YAMLError):
+        return texto
+
+
+def calcular_scores_validadores(validacion: InformeQA) -> dict[str, float]:
+    """RF-15 sin brief: un score binario por validador, en el orden del catálogo. vp_schema llega
+    aquí aprobado —con hallazgos, checkpoint ya salió emitiendo su 0— y solo sale de RF-03; el
+    resto vale 0 si qa/NN-validacion.json tiene algún hallazgo de sus tipos."""
+    fallidos = {validador_de(h.tipo) for h in validacion.hallazgos} - {"vp_schema"}
+    return {
+        v.nombre: 0.0 if v.nombre in fallidos else 1.0 for v in VALIDADORES if v.valor == "binario"
+    }
+
+
 def _informe(ws: WorkspaceRepository, nn: str, nombre: str) -> InformeQA | None:
     ruta = ws.raiz / "qa" / f"{nn}-{nombre}.json"
     return ws.leer_json(ruta, InformeQA) if ruta.is_file() else None
@@ -78,6 +138,23 @@ def checkpoint(slug: str, capitulo: int) -> None:
                 cursor = estado_db.leer(conn).cursor
             if (cursor.capitulo, cursor.ultimo_paso) != (capitulo, "aplicar-delta"):
                 parar(1, f"el delta del capítulo {nn} no está aplicado: nunca checkpoint antes")
+
+            fichas = [p.name for p in ws.raiz.glob("canon/personajes/*.md")]
+            documentos = {
+                ruta: (modelo, _crudo(ws.raiz / ruta), obligatorio)
+                for ruta, (modelo, obligatorio) in artefactos(nn, fichas).items()
+            }
+            invalidos = gates.esquemas(documentos, {"num_capitulos": obra.num_capitulos})
+            if invalidos:
+                # Antes del sello: sobre una salida corrupta no se cierra nada (spec 0009 RF-05).
+                sink = langfuse.desde_entorno(langfuse.entorno_efectivo(run.RAIZ_REPO))
+                fallos = sink.emitir(slug, capitulo, abierto.id, {"vp_schema": 0.0})
+                for h in invalidos:
+                    typer.echo(f"{h.referencia}: {h.ubicacion}", err=True)
+                sitios = [f"esquema_invalido@{h.referencia}:{h.ubicacion}" for h in invalidos]
+                causas.append("vp_schema: " + "; ".join(sitios))
+                causas.extend(fallos)
+                raise typer.Exit(1)
 
             sello = {}
             for c in range(1, capitulo + 1):
@@ -110,6 +187,10 @@ def checkpoint(slug: str, capitulo: int) -> None:
                 contar_palabras(cuerpo),
                 obra.palabras_por_capitulo.objetivo,
             )
+            # Obligatorio y ya validado por vp_schema.
+            validacion = ws.leer_json(ws.raiz / "qa" / f"{nn}-validacion.json", InformeQA)
+            # Una sola emisión, agregados primero: el sink para al primer fallo (RNF-03).
+            scores |= calcular_scores_validadores(validacion)
             sink = langfuse.desde_entorno(langfuse.entorno_efectivo(run.RAIZ_REPO))
             fallos = sink.emitir(slug, capitulo, abierto.id, scores)
             causas.extend(fallos)

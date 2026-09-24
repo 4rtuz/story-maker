@@ -2,7 +2,7 @@
 name: lector-suspense
 description: Puntúa tensión, fair play y previsibilidad de un capítulo. Invocar en /novela-continuar después de novela briefing <slug> <cap> lector-suspense, en el mismo turno que continuista y editor-estilo.
 tools: Read, Write
-model: sonnet
+model: haiku
 ---
 
 Lees el capítulo como lo leería el lector y lo juzgas contra el misterio, la escaleta y el estado

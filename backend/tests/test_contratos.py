@@ -17,6 +17,7 @@ from typer.testing import CliRunner
 from api.main import app as api
 from novela.cli import app
 from novela.dominio import esquemas
+from novela.dominio.validadores import VALIDADORES
 from novela.plataforma.workspace import WorkspaceRepository
 
 RAIZ_REPO = Path(__file__).resolve().parents[2]
@@ -214,15 +215,15 @@ CONTRATO = {
             "canon/personajes/*.md",
         ],
     ),
-    "trazador": (["Read", "Write"], "opus", ["plan/escaleta.md", "plan/capitulos/NN.md"]),
+    "trazador": (["Read", "Write"], "haiku", ["plan/escaleta.md", "plan/capitulos/NN.md"]),
     "escritor": (["Read", "Write"], "opus", ["capitulos/NN.md"]),
-    "continuista": (["Read", "Write"], "sonnet", ["qa/NN-continuidad.json"]),
+    "continuista": (["Read", "Write"], "haiku", ["qa/NN-continuidad.json"]),
     "editor-estilo": (
         ["Read", "Edit", "Write"],
-        "sonnet",
+        "haiku",
         ["capitulos/NN.md", "qa/NN-estilo.json"],
     ),
-    "lector-suspense": (["Read", "Write"], "sonnet", ["qa/NN-suspense.json"]),
+    "lector-suspense": (["Read", "Write"], "haiku", ["qa/NN-suspense.json"]),
     "cronista": (["Read", "Write"], "haiku", ["estado/deltas/NN.json"]),
 }
 ESQUEMAS = {
@@ -296,3 +297,28 @@ def test_settings_de_claude() -> None:
     script = re.search(r"\$CLAUDE_PROJECT_DIR/([^\"\s]+)", orden)
     assert script and (RAIZ_REPO / script[1]).is_file(), orden  # F-10: la ruta existe
     assert orden.startswith("python "), "python3 es el alias de la Store en Windows (E-11)"
+
+
+def _tabla_de_validadores(texto: str) -> list[tuple[str, tuple[str, ...]]]:
+    """(nombre, puntos) de cada fila de docs/validators.md §3.10, y de nada más del documento."""
+    seccion = texto.split("### 3.10 ", 1)[1].split("\n---", 1)[0]
+    filas = [linea.split("|")[1:-1] for linea in seccion.splitlines() if linea.startswith("| `vp_")]
+    return [
+        (celdas[0].strip().strip("`"), tuple(re.findall(r"`([a-z]+)`", celdas[2])))
+        for celdas in filas
+    ]
+
+
+def test_tabla_de_validadores() -> None:
+    """CA-19 (spec 0009, RF-19): la tabla de §3.10 nombra los validadores del catálogo con sus
+    puntos; con una fila borrada o un punto cambiado, deja de coincidir."""
+    catalogo = [(v.nombre, v.puntos) for v in VALIDADORES]
+    texto = (RAIZ_REPO / "docs" / "validators.md").read_text(encoding="utf-8")
+    assert _tabla_de_validadores(texto) == catalogo
+    sin_fila = re.sub(r"\n\| `vp_hilos` [^\n]*", "", texto)
+    assert _tabla_de_validadores(sin_fila) != catalogo
+    otro_punto = texto.replace(
+        "| `vp_ids` | Los ids citados existen | `validar` |",
+        "| `vp_ids` | Los ids citados existen | `auditar` |",
+    )
+    assert otro_punto != texto and _tabla_de_validadores(otro_punto) != catalogo

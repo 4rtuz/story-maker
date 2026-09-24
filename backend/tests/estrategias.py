@@ -38,6 +38,7 @@ from novela.dominio.estado import (
     Relacion,
     Resumen,
 )
+from novela.slices.validacion.gates import plegar
 
 LETRAS = string.ascii_letters + "áéíóúñÁÉÍÓÚÑ"
 # Texto de prosa: letras, espacios y puntuación; sin caracteres de control.
@@ -319,3 +320,32 @@ def frontmatter_de(delta: Delta) -> FrontmatterCapitulo:
         version_plan=1,
         run_id="r-20260101-0900",
     )
+
+
+# --- vp_nombres (spec 0009, CA-06) -------------------------------------------------------------
+
+MAYUSCULAS = string.ascii_uppercase + "ÁÉÍÓÚÑ"
+MINUSCULAS = string.ascii_lowercase + "áéíóúñ"
+token_nombre = st.builds(
+    str.__add__, st.sampled_from(MAYUSCULAS), st.text(MINUSCULAS, min_size=2, max_size=11)
+)
+
+
+@st.composite
+def nombres_en_cuerpo(draw: st.DrawFn) -> tuple[list[tuple[str, str]], list[list[str]]]:
+    """Formas `(referencia, texto)` de uno o dos tokens, sin dos tokens que plieguen igual, y las
+    líneas de un cuerpo con esos tokens exactos y relleno en minúscula. Al menos una ocurrencia."""
+    tokens = draw(st.lists(token_nombre, min_size=1, max_size=8, unique_by=plegar))
+    formas: list[tuple[str, str]] = []
+    while len(tokens) > sum(len(t.split()) for _, t in formas):
+        i = sum(len(t.split()) for _, t in formas)
+        k = draw(st.integers(1, 2))
+        formas.append((f"per-f{len(formas)}", " ".join(tokens[i : i + k])))
+    plegados = {plegar(t) for t in tokens}
+    relleno = st.text(MINUSCULAS, min_size=1, max_size=8).filter(
+        lambda w: plegar(w) not in plegados
+    )
+    palabra = st.sampled_from(tokens) | relleno
+    lineas = draw(st.lists(st.lists(palabra, min_size=1, max_size=8), min_size=1, max_size=6))
+    lineas[draw(st.integers(0, len(lineas) - 1))].append(draw(st.sampled_from(tokens)))
+    return formas, lineas

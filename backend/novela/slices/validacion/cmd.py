@@ -7,7 +7,7 @@ que la custodia de `aplicar-delta` compara (RF-31, RF-32).
 import typer
 
 from novela.dominio import frontmatter
-from novela.dominio.canon import Misterio
+from novela.dominio.canon import Misterio, Personaje
 from novela.dominio.plan import FichaCapitulo
 from novela.dominio.qa import Hallazgo, InformeQA
 from novela.plataforma import estado_db, run
@@ -20,6 +20,10 @@ def _contexto(ws: WorkspaceRepository, capitulo: int) -> gates.Contexto:
     raiz = ws.raiz
     ficha = ws.leer_md(raiz / "plan" / "capitulos" / f"{ws.nn(capitulo)}.md", FichaCapitulo)
     misterio = ws.leer_md(raiz / "canon" / "misterio.md", Misterio)
+    # Enteros, no solo el nombre del fichero: vp_nombres necesita nombre y alias. Uno inválido
+    # sale con 4, como cualquier artefacto del canon.
+    fichas = {p.stem: p for p in raiz.glob("canon/personajes/*.md")}
+    personajes = [ws.leer_md(fichas[id_], Personaje) for id_ in sorted(fichas)]
     with estado_db.abrir(ws.estado_db, solo_lectura=True) as conn:
         hilos = estado_db.leer(conn).hilos
     # Abiertos al empezar el capítulo, aunque su delta ya se haya aplicado.
@@ -32,14 +36,20 @@ def _contexto(ws: WorkspaceRepository, capitulo: int) -> gates.Contexto:
         capitulo=capitulo,
         palabras=ws.config().parametros_obra.palabras_por_capitulo,
         ficha=ficha,
-        personajes=frozenset(p.stem for p in raiz.glob("canon/personajes/*.md")),
+        personajes=frozenset(fichas),
         pistas=frozenset(p.id for p in misterio.pistas),
         hilos_abiertos=abiertos,
+        formas=tuple(
+            gates.FormaCanonica(p.identidad.id, texto, f"canon/personajes/{id_}.md")
+            for id_, p in zip(sorted(fichas), personajes, strict=True)
+            for texto in (p.identidad.nombre, *p.identidad.alias)
+        ),
     )
 
 
 def validar(slug: str, capitulo: int) -> None:
-    """Esquema, longitud, pistas del plan, balance de hilos e ids. Sale con 1 si hay hallazgos."""
+    """Esquema, longitud, pistas del plan, balance de hilos, ids y grafía de nombres. Sale con 1
+    si hay hallazgos."""
     ws = WorkspaceRepository.resolver(slug).exigir()
     total = ws.config().parametros_obra.num_capitulos
     if not 1 <= capitulo <= total:

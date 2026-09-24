@@ -21,6 +21,9 @@ TipoHallazgo = Literal[
     "pista_ausente",
     "hilo_cerrado_sin_abrir",
     "id_inexistente",
+    "nombre_mal_escrito",
+    # novela validar (frontmatter) y novela checkpoint (el resto de artefactos)
+    "esquema_invalido",
     # continuista
     "contradiccion_hecho",
     "contradiccion_temporal",
@@ -40,6 +43,7 @@ TipoHallazgo = Literal[
     "hilo_sin_cerrar",
     "pista_falsa_sin_desmontar",
     "revelacion_sin_pista",
+    "elemento_sin_cubrir",
 ]
 # Lo que puntúa el lector-suspense; checkpoint lo emite como scores (RF-21).
 Puntuacion = Literal["tension", "fair_play", "coherencia", "previsibilidad"]
