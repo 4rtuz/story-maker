@@ -7,31 +7,43 @@ import noUnsanitized from 'eslint-plugin-no-unsanitized';
 import tseslint from 'typescript-eslint';
 
 const SRC = path.join(import.meta.dirname, 'src');
+const MARCA = path.join(SRC, 'shared', 'marca');
 
-/** RF-43: nada de fuera de src/, en particular de novelas/ ni de backend/. */
-const soloDeSrc = {
-  meta: {
-    type: 'problem',
-    messages: { fuera: 'import de fuera de src/: {{ruta}} (RF-43)' },
-    schema: [],
-  },
-  create(context) {
-    const comprobar = (nodo) => {
-      const ruta = nodo.source?.value;
-      if (typeof ruta !== 'string' || !/^[./]/.test(ruta)) return;
-      const destino = path.resolve(path.dirname(context.filename), ruta.split('?')[0]);
-      const relativa = path.relative(SRC, destino);
-      if (relativa.startsWith('..') || path.isAbsolute(relativa)) {
-        context.report({ node: nodo.source, messageId: 'fuera', data: { ruta } });
-      }
-    };
-    return {
-      ImportDeclaration: comprobar,
-      ImportExpression: comprobar,
-      ExportAllDeclaration: comprobar,
-      ExportNamedDeclaration: comprobar,
-    };
-  },
+/** Una regla que mira a dónde resuelve cada import relativo del fichero. */
+function porDestino(mensaje, prohibido) {
+  return {
+    meta: { type: 'problem', messages: { prohibido: mensaje }, schema: [] },
+    create(context) {
+      const comprobar = (nodo) => {
+        const ruta = nodo.source?.value;
+        if (typeof ruta !== 'string' || !/^[./]/.test(ruta)) return;
+        const destino = path.resolve(path.dirname(context.filename), ruta.split('?')[0]);
+        if (prohibido(destino, path.resolve(context.filename))) {
+          context.report({ node: nodo.source, messageId: 'prohibido', data: { ruta } });
+        }
+      };
+      return {
+        ImportDeclaration: comprobar,
+        ImportExpression: comprobar,
+        ExportAllDeclaration: comprobar,
+        ExportNamedDeclaration: comprobar,
+      };
+    },
+  };
+}
+
+const reglas = {
+  // RF-43: nada de fuera de src/, en particular de novelas/ ni de backend/.
+  'solo-de-src': porDestino('import de fuera de src/: {{ruta}} (RF-43)', (destino) => {
+    const relativa = path.relative(SRC, destino);
+    return relativa.startsWith('..') || path.isAbsolute(relativa);
+  }),
+  // RF-51: solo logo.ts muestra el logo, y siempre en su contenedor redondeado.
+  'logo-solo-en-logo-ts': porDestino(
+    '{{ruta}}: el logo se muestra con crearLogo() de shared/marca/logo.ts (RF-51)',
+    (destino, fichero) =>
+      destino === path.join(MARCA, 'logo.png') && fichero !== path.join(MARCA, 'logo.ts'),
+  ),
 };
 
 export default tseslint.config(
@@ -50,7 +62,7 @@ export default tseslint.config(
   noUnsanitized.configs.recommended,
   {
     files: ['src/**/*.ts'],
-    plugins: { panel: { rules: { 'solo-de-src': soloDeSrc } } },
-    rules: { 'panel/solo-de-src': 'error' },
+    plugins: { panel: { rules: reglas } },
+    rules: { 'panel/solo-de-src': 'error', 'panel/logo-solo-en-logo-ts': 'error' },
   },
 );

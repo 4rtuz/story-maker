@@ -275,6 +275,9 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │       │   ├── progreso/         # cursor, curva de tensión, hilos abiertos, runs y actividad
 │       │   └── lectura/          # escena Three.js, navegación 3D del libro
 │       ├── shared/               # cliente de la API, tipos, componentes base
+│       │   ├── marca/            # tokens.css (único fichero con colores), pares, logo, fuente
+│       │   ├── iconos/           # trazados de Lucide copiados, con su LICENSE
+│       │   └── ui/               # componentes, que solo usan roles de tokens.css
 │       └── app/                  # routing, layout
 │
 └── novelas/                      # workspaces, en .gitignore
@@ -868,6 +871,8 @@ Vite + TypeScript + Three.js. Es **solo lectura**: no lanza agentes ni escribe e
 - **Lanzar novela**: formulario que produce un `config.yaml` y deja preparado el comando `/novela-nueva` para copiar.
 - **Progreso**: consulta la API por *polling*; muestra cursor, curva de tensión real contra objetivo, hilos abiertos y capítulos completados.
 - **Lectura**: navegación 3D sobre los capítulos generados.
+
+**Identidad visual** (spec 0004, D21 a D28). El panel lleva la marca de Qaracter con WCAG 2.1 AA. Todos los colores, familias tipográficas, radios, sombras y medidas son propiedades CSS de `frontend/src/shared/marca/tokens.css`, el único fichero con colores literales; los componentes solo usan roles semánticos, y la escena y la gráfica leen esos mismos roles de las propiedades computadas. Los tonos vivos de la marca quedan para lo decorativo y el texto usa tonos derivados que cumplen AA; `pares.ts` declara los pares en uso y un test recalcula su contraste desde `tokens.css`. El logo es el PNG oficial, sin retocar, y se muestra siempre dentro de un contenedor con las esquinas redondeadas al 22 % del lado: solo `logo.ts` puede importarlo, y el favicon se deriva de él con las esquinas ya recortadas. La fuente display y los iconos se sirven desde `frontend/`, con su licencia al lado. Sin modo oscuro ni selector de idioma.
 
 Contrato de acoplamiento: el frontend consume lo que la API devuelve tal cual. Si necesita un dato que no está en el estado, se añade al estado, no se calcula en el frontend.
 

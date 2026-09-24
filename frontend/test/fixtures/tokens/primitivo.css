@@ -1,0 +1,4 @@
+/* Un componente que usa un primitivo en vez de su rol. */
+.boton {
+  background: var(--q-naranja-700);
+}

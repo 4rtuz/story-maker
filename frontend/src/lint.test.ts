@@ -36,3 +36,13 @@ describe('HTML sin sanear (no-unsanitized)', () => {
     expect(mensajes.map((m) => m.ruleId)).toContain('no-unsanitized/property');
   });
 });
+
+describe('logo.png reservado a logo.ts (CA-51, parte estática)', () => {
+  it('importarlo fuera de logo.ts es error', async () => {
+    expect(await errores('import-logo.ts', 'src/app/x.ts')).not.toEqual([]);
+  });
+
+  it('desde logo.ts no lo es (control positivo)', async () => {
+    expect(await errores('logo-permitido.ts', 'src/shared/marca/logo.ts')).toEqual([]);
+  });
+});

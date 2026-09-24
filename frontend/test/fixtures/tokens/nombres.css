@@ -1,0 +1,5 @@
+/* VAL-26: colores con nombre, que la v4 de CA-46 dejaba pasar. */
+.aviso {
+  color: orange;
+  border-color: gray;
+}

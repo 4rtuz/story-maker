@@ -1,0 +1,6 @@
+/* D51: las tres palabras clave permitidas; este fichero no es una infracción. */
+.neutro {
+  background: transparent;
+  color: currentColor;
+  border-color: inherit;
+}
