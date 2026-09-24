@@ -9,6 +9,7 @@ from novela.plataforma.salida import con_codigos
 from novela.slices.auditoria.cmd import auditar
 from novela.slices.brief import cmd as brief
 from novela.slices.briefing.cmd import briefing
+from novela.slices.cambio.cmd import cambio
 from novela.slices.checkpoint.cmd import checkpoint
 from novela.slices.delta.cmd import aplicar_delta
 from novela.slices.entorno.cmd import comprobar_entorno
@@ -23,6 +24,7 @@ from novela.slices.producir.cmd import producir
 from novela.slices.prohibidas import cmd as prohibidas
 from novela.slices.prosa.cmd import lint_prosa
 from novela.slices.validacion.cmd import validar
+from novela.slices.versiones.cmd import listar_versiones
 from novela.slices.visual.cmd import registrar_visual
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, pretty_exceptions_enable=False)
@@ -48,6 +50,8 @@ app.command("validar-plan")(con_codigos(validar_plan))
 app.command()(con_codigos(checkpoint))
 app.command()(con_codigos(auditar))
 app.command()(con_codigos(exportar))
+app.command()(con_codigos(cambio))
+app.command("versiones")(con_codigos(listar_versiones))
 app.command("comprobar-entorno")(con_codigos(comprobar_entorno))
 app.command()(con_codigos(producir))
 app.command("verificar-lean")(con_codigos(verificar_lean))

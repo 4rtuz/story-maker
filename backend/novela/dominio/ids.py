@@ -20,6 +20,7 @@ HiloId = Annotated[str, StringConstraints(pattern=r"^hil-[0-9]{3}$")]
 ObjetoId = Annotated[str, StringConstraints(pattern=r"^obj-[0-9]{3}$")]
 HechoId = Annotated[str, StringConstraints(pattern=r"^hec-[0-9]{3}$")]
 CapituloId = Annotated[str, StringConstraints(pattern=r"^cap-[0-9]{2,3}$")]
+CambioId = Annotated[str, StringConstraints(pattern=r"^cam-[0-9]{3}$")]  # spec 0007, D22
 
 # Dos cadenas de fuera del proceso que acaban siendo rutas: el slug (CLI y API) y el run_id
 # (NOVELA_RUN_ID y API). Una sola copia de cada regex: dos copias de una regla de seguridad

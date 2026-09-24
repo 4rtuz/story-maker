@@ -23,6 +23,8 @@ TipoHallazgo = Literal[
     "id_inexistente",
     "nombre_mal_escrito",
     "termino_prohibido",
+    # novela validar, con un cambio en curso (spec 0007, RF-31)
+    "regeneracion_altera_contrato",
     # novela validar (frontmatter) y novela checkpoint (el resto de artefactos)
     "esquema_invalido",
     # continuista

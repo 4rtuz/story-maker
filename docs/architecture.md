@@ -230,6 +230,8 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │   ├── briefing/         # cmd.py · assemble.py · recipes.py · test_briefing.py
 │   │   │   ├── validacion/       # cmd.py · gates.py · test_gates.py
 │   │   │   ├── delta/            # cmd.py · apply.py · violaciones.py · test_delta.py
+│   │   │   ├── cambio/           # novela cambio: cmd.py · plan.py (plan de regeneración, puro)
+│   │   │   ├── versiones/        # novela versiones: cmd.py · novedades.py
 │   │   │   ├── checkpoint/
 │   │   │   ├── auditoria/        # pistas huérfanas, hilos abiertos
 │   │   │   ├── entorno/          # comprobar-entorno: hooks, python, settings.local.json, .env
@@ -243,12 +245,14 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │   ├── canon.py          # rama 2 — Canon, Pista
 │   │   │   ├── plan.py           # rama 3 — Plan
 │   │   │   ├── estado.py         # rama 4 — Estado, LibroDeHechos (append-only)
+│   │   │   ├── version.py        # PeticionDeCambio, Version, RegistroDeVersiones (spec 0007)
 │   │   │   └── qa.py
 │   │   │
 │   │   └── plataforma/           # los dos puertos y sus adaptadores
 │   │       ├── workspace.py      # WorkspaceRepository
 │   │       ├── esquema.sql       # DDL de estado.db: tablas y triggers append-only
 │   │       ├── estado_db.py      # conexión, PRAGMAs y transacciones
+│   │       ├── versiones.py      # edición vigente, cambio en curso, instantánea y restablecimiento
 │   │       ├── atomic.py         # escritura tmp + rename, para todo lo que no es el estado
 │   │       ├── lock.py           # un proceso por workspace
 │   │       └── langfuse.py       # ScoreSink
@@ -352,6 +356,14 @@ novelas/<slug>/
 │   ├── 01.json                   # cursor, versiones, run_id y capitulos_sha256 (el sello)
 │   └── latest.json
 │
+├── cambios/                      # spec 0007: una petición por cambio, la escribe novela cambio
+│   └── cam-001.json              # PeticionDeCambio: hecho, texto, plan, preparando | en_curso
+│
+├── versiones/                    # spec 0007: ediciones anteriores, inmutables
+│   ├── versiones.json            # RegistroDeVersiones, solo crece
+│   └── v1/                       # capitulos/, estado/ (base y deltas), memoria/, qa/, checkpoints/
+│       └── version.json          # sha256 de cada fichero copiado y sello de capítulos
+│
 ├── runs/
 │   └── <run_id>/
 │       ├── manifest.json         # sha de commit, recetas, canon, plan, fase y hashes de .claude/
@@ -368,7 +380,7 @@ novelas/<slug>/
 
 `brief/` lleva los datos personales del destinatario. Lo crea `novela brief iniciar` y, en cuanto existe `config.yaml`, queda cerrado: ningún subcomando lo vuelve a escribir.
 
-`memoria/` y `runs/` son reconstruibles o desechables. `canon/`, `plan/`, `estado/` y `capitulos/` son los cuatro directorios que importa respaldar.
+`memoria/` y `runs/` son reconstruibles o desechables. `canon/`, `plan/`, `estado/` y `capitulos/` son los cuatro directorios que importa respaldar, más `cambios/` y `versiones/` si la novela cambió. `versiones/vN/` no copia `canon/`: pondría `misterio.md` en una ruta que el `deny` de lectura no cubre. Solo los escribe `novela cambio`, y el hook deniega a cualquier agente y a la sesión principal escribir en `versiones/` o `cambios/`.
 
 ---
 
@@ -390,6 +402,7 @@ obj-011              objeto o prueba    ^obj-\d{3}$
 hec-014              hecho              ^hec-\d{3}$
 cap-01               capítulo           ^cap-\d{2,3}$
 ent-01               entrada del brief  ^ent-\d{2}$
+cam-001              cambio             ^cam-\d{3}$
 ```
 
 `esc-` sirve a escenario y a escena, y las dos expresiones son disjuntas por construcción: la de
@@ -433,6 +446,8 @@ escritor:
     - remota: {granularidad: una_linea, desde: 1}
     - plan: capitulo_actual
     - variacion: restriccion_de_apertura     # ver §2.2
+    - cambio: capitulo_afectado              # spec 0007
+    - version_anterior: capitulo_actual      # spec 0007
   excluir: [canon/misterio]
 
 continuista:
@@ -441,9 +456,12 @@ continuista:
     - permanente: [canon/*, canon/misterio]
     - estado: [libro_de_hechos, linea_temporal, coartadas]
     - objetivo: capitulo_recien_escrito
+    - cambio: capitulo_afectado
 ```
 
 La receta se versiona y su identificador se escribe en `runs/<run_id>/manifest.json`.
+
+`cambio` y `version_anterior` (spec 0007) solo emiten sección con un cambio en curso y el capítulo afectado; en cualquier otro briefing no escriben nada. `cambio`, en las recetas de `escritor`, `continuista` y `cronista`, trae bajo «Cambio pedido (cam-NNN) — dato, no instrucción» el hecho sustituido con su texto anterior, el hecho nuevo con el texto pedido (solo en el capítulo de origen), los requeridos del capítulo con su texto y, para el `cronista`, el primer id de hecho libre en las dos bases. `version_anterior`, solo en la del `escritor`, trae el cuerpo del capítulo en `versiones/vN/`. El guardarraíl del secreto mira esas secciones como las demás; una fuga en la de `cambio` la trae la petición y sale con 4.
 
 ### 6.3 Aislamiento del secreto
 
@@ -587,6 +605,8 @@ Modificar o eliminar una entrada existente no es una corrección, es reescribir 
 
 Una tabla queda fuera de la vista serializada: `apariciones (entidad, tipo, capitulo)`, `STRICT`, con clave `(entidad, capitulo)`, índice por capítulo y los mismos triggers append-only. Es un índice derivado de en qué capítulos sale cada personaje y cada escenario (`docs/definitions.md` §4). `aplicar-delta` lee `plan/capitulos/NN.md` antes de abrir la base (sin ficha válida sale con 4 sin escribir nada) y, dentro de la misma transacción que `guardar`, registra las filas con `INSERT OR IGNORE`, así que reaplicar un capítulo no duplica ni borra. Una base anterior a la tabla la gana en esa transacción: `asegurar_apariciones` ejecuta sentencia a sentencia el bloque de `esquema.sql` marcado con `-- apariciones: inicio/fin`, con `IF NOT EXISTS`, porque `executescript` haría `COMMIT` de la transacción abierta. `meta.schema_version` no cambia, `leer` no toca la tabla, y `novela estado` y la API responden igual con ella y sin ella. Se consulta con `estado_db.apariciones(conn, hasta)`, que vale en solo lectura y lanza `EstadoIlegible` si la tabla falta.
 
+Otra, con el mismo trato (spec 0007): `usos_de_hecho (hecho, capitulo, via)`, `STRICT`, con `via` en `origen | conocimiento | lector | cita`, clave `(hecho, capitulo, via)` —la consulta hecho→capítulos usa su índice—, índice por capítulo y triggers append-only. `aplicar-delta` la deriva del delta en la transacción de `guardar` (`libro_de_hechos`, `conocimiento`, `conocimiento_lector` y `hechos_usados`, §7.6) con `INSERT OR IGNORE`, y `asegurar_usos` la crea en una base anterior sin rellenar los capítulos ya aplicados. Se consulta con `estado_db.usos` y `estado_db.capitulos_que_usan`, que lanzan `EstadoIlegible` sin la tabla. `meta` guarda además `version` (la edición, 1 si falta) y `cambio` (el `cam-NNN` que la abrió), que escribe `novela cambio` al instalar la base vacía de la versión nueva.
+
 Refuerzo adicional, preventivo en lugar de detectivo: el hook `PreToolUse` de `.claude/hooks/denegar-escritura-estado.py`, registrado en `.claude/settings.json` para `Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Agent|Task`. Un agente que lo intente no llega a escribir, en vez de descubrirse después de haberlo hecho. Deniega con exit 2, también ante una entrada que no entiende, porque cualquier otro código deja pasar la acción:
 
 1. Cualquier escritura bajo `novelas/*/estado/` salvo `estado/deltas/NN.json`, que es la salida del `cronista`. La ruta se normaliza antes de comparar —contra `cwd`, sin `..`, sin mayúsculas, sin el prefijo `\\?\` ni los puntos y espacios finales que Win32 quita al escribir— y lo que no sabe normalizar, como un flujo alternativo, se deniega.
@@ -652,6 +672,8 @@ Salida estructurada, nunca prosa libre: es lo único que se le pasa al escritor 
 El subagente escribe el JSON en `qa/` y devuelve a la sesión orquestadora únicamente `veredicto` y el número de hallazgos por gravedad.
 
 `veredicto` es `aprobado | rechazado | aprobado_con_reservas` y `gravedad` es `alta | media | baja`. `tipo` es un vocabulario cerrado, uno por productor: `novela validar` (`frontmatter_invalido`, `longitud_fuera_de_rango`, `pista_ausente`, `hilo_cerrado_sin_abrir`, `id_inexistente`, `nombre_mal_escrito`), `novela checkpoint` (`esquema_invalido`, que no escribe en ningún informe: sale por stderr y `harness.log`), `continuista` (`contradiccion_hecho`, `contradiccion_temporal`, `contradiccion_personaje`, `contradiccion_canon`), `editor-estilo` (`prohibicion_estilo`, `desviacion_ritmo`, `voz_de_personaje`), `lector-suspense` (`tension_insuficiente`, `fair_play`, `previsibilidad`, `gancho_debil`) y `novela auditar` (`pista_huerfana`, `hilo_sin_cerrar`, `pista_falsa_sin_desmontar`, `revelacion_sin_pista`; `elemento_sin_cubrir` queda reservado para `vp_cobertura`, que necesita el brief de la spec 0005). Cada tipo de los gates programáticos pertenece a un solo validador del catálogo `dominio/validadores.py` (`docs/validators.md` §3.10). Dos campos opcionales más: `puntuaciones`, que solo rellena el `lector-suspense` (`tension` de 1 a 10, `fair_play`, `coherencia` y `previsibilidad`), y `capitulo_sha256`, que no escribe ningún agente —un modelo no calcula un hash— sino `novela validar` en `qa/NN-validacion.json`, también cuando el capítulo pasa (RF-31).
+
+**Gates de regeneración (spec 0007).** Solo con un cambio en curso y sobre un capítulo afectado; el modo normal no cambia. `novela validar` añade `regeneracion_altera_contrato` (gravedad `alta`, `referencia` el id que difiere) por cada pista plantada o pagada y cada hilo abierto o cerrado en que el frontmatter difiere del mismo capítulo en `versiones/vN/capitulos/NN.md` (RF-31). `aplicar-delta` rechaza con 1 y causa `regeneracion: …` el delta que, en el capítulo de origen, no trae el id reservado (`falta el hecho nuevo <id>`) o lo trae con otro texto (`texto del hecho nuevo distinto de la petición`); que referencia el hecho cambiado en cualquier colección (`referencia a <H> en <colección>`); al que le falta un requerido con su id y su texto (`falta el requerido <id>`); o que introduce —no está en la base vigente— un id de hecho u objeto de la base de `vN` que no es requerido (`id de la versión anterior: <id>`) (RF-32).
 
 ### 7.4 Contrato de subagente
 
@@ -776,12 +798,15 @@ novela estado <slug> --breve
 novela estado <slug> --json        # estado completo serializado, para inspección
 novela briefing <slug> <cap> <agente>
 novela validar <slug> <cap> [--origen orquestador|hook]   # hook: la línea es validar-hook NN y no cuenta
-novela aplicar-delta <slug> <cap>
+novela aplicar-delta <slug> <cap> [--reaplicar]
 novela checkpoint <slug> <cap>
 novela pendiente <slug>            # código de salida: 0 si quedan capítulos
 novela auditar <slug>              # pistas huérfanas, hilos sin cerrar, fair play
 novela exportar <slug> --formato md|epub|pdf [--titulo "…"]
 novela comprobar-entorno [--limpio]   # hooks, python, settings.local.json y .env antes de lanzar
+novela cambio <slug> --hecho <hec-id> --texto "..." [--motivo "..."] [--simular]
+novela cambio <slug> --siguiente   # NN reaplicar | NN regenerar | completo | sin cambio
+novela versiones <slug> [--novedades [--desde vN]] [--verificar] [--diff vA vB|actual --capitulo N]
 ```
 
 **Entrega.** `novela exportar <slug> --formato pdf` compone el libro de regalo en `export/novela.pdf` (ADR 0003): portada con el título (`--titulo`, o el slug) y, si hay `brief/brief.json`, la dedicatoria; índice con un enlace por capítulo; cada capítulo cerrado en página nueva, con el markdown compuesto desde los tokens y sin ningún enlace saliente; y la ficha de personajes y lugares, con un enlace «Capítulo N — título» por cada fila de `apariciones` (§7.1) hasta el checkpoint. De cada personaje salen el nombre y los alias, y de cada lugar el nombre y la descripción: nada más del canon, y `canon/misterio.md` no se abre. Lleva un marcador por sección, `/Lang` del `config.yaml` y como `CreationDate` el `creado` del manifiesto del último checkpoint, así que dos exportaciones del mismo workspace dan los mismos bytes. Sale con 1 si un carácter no está en la fuente (nombra la sección y el `U+XXXX`), con 2 si `--titulo` está vacío o pasa de 120 caracteres, y con 4 si falta la tabla, si un capítulo cerrado no tiene apariciones o si una entidad no tiene canon. Antes de entregarlo, el operador lee la ficha.
@@ -803,6 +828,12 @@ novela brief validar <slug>        # brief/informe.json y, sin hallazgos, brief/
 `validar` comprueba primero la custodia: si el cuerpo de una entrada no casa con el sha256 de su frontmatter, sale con 4 sin escribir nada. Después pasa `brief/borrador.json` por cuatro gates de `slices/brief/gates.py`, en orden: esquema (`borrador_ausente` o `esquema_invalido` con la ruta del campo; si falla, nada más), faltantes (cada obligatorio a `null` y `rasgos` o `recuerdos` vacíos; `prohibidos.terminos: []` no falta), contradicciones (edad menor de 12 con `noir` o `thriller_psicologico`, o con tono `oscuro`, y un término vetado como palabra completa en un recuerdo o un rasgo) y procedencia (la entrada existe, la cita es literal tras NFC, espacios colapsados y minúsculas, nombre, rasgos y términos salen de su cita, los campos cerrados citan una `respuesta` y ninguna cita toca un fragmento marcado). Siempre escribe `brief/informe.json`; sin hallazgos, además `brief/brief.json` con la ocasión y las entradas, y sale con 0. Con hallazgos sale con 1 sin tocar el `brief.json` que hubiera, y la línea de log es `brief validar -> 1 · agente: <codigo>@<campo>; …` si el fallo es del borrador (esquema o procedencia) o `· usuario: …` si falta un dato o se contradice: el procedimiento decide con ese prefijo.
 
 `iniciar` reclama el slug (1 si ya existe, 2 con otra ocasión) y crea `brief/entradas/`, `estado/`, `runs/` y `brief/inicio.json`. `entrada` lee el fichero como UTF-8 estricto sin BOM, lo normaliza (NFC, `\n`, sin caracteres de control salvo `\n` y `\t`) y lo escribe como `brief/entradas/ent-NN.md` con su sha256; sale con 2 si el fichero no existe, no es UTF-8, queda vacío o pasa de 20.000 caracteres, y con 1 si ya hay 20 entradas.
+
+**Cambio de un hecho (spec 0007).** `novela cambio` exige la novela terminada, ningún cambio en curso y ninguna intervención sin `resuelto:` (1); valida `--hecho` y `--texto` (2) y que la base tenga `usos_de_hecho` y quede un id de hecho libre (4), todo antes de escribir. Regenera los capítulos de `capitulos_que_usan(H)` y reaplica el resto; reserva para el hecho nuevo el mayor id de `libro_de_hechos` más uno. `--simular` imprime ese plan sin escribir. Sin él, con el lock tomado, escribe `cambios/cam-NNN.json` en `preparando`, abre un run del capítulo 1 con la línea `cambio cam-NNN -> <código>`, copia a `versiones/vN.tmp/` `capitulos/`, `estado/deltas/`, `memoria/`, `qa/`, `checkpoints/` y la base (por la API de backup, en modo `DELETE`), la verifica por sha256, `quick_check` y `leer`, escribe `version.json`, la renombra a `versiones/vN/`, la añade a `versiones/versiones.json`, vacía esos directorios en la raíz, instala una base vacía con `meta.version = N+1` y `meta.cambio`, y pasa el cambio a `en_curso`. Repetir la misma petición tras un corte completa la preparación; un `versiones/vN/` que ningún cambio en `preparando` explica sale con 4. Con un cambio registrado, los runs anteriores a él son de la versión anterior: no se reutilizan y un `NOVELA_RUN_ID` que apunte a uno sale con 2. `--siguiente` excluye las demás opciones y lee `checkpoint + 1` contra el plan; «completo» se deriva del checkpoint del último capítulo.
+
+**Reaplicar (spec 0007, RF-25 a RF-27).** Con un cambio en curso, `aplicar-delta <cap> --reaplicar` sirve al capítulo reaplicable siguiente al checkpoint: copia de `versiones/vN/`, con escritura atómica, `capitulos/NN.md`, `estado/deltas/NN.json` y `qa/NN-*.json`, tras comprobar su sha256 contra `version.json` (4 si alguno no casa, sin copiar nada), y aplica el delta con las mismas violaciones del modo normal, sin custodia de briefings, más una propia: el delta no puede cerrar un hilo que la versión nueva no tenga abierto. Registra usos, renderiza la memoria y deja `aplicar-delta NN --reaplicar -> <código>`. `--reaplicar` sin cambio, sobre un afectado o fuera de orden, y el modo normal sobre un reaplicable, salen con 2 antes de abrir run.
+
+**Versiones (spec 0007, RF-22, RF-36, RF-37, RF-41).** `novela versiones` es de solo lectura: no toma el lock ni abre run. Sin opciones, una línea por versión, `vN · <fecha> · <cam-NNN|original> · <completa|en_curso> · <K capítulos cambiados|—>`, con la fecha de `versiones/versiones.json` (`—` si la novela nunca cambió); la vigente está `en_curso` mientras no tenga checkpoint del último capítulo. Los capítulos cambiados se calculan con `novedades.calcular`, que compara el sello `capitulos_sha256` de dos versiones: el de `version.json` para una guardada y el de `latest.json` para la vigente. `--novedades [--desde vN]` lista `NN · <título> · <cam-NNN>` por cada capítulo cerrado de la vigente cuyo sha256 difiere del de `vN` (por defecto, la anterior), atribuido al último cambio que lo alteró. `--verificar` recalcula el sha256 de cada fichero de cada `versiones/vN/` contra su `version.json` y sale con 4 nombrando cada `vN/<ruta>: distinto|ausente|sobrante`. `--diff vA vB|actual --capitulo N` imprime el diff unificado (`difflib`) de los cuerpos, sin frontmatter. Una versión inexistente o las opciones combinadas salen con 2. Con la vigente mayor que 1, `novela exportar --formato md` antepone «Novedades de la versión N» con un enlace `[Capítulo N — título](#capitulo-NN)` por capítulo cambiado respecto a la anterior, pone `<a id="capitulo-NN"></a>` delante de cada capítulo y «*Modificado en la versión N.*» bajo el encabezado de los cambiados (al principio, si el cuerpo no empieza por `#`). En `pdf`, tras la portada, una página «Novedades de la versión N» con un enlace interno `GoTo` y un marcador hacia la primera página de cada capítulo cambiado (RF-40). Con la versión 1, `md`, `epub` y `pdf` salen como siempre.
 
 **Reanudación.** `/novela-continuar` empieza leyendo `checkpoints/latest.json` y repite el último paso no confirmado. Regla dura: el estado nunca se reconstruye desde una conversación previa, ni siquiera desde la sesión anterior de Claude Code.
 
@@ -876,7 +907,7 @@ Los prompts de los agentes son `.claude/agents/*.md` y se versionan con git. El 
 
 ### 10.5 Evaluación
 
-Los scores no los emite el hook: los escribe `novela` contra la API de Langfuse al cerrar cada capítulo, tomándolos de `qa/NN-suspense.json` y del resultado de los gates. Métricas por capítulo: `coherencia`, `continuidad`, `tension`, `longitud`, `fair_play`, `estilo`. `tension`, `fair_play` y `coherencia` son las `puntuaciones` del `lector-suspense`; `continuidad` y `estilo` salen del veredicto de `qa/NN-continuidad.json` y `qa/NN-estilo.json` (1, 0,5 o 0); `longitud` es `1 − |palabras/objetivo − 1|`. Además, un score binario por validador programático (`docs/validators.md` §3.10), en el orden del catálogo: `vp_schema` es 1 si todas las salidas del capítulo validan, y `vp_longitud`, `vp_pistas`, `vp_hilos`, `vp_ids` y `vp_nombres` valen 0 si `qa/NN-validacion.json` tiene algún hallazgo de sus tipos. Sin brief no hay `vp_cobertura`. Si `vp_schema` rechaza, `checkpoint` emite solo `vp_schema` a 0 y sale con 1 sin escribir el checkpoint. Todo en una sola emisión, que para al primer fallo. Los emite `novela checkpoint` después de escribir el checkpoint, con un id por capítulo y métrica para que reemitir sustituya, y un fallo de Langfuse queda en `harness.log` sin impedir el cierre. Las claves, del entorno o de `.env` (§10.1).
+Los scores no los emite el hook: los escribe `novela` contra la API de Langfuse al cerrar cada capítulo, tomándolos de `qa/NN-suspense.json` y del resultado de los gates. Métricas por capítulo: `coherencia`, `continuidad`, `tension`, `longitud`, `fair_play`, `estilo`. `tension`, `fair_play` y `coherencia` son las `puntuaciones` del `lector-suspense`; `continuidad` y `estilo` salen del veredicto de `qa/NN-continuidad.json` y `qa/NN-estilo.json` (1, 0,5 o 0); `longitud` es `1 − |palabras/objetivo − 1|`. Además, un score binario por validador programático (`docs/validators.md` §3.10), en el orden del catálogo: `vp_schema` es 1 si todas las salidas del capítulo validan, y `vp_longitud`, `vp_pistas`, `vp_hilos`, `vp_ids` y `vp_nombres` valen 0 si `qa/NN-validacion.json` tiene algún hallazgo de sus tipos. Sin brief no hay `vp_cobertura`. Si `vp_schema` rechaza, `checkpoint` emite solo `vp_schema` a 0 y sale con 1 sin escribir el checkpoint. Todo en una sola emisión, que para al primer fallo. Los emite `novela checkpoint` después de escribir el checkpoint, con un id por capítulo y métrica para que reemitir sustituya (`langfuse.id_de_score`: `<slug>-<run_id>-<NN>-<métrica>`, más `-vN` cuando la versión vigente es mayor que 1, para no pisar los de la anterior; spec 0007, RF-43; también el `vp_schema` a 0 del rechazo), y un fallo de Langfuse queda en `harness.log` sin impedir el cierre. Las claves, del entorno o de `.env` (§10.1).
 
 El evaluador de sesión (LLM como juez) compara ejecuciones completas y devuelve puntos a mejorar y mejoras propuestas.
 

@@ -189,3 +189,13 @@ def test_sesion_de_es_estable_y_por_novela() -> None:
     assert langfuse.sesion_de("demo") == langfuse.sesion_de("demo")
     assert langfuse.sesion_de("demo") != langfuse.sesion_de("otra")
     assert langfuse.sesion_de("demo") == "novela-demo"
+
+
+def test_id_de_score() -> None:
+    """D9 (RF-43): con la versión 1, el id de siempre; con otra, el mismo con `-vN`."""
+    assert langfuse.id_de_score("demo", "r-20260923-1000", 8, "tension", 1) == (
+        "demo-r-20260923-1000-08-tension"
+    )
+    assert langfuse.id_de_score("demo", "r-20260923-1000", 8, "tension", 2) == (
+        "demo-r-20260923-1000-08-tension-v2"
+    )

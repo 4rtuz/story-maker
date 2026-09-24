@@ -76,11 +76,16 @@ def apariciones(conn: sqlite3.Connection, hasta: int) -> list[Aparicion]:
     return [Aparicion(entidad=e, tipo=t, capitulo=c) for e, t, c in filas]
 
 
-def crear(ruta: Path) -> None:
+def crear(ruta: Path, version: int | None = None, cambio: str | None = None) -> None:
+    """`version` y `cambio` van a `meta` solo si se pasan: los escribe `novela cambio` al crear
+    la base de una versión nueva (spec 0007, RF-16 y RF-19)."""
     conn = _conectar(ruta, "rwc")
     try:
         conn.execute("PRAGMA journal_mode = WAL")
         inicializar(conn)
+        for clave, valor in (("version", version), ("cambio", cambio)):
+            if valor is not None:
+                conn.execute("INSERT INTO meta VALUES (?, ?)", (clave, str(valor)))
     finally:
         conn.close()
 

@@ -6,16 +6,18 @@ que la custodia de `aplicar-delta` compara (RF-31, RF-32).
 
 from dataclasses import replace
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
+from pydantic import ValidationError
 
 from novela.dominio import frontmatter
+from novela.dominio.artefactos import FrontmatterCapitulo
 from novela.dominio.canon import Misterio, Personaje
 from novela.dominio.plan import FichaCapitulo
 from novela.dominio.prohibidas import Coincidencia, buscar
 from novela.dominio.qa import Hallazgo, InformeQA
-from novela.plataforma import estado_db, langfuse, policy_db, run
+from novela.plataforma import estado_db, langfuse, policy_db, run, versiones
 from novela.plataforma.salida import USO_INCORRECTO
 from novela.plataforma.workspace import WorkspaceRepository, sha256
 from novela.slices.validacion import gates
@@ -50,6 +52,20 @@ def _contexto(ws: WorkspaceRepository, capitulo: int) -> gates.Contexto:
             for texto in (p.identidad.nombre, *p.identidad.alias)
         ),
     )
+
+
+def _contrato(ws: WorkspaceRepository, capitulo: int, meta: dict[str, Any]) -> list[Hallazgo]:
+    """RF-31: con un cambio en curso, un capítulo afectado conserva el contrato de pistas e hilos
+    del mismo capítulo en la versión anterior. Sin cambio, o reaplicable, nada que mirar."""
+    cambio = versiones.cambio_en_curso(ws)
+    if cambio is None or capitulo not in cambio.plan.regenerar:
+        return []
+    try:
+        fm = FrontmatterCapitulo.model_validate(meta)
+    except ValidationError:
+        return []  # ya es frontmatter_invalido
+    ruta = ws.raiz / "versiones" / f"v{cambio.version_base}" / "capitulos" / f"{ws.nn(capitulo)}.md"
+    return gates.regeneracion_altera_contrato(fm, ws.leer_md(ruta, FrontmatterCapitulo))
 
 
 class Origen(StrEnum):
@@ -87,6 +103,8 @@ def validar(
                 except ValueError:
                     meta, cuerpo = None, texto
                 hallazgos = gates.validar(meta, cuerpo, ctx)
+                if meta is not None:
+                    hallazgos += _contrato(ws, capitulo, meta)
                 if any(h.tipo == "termino_prohibido" for h in hallazgos):
                     coincidencias = buscar(cuerpo, ctx.prohibidos)
                 sha: str | None = sha256(ruta)

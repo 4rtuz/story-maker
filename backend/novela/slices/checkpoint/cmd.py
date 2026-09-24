@@ -22,7 +22,7 @@ from novela.dominio.estado import Cursor, Delta
 from novela.dominio.plan import Escaleta, FichaCapitulo
 from novela.dominio.qa import InformeQA
 from novela.dominio.validadores import VALIDADORES, validador_de
-from novela.plataforma import estado_db, langfuse, run
+from novela.plataforma import estado_db, langfuse, run, versiones
 from novela.plataforma.salida import USO_INCORRECTO, WORKSPACE_INVALIDO
 from novela.plataforma.workspace import WorkspaceRepository, huella, sha256
 from novela.slices.validacion import gates  # excepción de slices: architecture.md §3.0
@@ -136,6 +136,7 @@ def checkpoint(slug: str, capitulo: int) -> None:
 
             with estado_db.abrir(ws.estado_db, solo_lectura=True) as conn:
                 cursor = estado_db.leer(conn).cursor
+                version = versiones.version_vigente(conn)
             if (cursor.capitulo, cursor.ultimo_paso) != (capitulo, "aplicar-delta"):
                 parar(1, f"el delta del capítulo {nn} no está aplicado: nunca checkpoint antes")
 
@@ -148,7 +149,9 @@ def checkpoint(slug: str, capitulo: int) -> None:
             if invalidos:
                 # Antes del sello: sobre una salida corrupta no se cierra nada (spec 0009 RF-05).
                 sink = langfuse.desde_entorno(langfuse.entorno_efectivo(run.RAIZ_REPO))
-                fallos = sink.emitir(slug, capitulo, abierto.id, {"vp_schema": 0.0})
+                fallos = sink.emitir(
+                    slug, capitulo, abierto.id, {"vp_schema": 0.0}, version=version
+                )
                 for h in invalidos:
                     typer.echo(f"{h.referencia}: {h.ubicacion}", err=True)
                 sitios = [f"esquema_invalido@{h.referencia}:{h.ubicacion}" for h in invalidos]
@@ -192,7 +195,7 @@ def checkpoint(slug: str, capitulo: int) -> None:
             # Una sola emisión, agregados primero: el sink para al primer fallo (RNF-03).
             scores |= calcular_scores_validadores(validacion)
             sink = langfuse.desde_entorno(langfuse.entorno_efectivo(run.RAIZ_REPO))
-            fallos = sink.emitir(slug, capitulo, abierto.id, scores)
+            fallos = sink.emitir(slug, capitulo, abierto.id, scores, version=version)
             causas.extend(fallos)
             for fallo in fallos:
                 typer.echo(f"aviso: {fallo}", err=True)

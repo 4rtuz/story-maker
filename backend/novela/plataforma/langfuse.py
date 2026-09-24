@@ -33,6 +33,13 @@ def traza_de(entorno: Mapping[str, str]) -> str | None:
     return casa.group(1) if casa else None
 
 
+def id_de_score(slug: str, run_id: str, capitulo: int, nombre: str, version: int) -> str:
+    """Determinista: reemitir el capítulo sustituye el score en vez de duplicarlo. Con una versión
+    mayor que 1 lleva `-vN`, para no pisar los de la anterior (spec 0007, D20)."""
+    base = f"{slug}-{run_id}-{capitulo:02d}-{nombre}"
+    return base if version == 1 else f"{base}-v{version}"
+
+
 class ScoreSink(Protocol):
     def emitir(
         self,
@@ -41,6 +48,7 @@ class ScoreSink(Protocol):
         run_id: str,
         scores: Mapping[str, float],
         comentarios: Mapping[str, str] | None = None,
+        version: int = 1,
     ) -> list[str]:
         """Devuelve los fallos, vacío si todo llegó."""
         ...
@@ -54,6 +62,7 @@ class SinkNulo:
         run_id: str,
         scores: Mapping[str, float],
         comentarios: Mapping[str, str] | None = None,
+        version: int = 1,
     ) -> list[str]:
         return []
 
@@ -72,12 +81,12 @@ class SinkLangfuse:
         run_id: str,
         scores: Mapping[str, float],
         comentarios: Mapping[str, str] | None = None,
+        version: int = 1,
     ) -> list[str]:
         credencial = base64.b64encode(f"{self.publica}:{self.secreta}".encode()).decode()
         for nombre, valor in scores.items():
             cuerpo = {
-                # Id determinista: reemitir el capítulo sustituye el score en vez de duplicarlo.
-                "id": f"{slug}-{run_id}-{capitulo:02d}-{nombre}",
+                "id": id_de_score(slug, run_id, capitulo, nombre, version),
                 # Langfuse admite uno solo: la traza del capítulo ya está en la sesión de la novela.
                 **({"traceId": self.traza} if self.traza else {"sessionId": sesion_de(slug)}),
                 "metadata": {"run_id": run_id, "capitulo": capitulo},

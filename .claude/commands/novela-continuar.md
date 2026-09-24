@@ -68,6 +68,13 @@ del workspace).
    - Busca `novelas/<slug>/runs/*/intervencion.md`. Si alguno no tiene una línea `resuelto:`,
      para y nombra el fichero, antes de cualquier `novela briefing`.
    - `<cap>` es el `capitulo` de `novelas/<slug>/checkpoints/latest.json` más uno, o 1 si no existe.
+   - `novela cambio <slug> --siguiente`, que imprime una línea. `sin cambio` o `NN regenerar`:
+     sigue; en `regenerar`, el bucle de siempre, y los briefings ya traen la capa `cambio`.
+     `completo`: termina. `NN reaplicar`: sin briefing ni agentes,
+     `novela aplicar-delta <slug> <cap> --reaplicar` (salvo si el `harness.log` del run abierto de
+     `NN` ya tiene `aplicar-delta NN --reaplicar -> 0`) y `novela checkpoint <slug> <cap>`, y pasa
+     al siguiente capítulo. Un 1 de `--reaplicar` no tiene reintento: el capítulo viene de una
+     versión ya validada, así que `intervencion.md` con `gate: regeneracion` y para.
    - Punto de reanudación, abajo.
 2. `novela briefing <slug> <cap> escritor` → Task `escritor`, salida `capitulos/NN.md`.
 3. `novela validar <slug> <cap>`. Si es un gate fallido → reintento del `escritor` con su mismo
@@ -86,7 +93,8 @@ del workspace).
    `reintento: qa/NN-continuidad.json, qa/NN-suspense.json`, y vuelve a 3.
 7. `novela briefing <slug> <cap> cronista` → Task `cronista`, salida `estado/deltas/NN.json` →
    `novela aplicar-delta <slug> <cap>`. Si es un gate fallido → reintento del `cronista` con su
-   mismo briefing y `causa:` = el texto tras `·` en esa línea, y repite `aplicar-delta`. **Salvo si
+   mismo briefing y `causa:` = el texto tras `·` en esa línea, y repite `aplicar-delta`. Una causa
+   `regeneracion:` es de este gate y se reintenta igual. **Salvo si
    la causa empieza por `custodia:`**: lo roto es el orden de los pasos o el capítulo, no el delta.
    `intervencion.md` y para.
 8. `novela checkpoint <slug> <cap>`.
@@ -108,7 +116,7 @@ Con dos consumidos, el siguiente fallo no reintenta: escribe
 ```markdown
 # Intervención — capítulo NN
 
-gate: mecánico | revisión | delta | workspace
+gate: mecánico | revisión | delta | regeneracion | workspace
 intentos: 3
 briefing: runs/<run_id>/briefings/NN-<agente>.md
 qa: qa/NN-validacion.json, …

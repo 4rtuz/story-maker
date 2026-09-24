@@ -89,6 +89,8 @@ novela brief iniciar <slug> --ocasion <o>            novela de regalo: workspace
 novela brief entrada <slug> --tipo <t> --fichero <f> ingiere lo que aporta el cliente
 novela brief preparar <slug>                         briefing del entrevistador
 novela brief validar <slug>                          informe y, si valida, brief.json
+novela cambio <slug> --hecho <hec> --texto "..." [--simular]   versión nueva; --siguiente: qué toca
+novela versiones <slug> [--novedades | --verificar | --diff vA vB --capitulo N]   solo lectura
 ```
 
 Ejecuta `novela validar` antes de invocar a ningún agente de revisión: detecta gratis lo que no merece una llamada a un modelo.
@@ -103,6 +105,7 @@ esc-casa-del-faro escenario       pfa-003   pista falsa
 esc-01-3          escena          rev-002   revelación
 hil-004           hilo            hec-014   hecho
 obj-011           objeto o prueba cap-01    capítulo
+cam-001           cambio
 ```
 
 `esc-` sirve a escenario y a escena: escenario lleva letra tras el guion (`esc-casa-del-faro`),

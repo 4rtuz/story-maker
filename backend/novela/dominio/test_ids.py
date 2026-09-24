@@ -19,6 +19,7 @@ CASOS: list[tuple[Any, str]] = [
     (ids.ObjetoId, r"obj-[0-9]{3}"),
     (ids.HechoId, r"hec-[0-9]{3}"),
     (ids.CapituloId, r"cap-[0-9]{2,3}"),
+    (ids.CambioId, r"cam-[0-9]{3}"),
     (ids.RunId, r"r-[0-9]{8}-[0-9]{4}"),
     (ids.Slug, r"[a-z0-9-]+"),
 ]

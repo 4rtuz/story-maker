@@ -9,6 +9,7 @@ from collections import Counter
 from novela.dominio.artefactos import FrontmatterCapitulo
 from novela.dominio.estado import Delta, Estado
 from novela.dominio.texto import normalizar
+from novela.dominio.version import PeticionDeCambio
 
 
 def _ids(delta: Delta) -> list[str]:
@@ -93,6 +94,60 @@ def _hilos(delta: Delta, fm: FrontmatterCapitulo) -> list[str]:
                 f"el delta y el frontmatter no coinciden en qué hilos {nombre}: {diferencia}"
             )
     return causas
+
+
+def hilos_sin_abrir(estado: Estado, delta: Delta) -> list[str]:
+    """Spec 0007 P2, solo en `--reaplicar`: el delta reaplicado cierra un hilo que no abre y que
+    la versión nueva no tiene abierto, porque un capítulo regenerado dejó de abrirlo. Cerrado ya
+    en este capítulo es repetir el paso, no una causa."""
+    n = delta.capitulo
+    abiertos = {h.id for h in estado.hilos if h.estado == "abierto" or h.cerrado_en == n}
+    return [
+        f"cierra {h.id}, que no está abierto en el estado vigente"
+        for h in delta.hilos
+        if h.cerrado_en == n and h.abierto_en != n and h.id not in abiertos
+    ]
+
+
+def de_regeneracion(
+    delta: Delta, peticion: PeticionDeCambio, anterior: Estado, vigente: Estado
+) -> list[str]:
+    """Spec 0007 RF-32, sobre el delta de un capítulo afectado: (a) el de origen trae el id
+    reservado con el texto pedido; (b) nada referencia el hecho cambiado; (c) los requeridos
+    siguen con su id y su texto; (d) no introduce un id de hecho u objeto de la versión anterior
+    que no sea requerido. «Introduce» es no estar en la base vigente (P4). Solo se llama con un
+    cambio en curso (D7)."""
+    n, h, nuevo = delta.capitulo, peticion.hecho, peticion.hecho_nuevo
+    requeridos = peticion.plan.requeridos.get(n, [])
+    hechos = {x.id: x for x in delta.libro_de_hechos}
+    causas = []
+    if n == peticion.plan.origen:
+        if nuevo not in hechos:
+            causas.append(f"falta el hecho nuevo {nuevo}")
+        elif normalizar(hechos[nuevo].texto.strip()) != normalizar(peticion.texto.strip()):
+            causas.append("texto del hecho nuevo distinto de la petición")
+    colecciones = {
+        "libro_de_hechos": list(hechos),
+        "conocimiento": [e.hecho for es in delta.conocimiento.values() for e in es],
+        "conocimiento_lector": [e.hecho for e in delta.conocimiento_lector],
+        "hechos_usados": [u.hecho for u in delta.hechos_usados],
+    }
+    causas += [f"referencia a {h} en {nombre}" for nombre, ids in colecciones.items() if h in ids]
+    antes = {x.id: x.texto for x in anterior.libro_de_hechos}
+    causas += [
+        f"falta el requerido {r}"
+        for r in requeridos
+        if r not in hechos or hechos[r].texto != antes.get(r)
+    ]
+    existen = {x.id for x in vigente.libro_de_hechos} | {o.id for o in vigente.objetos}
+    de_antes = set(antes) | {o.id for o in anterior.objetos}
+    introducidos = [*hechos, *(o.id for o in delta.objetos)]
+    causas += [
+        f"id de la versión anterior: {i}"
+        for i in introducidos
+        if i in de_antes and i not in existen and i not in requeridos
+    ]
+    return [f"regeneracion: {c}" for c in causas]
 
 
 def violaciones(estado: Estado, delta: Delta, cuerpo: str, fm: FrontmatterCapitulo) -> list[str]:

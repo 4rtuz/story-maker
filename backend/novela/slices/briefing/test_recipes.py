@@ -26,3 +26,15 @@ def test_receta_valida() -> None:
 def test_orden_de_capas_es_el_del_fichero() -> None:
     capas = recipes.cargar()[Agente.ESCRITOR].capas
     assert [type(c).__name__ for c in capas][:3] == ["Permanente", "Personajes", "EstadoFiltrado"]
+
+
+def test_capas_de_regeneracion() -> None:
+    """Spec 0007 RF-28 y RF-29: la capa cambio, para escritor, continuista y cronista; la versión
+    anterior, solo para el escritor."""
+    recetas = recipes.cargar()
+
+    def con(tipo: type) -> set[Agente]:
+        return {a for a, r in recetas.items() if any(isinstance(c, tipo) for c in r.capas)}
+
+    assert con(recipes.Cambio) == {Agente.ESCRITOR, Agente.CONTINUISTA, Agente.CRONISTA}
+    assert con(recipes.VersionAnterior) == {Agente.ESCRITOR}

@@ -115,6 +115,27 @@ def _ids(fm: FrontmatterCapitulo, ctx: Contexto) -> list[Hallazgo]:
     ]
 
 
+def regeneracion_altera_contrato(
+    fm: FrontmatterCapitulo, anterior: FrontmatterCapitulo
+) -> list[Hallazgo]:
+    """Spec 0007 RF-31: un capítulo regenerado planta, paga, abre y cierra lo mismo que en la
+    versión anterior, porque los reaplicados posteriores cuentan con ello. Solo se llama con un
+    cambio en curso y sobre un capítulo afectado (D7)."""
+    hallazgos = []
+    for campo in ("pistas_plantadas", "pistas_pagadas", "hilos_abiertos", "hilos_cerrados"):
+        ahora, antes = set(getattr(fm, campo)), set(getattr(anterior, campo))
+        hallazgos += [
+            Hallazgo(
+                tipo="regeneracion_altera_contrato",
+                gravedad="alta",
+                referencia=id_,
+                descripcion=f"{campo} difiere de la versión anterior en {id_}",
+            )
+            for id_ in sorted(ahora ^ antes)
+        ]
+    return hallazgos
+
+
 def plegar(texto: str) -> str:
     """Sin marcas combinantes y sin caja: «Vídal», «VIDAL» y «vidal» pliegan igual."""
     sin_marcas = (c for c in unicodedata.normalize("NFD", texto) if not unicodedata.combining(c))

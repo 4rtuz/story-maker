@@ -1,4 +1,5 @@
-"""Qué cuenta como la misma cita: lo comparten el delta del cronista y el brief."""
+"""Qué cuenta como la misma cita: lo comparten el delta del cronista, el brief y la petición de
+`novela cambio` (spec 0007, RF-11)."""
 
 import re
 import unicodedata

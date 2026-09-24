@@ -15,10 +15,12 @@ from typing import Annotated
 import typer
 
 from novela.dominio.artefactos import Checkpoint, Manifest
+from novela.plataforma import estado_db, versiones
 from novela.plataforma.libro import capitulo as _capitulo
 from novela.plataforma.libro import ficha as _ficha
 from novela.plataforma.workspace import WorkspaceRepository
 from novela.slices.export import epub, markdown, pdf
+from novela.slices.versiones.novedades import calcular
 
 TITULO_MAX = 120
 
@@ -45,7 +47,12 @@ def _creado(ws: WorkspaceRepository, punto: Checkpoint) -> datetime:
 
 
 def _pdf(
-    ws: WorkspaceRepository, titulo: str, punto: Checkpoint, capitulos: list[tuple[str, str]]
+    ws: WorkspaceRepository,
+    titulo: str,
+    punto: Checkpoint,
+    capitulos: list[tuple[str, str]],
+    vigente: int,
+    cambiados: list[int],
 ) -> bytes:
     if not (ws.raiz / "brief" / "brief.json").is_file():
         typer.echo("sin dedicatoria: el workspace no tiene brief/brief.json")
@@ -56,6 +63,8 @@ def _pdf(
         capitulos=tuple(pdf.Capitulo(n, t, c) for n, (t, c) in enumerate(capitulos, 1)),
         ficha=_ficha(ws, punto.capitulo),
         creado=_creado(ws, punto),
+        version=vigente,
+        novedades=tuple(cambiados),
     )
     try:
         return pdf.construir(libro)
@@ -80,11 +89,19 @@ def exportar(
             raise typer.Exit(1)
         capitulos = [_capitulo(ws, c) for c in range(1, punto.capitulo + 1)]
         ruta = ws.raiz / "export" / f"novela.{formato}"
-        if formato is Formato.MD:
+        with estado_db.abrir(ws.estado_db, solo_lectura=True) as conn:
+            vigente = versiones.version_vigente(conn)
+        cambiados: list[int] = []
+        if vigente > 1 and formato is not Formato.EPUB:
+            anterior = versiones.sello(ws, vigente - 1, vigente)
+            cambiados = calcular(anterior, punto.capitulos_sha256)
+        if formato is Formato.MD and vigente > 1:
+            ws.escribir(ruta, markdown.con_novedades(capitulos, vigente, cambiados, ws.nn))
+        elif formato is Formato.MD:
             ws.escribir(ruta, markdown.concatenar([cuerpo for _, cuerpo in capitulos]))
         elif formato is Formato.EPUB:
             idioma = ws.config().parametros_obra.idioma
             ws.escribir(ruta, epub.construir(slug, idioma, capitulos))
         else:
-            ws.escribir(ruta, _pdf(ws, _titulo(titulo, slug), punto, capitulos))
+            ws.escribir(ruta, _pdf(ws, _titulo(titulo, slug), punto, capitulos, vigente, cambiados))
     typer.echo(f"exportar: {len(capitulos)} capítulos en export/{ruta.name}")
