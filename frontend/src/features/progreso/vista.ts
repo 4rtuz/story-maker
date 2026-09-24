@@ -5,9 +5,28 @@ import type { Vista } from '../../app/rutas';
 import * as api from '../../shared/api/cliente';
 import { CADA_DATOS, type Recurso } from '../../shared/sondeo';
 import { banner, datosDeBanner } from '../../shared/ui/banner';
-import { el, esqueleto, estadoVacio, etiqueta, metrica, subtarjeta, tarjeta, vacio } from '../../shared/ui/componentes';
+import { lectorDelNavegador } from '../../shared/marca/lector-de-tokens';
+import { el, esqueleto, estadoVacio, etiqueta, metrica, subtarjeta, tabla, tarjeta, vacio } from '../../shared/ui/componentes';
 import { hilosAbiertos, resumir } from './resumen';
 import { listaDeRuns } from './runs';
+import { filasDeTension, graficaDeTension, serieDeTension } from './tension';
+
+/** La leyenda: real y objetivo se distinguen por el trazo, no solo por el color (§8.4). */
+function leyenda(): HTMLElement {
+  const muestra = (clase: string, texto: string) => el('span', 'q-leyenda__item', el('span', `q-leyenda__trazo ${clase}`), texto);
+  return el('p', 'q-leyenda', muestra('q-leyenda__trazo--real', 'Real'), muestra('q-leyenda__trazo--objetivo', 'Objetivo'));
+}
+
+function contenidoDeTension(real: (number | null)[], escaleta: E['Escaleta'] | null): HTMLElement[] {
+  const serie = serieDeTension(real, escaleta);
+  const avisos = [
+    ...(serie.hayEscaleta ? [] : [vacio('el plan todavía no tiene escaleta')]),
+    ...(serie.hayReal ? [] : [vacio('todavía no hay tensión puntuada')]),
+  ];
+  const datos = el('details', 'q-detalles', el('summary', 'q-detalles__resumen', 'Ver los datos en una tabla'));
+  datos.append(tabla('Tensión por capítulo', ['Capítulo', 'Objetivo', 'Real'], filasDeTension(serie)));
+  return [...avisos, leyenda(), el('div', 'q-tension__lienzo', graficaDeTension(serie, lectorDelNavegador())), datos];
+}
 
 type E = api.Esquemas;
 
@@ -29,6 +48,8 @@ export function progreso({ slug }: { slug: string }): Vista {
   const desviacion = metrica({ etiqueta: 'Desviación', icono: 'activity', tono: 'naranja' });
   const hilos = metrica({ etiqueta: 'Hilos abiertos', icono: 'list-tree', tono: 'cian' });
 
+  const tarjetaTension = tarjeta({ titulo: 'Tensión', icono: 'chart-line', tono: 'cian' });
+  tarjetaTension.cuerpo.append(esqueleto('q-esqueleto--grafica'));
   const tarjetaHilos = tarjeta({ titulo: 'Hilos abiertos', icono: 'list-tree', tono: 'naranja' });
   tarjetaHilos.cuerpo.append(esqueleto('q-esqueleto--lista'));
   const tarjetaRuns = tarjeta({ titulo: 'Runs', icono: 'history', tono: 'cian' });
@@ -67,6 +88,9 @@ export function progreso({ slug }: { slug: string }): Vista {
           : vacio('no hay hilos abiertos'),
       );
     }
+    if (estado && datos.escaleta !== undefined) {
+      tarjetaTension.cuerpo.replaceChildren(...contenidoDeTension(estado.tension_real, datos.escaleta));
+    }
     if (runs) {
       tarjetaRuns.contar(runs.length);
       const desplazable = el('div', 'q-desplazable', listaDeRuns(runs));
@@ -96,7 +120,7 @@ export function progreso({ slug }: { slug: string }): Vista {
       'q-vista q-vista--progreso',
       cabecera,
       el('div', 'q-metricas', cerrados.raiz, palabras.raiz, desviacion.raiz, hilos.raiz),
-      el('div', 'q-rejilla', tarjetaHilos.raiz, tarjetaRuns.raiz),
+      el('div', 'q-rejilla', tarjetaTension.raiz, tarjetaHilos.raiz, tarjetaRuns.raiz),
     ),
     recursos: [
       recurso('estado', async (s) => void (datos.estado = await api.estado(slug, s))),

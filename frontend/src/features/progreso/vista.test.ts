@@ -73,6 +73,11 @@ describe('Progreso', () => {
     expect(raiz.textContent).toContain('La carta sin remitente');
     expect(raiz.textContent).toContain('sin runs todavía');
     expect(raiz.querySelector('.q-esqueleto')).toBeNull();
+    // CA-19: sin escaleta, la serie real y su texto, sin aviso de error.
+    expect(raiz.textContent).toContain('el plan todavía no tiene escaleta');
+    expect(raiz.querySelectorAll('.q-tension__real')).toHaveLength(1);
+    expect(raiz.querySelector('.q-tension__objetivo')).toBeNull();
+    expect(raiz.querySelector('[role="alert"]')).toBeNull();
   });
 
   it('sin hilos abiertos, su texto de vacío', async () => {

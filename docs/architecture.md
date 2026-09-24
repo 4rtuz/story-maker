@@ -869,12 +869,12 @@ Si `python` no resuelve, se desactiva el alias en «Alias de ejecución de aplic
 Vite + TypeScript + Three.js. Es **solo lectura**: no lanza agentes ni escribe en el workspace.
 
 - **Lanzar novela**: formulario que prepara la orden `/novela-nueva` —la idea entre comillas simples, con cada `'` como `'\''`, y capítulos y palabras solo si se rellenan— y las órdenes que abren la sesión del harness, para copiarlas. No escribe ningún fichero ni pide a la API nada distinto de `GET /novelas`: el `config.yaml` lo escribe `novela nueva` desde `config/default.yaml` y los flags.
-- **Progreso**: consulta la API por *polling*; muestra cursor, curva de tensión real contra objetivo, hilos abiertos y capítulos completados.
+- **Progreso**: consulta la API por *polling*; muestra cursor, capítulos cerrados según el checkpoint, palabras, curva de tensión real contra objetivo con actos y puntos de giro —y su tabla—, hilos abiertos y runs.
 - **Lectura**: navegación 3D sobre los capítulos generados.
 
 **Identidad visual** (spec 0004, D21 a D28). El panel lleva la marca de Qaracter con WCAG 2.1 AA. Todos los colores, familias tipográficas, radios, sombras y medidas son propiedades CSS de `frontend/src/shared/marca/tokens.css`, el único fichero con colores literales; los componentes solo usan roles semánticos, y la escena y la gráfica leen esos mismos roles de las propiedades computadas. Los tonos vivos de la marca quedan para lo decorativo y el texto usa tonos derivados que cumplen AA; `pares.ts` declara los pares en uso y un test recalcula su contraste desde `tokens.css`. El logo es el PNG oficial, sin retocar, y se muestra siempre dentro de un contenedor con las esquinas redondeadas al 22 % del lado: solo `logo.ts` puede importarlo, y el favicon se deriva de él con las esquinas ya recortadas. La fuente display y los iconos se sirven desde `frontend/`, con su licencia al lado. Sin modo oscuro ni selector de idioma.
 
-Contrato de acoplamiento: el frontend consume lo que la API devuelve tal cual. Si necesita un dato que no está en el estado, se añade al estado, no se calcula en el frontend.
+Contrato de acoplamiento: el frontend consume lo que la API devuelve tal cual. Si necesita un dato que no está en el estado —la configuración, la escaleta, el checkpoint—, se sirve desde la API con su modelo de dominio, no se calcula en el frontend ni se mete en el estado, que es otra rama de contexto.
 
 ---
 

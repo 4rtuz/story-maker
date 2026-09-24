@@ -503,3 +503,70 @@
   flex-wrap: wrap;
   gap: 6px;
 }
+
+/* --- Tensión ------------------------------------------------------------------------------- */
+
+.q-esqueleto--grafica {
+  height: 260px;
+}
+
+.q-tension__lienzo {
+  margin-top: 8px;
+}
+
+.q-tension {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.q-leyenda {
+  display: flex;
+  gap: 20px;
+  margin: 0;
+  font-size: var(--q-texto-meta);
+  color: var(--q-texto-secundario);
+}
+
+.q-leyenda__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.q-leyenda__trazo {
+  width: 24px;
+  border-top: 3px solid var(--q-primario);
+}
+
+.q-leyenda__trazo--objetivo {
+  border-top: 2px dashed var(--q-icono-cian);
+}
+
+.q-detalles {
+  margin-top: 16px;
+}
+
+.q-detalles__resumen {
+  width: fit-content;
+  border-radius: var(--q-radio-control);
+  font-size: var(--q-texto-meta);
+  font-weight: 600;
+  color: var(--q-texto);
+  cursor: pointer;
+  transition: color var(--q-transicion);
+}
+
+.q-detalles__resumen:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.q-detalles__resumen:focus-visible {
+  outline: var(--q-contorno-foco) solid var(--q-foco);
+  outline-offset: var(--q-separacion-foco);
+}
+
+.q-detalles .q-tabla {
+  margin-top: 12px;
+}

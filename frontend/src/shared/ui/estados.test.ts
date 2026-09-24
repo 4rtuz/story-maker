@@ -67,6 +67,12 @@ const INTERACTIVOS: Interactivo[] = [
     foco: '.q-entrada__slug:focus-visible',
   },
   {
+    nombre: 'desplegable de datos de la gráfica',
+    reposo: '.q-detalles__resumen',
+    hover: '.q-detalles__resumen:hover',
+    foco: '.q-detalles__resumen:focus-visible',
+  },
+  {
     nombre: 'campo de formulario',
     reposo: '.q-campo__control',
     hover: '.q-campo__control:hover',
