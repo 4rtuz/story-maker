@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "story-maker": {
+      "command": "uv",
+      "args": ["run", "--directory", "backend", "python", "-m", "api.mcp"],
+      "env": { "NOVELAS_DIR": "../novelas" }
+    }
+  }
+}
