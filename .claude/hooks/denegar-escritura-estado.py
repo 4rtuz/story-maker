@@ -3,7 +3,8 @@
 Deniega con exit 2 y el motivo en stderr; permite con exit 0 y sin salida. Falla cerrado: lo que
 no entiende también sale con 2, porque cualquier otro código Claude Code lo trata como no
 bloqueante y la acción seguiría adelante. Solo stdlib: corre en cada llamada de herramienta,
-fuera del venv de backend/, y no puede importarlo.
+fuera del venv de backend/, y no puede importarlo. Cada denegación queda en un log JSONL
+append-only (docs/guardrails.md).
 """
 
 import json
@@ -11,6 +12,7 @@ import os
 import re
 import sys
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Any
 
 MOTIVO = "denegar-escritura-estado:"  # prefijo de todo motivo; el canario lo busca en el transcript
@@ -123,14 +125,54 @@ def decidir(entrada: dict[str, Any], entorno: Mapping[str, str]) -> str | None:
     return None
 
 
+def _destino(entrada: Any, entorno: Mapping[str, str]) -> str:
+    """El log del workspace si la ruta cae en un `novelas/<slug>/` que ya existe; si no (una
+    orden, una entrada rota, un workspace inventado), el del proyecto. Nunca crea un workspace."""
+    try:
+        valor = entrada["tool_input"][_CAMPO[entrada["tool_name"]]]
+        s = _normalizar(valor, entrada.get("cwd") or os.getcwd()).split("/")
+        i = max(i for i in range(len(s) - 2) if s[i] == "novelas" and s[i + 1])
+        if os.path.isdir("/".join(s[: i + 2])):
+            return "/".join([*s[: i + 2], "auditoria", "policy.jsonl"])
+    except Exception:  # noqa: S110 — sin workspace deducible, el del proyecto
+        pass
+    hooks = os.path.dirname(os.path.abspath(__file__))
+    raiz = entorno.get("CLAUDE_PROJECT_DIR") or os.path.dirname(os.path.dirname(hooks))
+    return os.path.join(raiz, ".claude", "logs", "policy.jsonl")
+
+
+def _auditar(entrada: Any, motivo: str, entorno: Mapping[str, str]) -> None:
+    """Una línea JSON por denegación, append-only (docs/guardrails.md). Nunca falla: un log que
+    no se puede escribir no cambia la decisión."""
+    try:
+        es_dict = isinstance(entrada, dict)
+        linea = {
+            "momento": datetime.now(UTC).isoformat(timespec="seconds"),
+            "decision": "denegar",
+            "herramienta": entrada.get("tool_name") if es_dict else None,
+            "agente": entrada.get("agent_type") if es_dict else None,
+            "sesion": entorno.get("NOVELA_SESSION_ID"),
+            "motivo": motivo,
+        }
+        ruta = _destino(entrada, entorno)
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        with open(ruta, "a", encoding="utf-8") as log:
+            log.write(json.dumps(linea, ensure_ascii=False) + "\n")
+    except Exception:  # noqa: S110
+        pass
+
+
 def main() -> int:
+    entrada: Any = None
     try:
         # Bytes y no sys.stdin: en Windows la página de códigos rompería una ruta con tildes.
-        motivo = decidir(json.loads(sys.stdin.buffer.read()), os.environ)
+        entrada = json.loads(sys.stdin.buffer.read())
+        motivo = decidir(entrada, os.environ)
     except Exception as exc:  # falla cerrado (RF-06)
         motivo = f"entrada no interpretable: {exc!r}"
     if motivo is None:
         return 0
+    _auditar(entrada, motivo, os.environ)
     sys.stderr.buffer.write(f"{MOTIVO} {motivo}\n".encode())
     return 2
 

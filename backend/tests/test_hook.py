@@ -29,7 +29,9 @@ def _hook(
     """Sin NOVELA_SESSION_ID por defecto: si la suite corre desde una shell del bucle, la regla 5
     no puede contaminar los tests de las otras cuatro."""
     datos = entrada if isinstance(entrada, str) else json.dumps(entrada)
-    env = {k: v for k, v in os.environ.items() if k != "NOVELA_SESSION_ID"} | (entorno or {})
+    env = {k: v for k, v in os.environ.items() if k != "NOVELA_SESSION_ID"}
+    # El log de auditoría sin workspace va a CLAUDE_PROJECT_DIR: el de cada test, no el del repo.
+    env |= {"CLAUDE_PROJECT_DIR": str(cwd)} | (entorno or {})
     return subprocess.run(  # noqa: S603
         [sys.executable, str(HOOK)],
         input=datos,
@@ -282,3 +284,48 @@ def test_rendimiento(tmp_path: Path) -> None:
         assert _hook(_escritura("novelas/x/capitulos/01.md", tmp_path), tmp_path).returncode == 0
         tiempos.append(time.perf_counter() - inicio)
     assert statistics.median(tiempos) < 0.3
+
+
+# --- Auditoría de las decisiones (docs/guardrails.md) ----------------------------------------
+
+
+def _log(ruta: Path) -> list[dict[str, Any]]:
+    return [json.loads(linea) for linea in ruta.read_text(encoding="utf-8").splitlines()]
+
+
+def test_denegacion_al_log_del_workspace(tmp_path: Path) -> None:
+    """Cada denegación, una línea JSON en novelas/<slug>/auditoria/policy.jsonl; lo permitido no
+    deja rastro."""
+    (tmp_path / "novelas" / "demo").mkdir(parents=True)
+    ruta = "novelas/demo/estado/estado.db"
+    assert _hook(_escritura(ruta, tmp_path), tmp_path).returncode == 2
+    assert _hook(_escritura("novelas/demo/capitulos/01.md", tmp_path), tmp_path).returncode == 0
+    [entrada] = _log(tmp_path / "novelas" / "demo" / "auditoria" / "policy.jsonl")
+    assert entrada["decision"] == "denegar"
+    assert (entrada["herramienta"], entrada["agente"]) == ("Write", "Explore")
+    assert entrada["motivo"] == f"escritura bajo estado/ denegada: {ruta}"
+    assert entrada["momento"]
+
+
+def test_sin_workspace_al_log_del_proyecto(tmp_path: Path) -> None:
+    """Una orden, o una ruta cuyo workspace no existe: al log de .claude/logs/ del proyecto, sin
+    crear el workspace."""
+    orden = {"tool_name": "Bash", "tool_input": {"command": "rm estado.db"}, "cwd": str(tmp_path)}
+    assert _hook(orden, tmp_path).returncode == 2
+    assert _hook(_escritura("novelas/nada/estado/x", tmp_path), tmp_path).returncode == 2
+    assert _hook("esto no es JSON", tmp_path).returncode == 2
+    lineas = _log(tmp_path / ".claude" / "logs" / "policy.jsonl")
+    assert [e["herramienta"] for e in lineas] == ["Bash", "Write", None]
+    assert not (tmp_path / "novelas" / "nada").exists()
+
+
+def test_log_inescribible_no_cambia_la_decision(tmp_path: Path) -> None:
+    """Sin poder escribir el log, el hook decide igual: ni falla ni deja pasar."""
+    (tmp_path / "novelas" / "demo").mkdir(parents=True)
+    (tmp_path / "novelas" / "demo" / "auditoria").write_text("un fichero, no un directorio")
+    (tmp_path / ".claude").write_text("tampoco")
+    resultado = _hook(_escritura("novelas/demo/estado/estado.db", tmp_path), tmp_path)
+    assert resultado.returncode == 2
+    assert resultado.stderr.startswith(f"{MOTIVO} escritura bajo estado/")
+    orden = {"tool_name": "Bash", "tool_input": {"command": "cat estado.db"}, "cwd": str(tmp_path)}
+    assert _hook(orden, tmp_path).returncode == 2
