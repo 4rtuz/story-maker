@@ -8,16 +8,19 @@ import re
 
 from pydantic import ValidationError
 
-from novela.dominio.brief import BorradorBrief, Hallazgo
+from novela.dominio.brief import BorradorBrief, CodigoHallazgo, Fuente, Hallazgo
 from novela.dominio.texto import normalizar
+from novela.slices.brief import entradas
+from novela.slices.brief.assemble import Entrada
 
 EDAD_MINIMA = 12  # D7: decisión de producto, no norma
 GENEROS_ADULTOS = ("noir", "thriller_psicologico")
 
 
 def comparable(texto: str) -> str:
-    """Lo que se compara en el brief: `normalizar` y además minúsculas."""
-    return normalizar(texto).lower()
+    """Lo que se compara en el brief: `normalizar`, sin espacios en los bordes y en minúsculas,
+    carácter a carácter, igual que el lado de la entrada en `normalizar_con_mapa`."""
+    return entradas.normalizar_con_mapa(normalizar(texto).strip())[0]
 
 
 def _ruta(loc: tuple[int | str, ...]) -> str | None:
@@ -90,4 +93,76 @@ def contradicciones(b: BorradorBrief) -> list[Hallazgo]:
             for campo, texto in textos
             if any(v.search(comparable(texto)) for v in vetos)
         ]
+    return hallazgos
+
+
+CERRADOS = ("destinatario.nombre", "destinatario.edad", "genero", "tono", "extension", "prohibidos")
+
+
+def _fuentes(b: BorradorBrief) -> list[tuple[str, Fuente, list[str]]]:
+    """Cada fuente del borrador con su ruta y los valores que tienen que salir de su cita."""
+    d = b.destinatario
+    fuentes: list[tuple[str, Fuente, list[str]]] = []
+    if d.nombre is not None:
+        fuentes.append(("destinatario.nombre", d.nombre.fuente, [d.nombre.valor]))
+    if d.edad is not None:
+        fuentes.append(("destinatario.edad", d.edad.fuente, []))
+    fuentes += [(f"destinatario.rasgos[{i}]", r.fuente, [r.valor]) for i, r in enumerate(d.rasgos)]
+    fuentes += [(f"recuerdos[{i}]", r, []) for i, r in enumerate(b.recuerdos)]
+    for campo, valor in (("genero", b.genero), ("tono", b.tono), ("extension", b.extension)):
+        if valor is not None:
+            fuentes.append((campo, valor.fuente, []))
+    if b.prohibidos is not None:
+        fuentes.append(("prohibidos", b.prohibidos.fuente, list(b.prohibidos.terminos)))
+    return fuentes
+
+
+def _apariciones(texto: str, cita: str) -> list[int]:
+    if not cita:
+        return []
+    posiciones, desde = [], texto.find(cita)
+    while desde != -1:
+        posiciones.append(desde)
+        desde = texto.find(cita, desde + 1)
+    return posiciones
+
+
+def procedencia(b: BorradorBrief, lista: list[Entrada]) -> list[Hallazgo]:
+    """RF-19 a RF-21. La cita se busca en el texto normalizado y cada aparición se traduce a un
+    intervalo del original, para ver si toca un fragmento marcado: basta con que una lo toque."""
+    por_id = {e.meta.id: e for e in lista}
+    mapas = {e.meta.id: entradas.normalizar_con_mapa(e.texto) for e in lista}
+    marcados = {
+        e.meta.id: [(f.inicio, f.fin) for f in entradas.marcar(e.texto)]
+        for e in lista
+        if e.meta.tipo == "texto_libre"
+    }
+    hallazgos = []
+
+    def hallazgo(codigo: CodigoHallazgo, campo: str, fuente: Fuente) -> None:
+        hallazgos.append(
+            Hallazgo(tipo="procedencia", codigo=codigo, campos=[campo], entrada=fuente.entrada)
+        )
+
+    for campo, fuente, valores in _fuentes(b):
+        entrada = por_id.get(fuente.entrada)
+        if entrada is None:
+            hallazgo("entrada_inexistente", campo, fuente)
+            continue
+        texto, mapa = mapas[fuente.entrada]
+        cita = comparable(fuente.cita)
+        posiciones = _apariciones(texto, cita)
+        if not posiciones:
+            hallazgo("cita_no_literal", campo, fuente)
+        if any(comparable(v) not in cita for v in valores):
+            hallazgo("valor_fuera_de_cita", campo, fuente)
+        if campo in CERRADOS and entrada.meta.tipo != "respuesta":
+            hallazgo("campo_cerrado_desde_texto_libre", campo, fuente)
+        intervalos = [(mapa[p], mapa[p + len(cita) - 1] + 1) for p in posiciones]
+        if any(
+            a < fin and inicio < z
+            for a, z in intervalos
+            for inicio, fin in marcados.get(fuente.entrada, [])
+        ):
+            hallazgo("cita_en_fragmento_marcado", campo, fuente)
     return hallazgos

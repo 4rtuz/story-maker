@@ -119,3 +119,24 @@ def extraer_bloques(texto: str) -> list[tuple[str, str, str]]:
         bloques.append((id_, tipo, texto[abre.end() : fin] if fin >= abre.end() else ""))
         pos = fin + len(cierre)
     return bloques
+
+
+def normalizar_con_mapa(texto: str) -> tuple[str, list[int]]:
+    """El texto como se compara (espacios colapsados y minúsculas, carácter a carácter) y, para
+    cada carácter del resultado, su índice en `texto`. `texto` ya está en NFC, como toda entrada
+    ingerida. `lower()` puede alargar un carácter (İ da dos): cada uno apunta al original."""
+    salida: list[str] = []
+    mapa: list[int] = []
+    en_espacio = False
+    for i, c in enumerate(texto):
+        if c.isspace():
+            if not en_espacio:
+                salida.append(" ")
+                mapa.append(i)
+            en_espacio = True
+            continue
+        en_espacio = False
+        for minuscula in c.lower():
+            salida.append(minuscula)
+            mapa.append(i)
+    return "".join(salida), mapa
