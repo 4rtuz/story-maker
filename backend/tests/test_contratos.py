@@ -376,7 +376,17 @@ DENY = {
     "Edit(./novelas/*/estado/state.lock)",
     "Bash(sqlite3:*)",
 }
-MATCHER = {"Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell", "Agent", "Task"}
+MATCHER = {
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "NotebookEdit",
+    "Read",
+    "Bash",
+    "PowerShell",
+    "Agent",
+    "Task",
+}
 
 
 def test_settings_de_claude() -> None:

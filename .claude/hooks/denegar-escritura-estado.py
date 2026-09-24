@@ -71,6 +71,32 @@ def _relativas(ruta: str) -> list[str]:
     return ["/".join(s[i + 2 :]) for i in range(len(s) - 2) if s[i] == "novelas" and s[i + 1]]
 
 
+_ESQUEMA = re.compile(r".*/backend/schemas/[^/]+\.schema\.json")
+
+
+def _ajena(ruta: str, entorno: Mapping[str, str]) -> bool:
+    """Toca un `novelas/<slug>/` que no es el de `NOVELA_SLUG`. Sin la variable, ninguna lo es."""
+    s = ruta.split("/")
+    slugs = {s[i + 1] for i in range(len(s) - 2) if s[i] == "novelas" and s[i + 1]}
+    propio = (entorno.get("NOVELA_SLUG") or "").casefold()
+    return bool(propio) and bool(slugs - {propio})
+
+
+def _lectura(ruta: str, rol: object, entorno: Mapping[str, str]) -> str | None:
+    """Regla 6 (security-report.md S-02): un rol solo lee dentro de `novelas/<slug>/` y los
+    esquemas de `backend/schemas/`, y nunca `canon/misterio.md`. Con `NOVELA_SLUG` (lo exporta
+    `novela producir`), solo su novela: una instrucción inyectada en el brief no alcanza los
+    datos de otra ni `.env`. La sesión principal y los agentes de desarrollo no tienen regla."""
+    if rol not in ROLES or _ESQUEMA.fullmatch(ruta):
+        return None
+    relativas = _relativas(ruta)
+    if not relativas or _ajena(ruta, entorno):
+        return f"{rol} solo lee su workspace y sus esquemas: {ruta}"
+    if "canon/misterio.md" in relativas:
+        return f"{rol} no lee canon/misterio.md: {ruta}"
+    return None
+
+
 # Solo estos campos, nunca tool_input entero (regla 7): una regla sobre todo el tool_input
 # bloqueó en el experimento un Agent cuyo prompt mencionaba la ruta prohibida.
 _CAMPO = {
@@ -78,6 +104,7 @@ _CAMPO = {
     "Edit": "file_path",
     "MultiEdit": "file_path",
     "NotebookEdit": "notebook_path",  # D-4
+    "Read": "file_path",  # regla 6
     "Bash": "command",
     "PowerShell": "command",
 }
@@ -105,15 +132,20 @@ def decidir(entrada: dict[str, Any], entorno: Mapping[str, str]) -> str | None:
             return f"orden sobre el misterio o estado.db: {valor}"
         return None
     try:
-        relativas = _relativas(_normalizar(valor, entrada.get("cwd") or os.getcwd()))
+        normalizada = _normalizar(valor, entrada.get("cwd") or os.getcwd())
     except RutaNoNormalizable as exc:
         return str(exc)
+    if tool == "Read":
+        return _lectura(normalizada, entrada.get("agent_type"), entorno)
+    relativas = _relativas(normalizada)
     # Regla 1, para todos.
     if any(r.split("/")[0] == "estado" and not re.fullmatch(_DELTA, r) for r in relativas):
         return f"escritura bajo estado/ denegada: {valor}"
     # Regla 2: un rol, solo en sus salidas. Los agentes de desarrollo no son roles.
     # ponytail: no sabe qué capítulo está en curso; reescribir uno cerrado lo para el sello.
     rol = entrada.get("agent_type")
+    if rol in ROLES and _ajena(normalizada, entorno):
+        return f"{rol} solo escribe en su novela ({entorno['NOVELA_SLUG']}): {valor}"
     if rol in ROLES and not any(re.fullmatch(p, r) for p in SALIDAS[rol] for r in relativas):
         return f"{rol} solo escribe en sus salidas: {valor}"
     # Regla 3: sin agent_type es la sesión principal (E-1). Si Claude Code dejara de mandarlo en

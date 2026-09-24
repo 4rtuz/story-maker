@@ -18,6 +18,7 @@ from novela.slices.formal.cmd import verificar_lean
 from novela.slices.nueva.cmd import nueva
 from novela.slices.plan.cmd import validar_plan
 from novela.slices.producir.cmd import producir
+from novela.slices.prosa.cmd import lint_prosa
 from novela.slices.validacion.cmd import validar
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, pretty_exceptions_enable=False)
@@ -46,6 +47,7 @@ app.command()(con_codigos(exportar))
 app.command("comprobar-entorno")(con_codigos(comprobar_entorno))
 app.command()(con_codigos(producir))
 app.command("verificar-lean")(con_codigos(verificar_lean))
+app.command("lint-prosa")(con_codigos(lint_prosa))
 
 brief_app = typer.Typer(no_args_is_help=True, help="Fase de brief de una novela de regalo.")
 brief_app.command()(con_codigos(brief.iniciar))

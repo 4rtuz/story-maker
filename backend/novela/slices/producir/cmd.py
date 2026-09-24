@@ -53,6 +53,16 @@ def _pendiente(slug: str) -> bool:
     return r.returncode == 0
 
 
+def entorno_de_sesion(slug: str, sid: str) -> dict[str, str]:
+    """NOVELA_SLUG acota las lecturas de los roles a esta novela (regla 6 del hook)."""
+    return {
+        **os.environ,
+        "NOVELA_SESSION_ID": sid,
+        "CC_LANGFUSE_TRACE_TAGS": slug,
+        "NOVELA_SLUG": slug,
+    }
+
+
 def producir(
     slug: str,
     idea: Annotated[str | None, typer.Option(help="Sin idea, reanuda una novela existente")] = None,
@@ -67,7 +77,7 @@ def producir(
 
     def sesion(prompt: str) -> int:
         sid = str(uuid.uuid4())
-        entorno = {**os.environ, "NOVELA_SESSION_ID": sid, "CC_LANGFUSE_TRACE_TAGS": slug}
+        entorno = entorno_de_sesion(slug, sid)
         with registro.open("a", encoding="utf-8") as salida:
             salida.write(f"\n[{datetime.now(UTC):%H:%M:%S}] {prompt.split()[0]} · sesión {sid}\n")
             salida.flush()
