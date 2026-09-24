@@ -24,7 +24,15 @@ FUENTES = Path(__file__).parent / "fuentes"
 _VARIANTES = {"": "DejaVuSerif", "B": "DejaVuSerif-Bold", "I": "DejaVuSerif-Italic"}
 _VARIANTES["BI"] = "DejaVuSerif-BoldItalic"
 ALTO = 6.0  # interlineado del cuerpo, en mm
-FIJOS = ("Índice", "Personajes y lugares", "Personajes", "Lugares", "Aparece en:", "Capítulo —")
+FIJOS = (
+    "Novedades de la versión",
+    "Índice",
+    "Personajes y lugares",
+    "Personajes",
+    "Lugares",
+    "Aparece en:",
+    "Capítulo —",
+)
 SEPARADOR = "* * *"
 
 
@@ -43,6 +51,8 @@ class Libro:
     capitulos: tuple[Capitulo, ...]
     ficha: Ficha
     creado: datetime  # CreationDate: el manifiesto del último checkpoint, para ser determinista
+    version: int = 1  # spec 0007, RF-40: con novedades, página tras la portada
+    novedades: tuple[int, ...] = ()  # capítulos cambiados respecto a la versión anterior
 
 
 class GlifoAusente(ValueError):
@@ -147,6 +157,8 @@ def _nfc(libro: Libro) -> Libro:
             tuple(entrada(e) for e in libro.ficha.lugares),
         ),
         creado=libro.creado,
+        version=libro.version,
+        novedades=libro.novedades,
     )
 
 
@@ -202,6 +214,15 @@ def construir(libro: Libro, fuentes: Path = FUENTES) -> bytes:
     if libro.dedicatoria is not None:
         pdf.ln(12)
         texto(libro.dedicatoria, "I", 12, 7, align="C")
+
+    if libro.novedades:
+        pdf.add_page()
+        cabecera = f"Novedades de la versión {libro.version}"
+        pdf.start_section(cabecera)
+        texto(cabecera, "B", 16, 10)
+        pdf.ln(4)
+        for n in libro.novedades:
+            texto(f"Capítulo {n} — {titulos[n]}", link=enlaces[n])
 
     # Índice
     pdf.add_page()

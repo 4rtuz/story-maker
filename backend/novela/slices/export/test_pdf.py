@@ -622,3 +622,16 @@ def test_entidad_sin_canon(novelas: Novelas) -> None:
     resultado = exportar(otro)
     assert resultado.exit_code == 4 and fabrica.PUERTO in resultado.output
     assert sin_pdf(otro)
+
+
+def test_pagina_de_novedades(novelas: Novelas, regenerada: str) -> None:
+    """CA-37 (spec 0007, RF-40): con la versión 2, la página 2 son las novedades, con un GoTo a la
+    primera página de cada capítulo cambiado; el índice pasa a la 3."""
+    ws = novelas(regenerada)
+    assert exportar(ws).exit_code == 0
+    r = libro_de(ws)
+    ts = textos(r)
+    assert ts[1].startswith("Novedades de la versión 2") and ts[2].startswith("Índice")
+    paginas = [inicio_de(ts, f"La linterna, noche {n}") for n in (2, 4, 6)]
+    assert enlaces(r, 1) == paginas
+    assert "Capítulo 4 — La linterna, noche 4" in ts[1]
