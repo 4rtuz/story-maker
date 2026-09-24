@@ -11,8 +11,10 @@ import typer
 
 from novela.dominio import frontmatter
 from novela.dominio.artefactos import FrontmatterCapitulo
+from novela.plataforma import estado_db, versiones
 from novela.plataforma.workspace import WorkspaceInvalido, WorkspaceRepository
 from novela.slices.export import epub, markdown
+from novela.slices.versiones.novedades import calcular
 
 
 class Formato(StrEnum):
@@ -40,7 +42,13 @@ def exportar(slug: str, formato: Annotated[Formato, typer.Option("--formato")]) 
             raise typer.Exit(1)
         capitulos = [_capitulo(ws, c) for c in range(1, punto.capitulo + 1)]
         ruta = ws.raiz / "export" / f"novela.{formato}"
-        if formato is Formato.MD:
+        with estado_db.abrir(ws.estado_db, solo_lectura=True) as conn:
+            vigente = versiones.version_vigente(conn)
+        if formato is Formato.MD and vigente > 1:
+            anterior = versiones.sello(ws, vigente - 1, vigente)
+            cambiados = calcular(anterior, punto.capitulos_sha256)
+            ws.escribir(ruta, markdown.con_novedades(capitulos, vigente, cambiados, ws.nn))
+        elif formato is Formato.MD:
             ws.escribir(ruta, markdown.concatenar([cuerpo for _, cuerpo in capitulos]))
         else:
             idioma = ws.config().parametros_obra.idioma
