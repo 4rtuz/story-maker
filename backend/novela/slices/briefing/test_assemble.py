@@ -120,3 +120,48 @@ def test_cabe_o_falla_y_nunca_trunca(presupuesto: int, n: int) -> None:
     for ruta, texto in f.ficheros.items():
         if ruta in ("canon/premisa.md", "canon/mundo.md"):
             assert texto.strip() in briefing.cuerpo
+
+
+def _novela_entera(n: int = 9) -> assemble.Fuentes:
+    resumenes = {
+        c: Memoria(
+            capitulo=c,
+            linea=f"Línea {c}.",
+            parrafo=f"Párrafo del capítulo {c}.",
+            escena={f"esc-{c:02d}-1": "x"},
+        )
+        for c in range(1, n + 1)
+    }
+    capitulos = {c: f"Texto entero del capítulo {c}. " * 200 for c in range(1, n + 1)}
+    return replace(
+        fuentes(), agente=Agente.JUEZ, capitulo=n, resumenes=resumenes, capitulos=capitulos
+    )
+
+
+def test_obra_entera_o_resumenes_y_muestra() -> None:
+    """El juez ve la novela entera si cabe; si no, los resúmenes de todos los capítulos y el
+    primero, el central y el último completos. Si ni así cabe, falla: nunca se trunca."""
+    f = _novela_entera()
+    entera = assemble.ensamblar(receta(100_000, obra={"muestra": 3}), f)
+    assert entera.meta.degradacion == []
+    for c in range(1, 10):
+        assert f.capitulos[c].strip() in entera.cuerpo
+    assert "Párrafo del capítulo" not in entera.cuerpo
+
+    muestreada = assemble.ensamblar(
+        receta(entera.meta.tokens_estimados - 1, obra={"muestra": 3}), f
+    )
+    assert [p.split(" ")[0] for p in muestreada.meta.degradacion] == ["4"]
+    assert all(f"Párrafo del capítulo {c}." in muestreada.cuerpo for c in range(1, 10))
+    completos = [c for c in range(1, 10) if f.capitulos[c].strip() in muestreada.cuerpo]
+    assert completos == [1, 5, 9]
+
+    with pytest.raises(assemble.PresupuestoExcedido):
+        assemble.ensamblar(receta(1_000, obra={"muestra": 3}), f)
+
+
+def test_obra_sin_capitulo_falla_explicitamente() -> None:
+    f = _novela_entera()
+    f = replace(f, capitulos={c: t for c, t in f.capitulos.items() if c != 4})
+    with pytest.raises(assemble.FuenteAusente, match="capitulos/04.md"):
+        assemble.ensamblar(receta(100_000, obra={"muestra": 3}), f)

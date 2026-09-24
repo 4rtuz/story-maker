@@ -33,6 +33,7 @@ SALIDAS = {
     "lector-suspense": [rf"qa/{_NN}-suspense\.json"],
     "cronista": [_DELTA],
     "entrevistador": [r"brief/borrador\.json"],
+    "juez": [r"qa/juicio\.json"],
 }
 ROLES = frozenset(SALIDAS)
 _PREFIJO_WIN32 = re.compile(r"^(\\\\|//)[?.][\\/]")  # \\?\  \\.\

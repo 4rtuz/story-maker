@@ -13,6 +13,7 @@ from novela.dominio.brief import BorradorBrief, Brief, InformeBrief
 from novela.dominio.canon import Canon
 from novela.dominio.config import Config
 from novela.dominio.estado import Delta, Estado
+from novela.dominio.juicio import Juicio
 from novela.dominio.plan import Escaleta, FichaCapitulo
 from novela.dominio.qa import InformeQA
 
@@ -28,6 +29,7 @@ MODELOS: dict[str, type[BaseModel]] = {
     "brief.schema.json": Brief,
     "brief-borrador.schema.json": BorradorBrief,
     "brief-informe.schema.json": InformeBrief,
+    "juicio.schema.json": Juicio,
 }
 
 

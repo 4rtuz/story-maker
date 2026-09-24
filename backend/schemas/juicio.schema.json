@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Cita": {
+      "additionalProperties": false,
+      "properties": {
+        "capitulo": {
+          "maximum": 999,
+          "minimum": 1,
+          "title": "Capitulo",
+          "type": "integer"
+        },
+        "texto": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Texto",
+          "type": "string"
+        }
+      },
+      "required": [
+        "capitulo",
+        "texto"
+      ],
+      "title": "Cita",
+      "type": "object"
+    },
+    "Valoracion": {
+      "additionalProperties": false,
+      "properties": {
+        "puntuacion": {
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Puntuacion",
+          "type": "integer"
+        },
+        "justificacion": {
+          "maxLength": 1500,
+          "minLength": 1,
+          "title": "Justificacion",
+          "type": "string"
+        },
+        "citas": {
+          "items": {
+            "$ref": "#/$defs/Cita"
+          },
+          "maxItems": 5,
+          "minItems": 1,
+          "title": "Citas",
+          "type": "array"
+        }
+      },
+      "required": [
+        "puntuacion",
+        "justificacion",
+        "citas"
+      ],
+      "title": "Valoracion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "rubrica_version": {
+      "minLength": 1,
+      "title": "Rubrica Version",
+      "type": "string"
+    },
+    "evaluador": {
+      "enum": [
+        "juez",
+        "humano"
+      ],
+      "title": "Evaluador",
+      "type": "string"
+    },
+    "criterios": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Valoracion"
+      },
+      "propertyNames": {
+        "enum": [
+          "continuidad",
+          "tono",
+          "arco",
+          "personajes",
+          "ritmo",
+          "personalizacion"
+        ]
+      },
+      "title": "Criterios",
+      "type": "object"
+    }
+  },
+  "required": [
+    "rubrica_version",
+    "evaluador",
+    "criterios"
+  ],
+  "title": "Juicio",
+  "type": "object"
+}

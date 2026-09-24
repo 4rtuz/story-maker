@@ -1,0 +1,66 @@
+{
+  "rubrica_version": "rubrica-1",
+  "evaluador": "humano",
+  "criterios": {
+    "continuidad": {
+      "puntuacion": 5,
+      "justificacion": "FICTICIO: revisión inventada para el test de comparar-juicios, no es de ninguna persona.",
+      "citas": [
+        {
+          "capitulo": 1,
+          "texto": "FICTICIO"
+        }
+      ]
+    },
+    "tono": {
+      "puntuacion": 2,
+      "justificacion": "FICTICIO: revisión inventada para el test de comparar-juicios, no es de ninguna persona.",
+      "citas": [
+        {
+          "capitulo": 1,
+          "texto": "FICTICIO"
+        }
+      ]
+    },
+    "arco": {
+      "puntuacion": 4,
+      "justificacion": "FICTICIO: revisión inventada para el test de comparar-juicios, no es de ninguna persona.",
+      "citas": [
+        {
+          "capitulo": 1,
+          "texto": "FICTICIO"
+        }
+      ]
+    },
+    "personajes": {
+      "puntuacion": 3,
+      "justificacion": "FICTICIO: revisión inventada para el test de comparar-juicios, no es de ninguna persona.",
+      "citas": [
+        {
+          "capitulo": 1,
+          "texto": "FICTICIO"
+        }
+      ]
+    },
+    "ritmo": {
+      "puntuacion": 1,
+      "justificacion": "FICTICIO: revisión inventada para el test de comparar-juicios, no es de ninguna persona.",
+      "citas": [
+        {
+          "capitulo": 1,
+          "texto": "FICTICIO"
+        }
+      ]
+    },
+    "personalizacion": {
+      "puntuacion": 4,
+      "justificacion": "FICTICIO: revisión inventada para el test de comparar-juicios, no es de ninguna persona.",
+      "citas": [
+        {
+          "capitulo": 1,
+          "texto": "FICTICIO"
+        }
+      ]
+    }
+  }
+}

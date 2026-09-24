@@ -1,0 +1,52 @@
+# Rúbrica del juez y de la revisión humana (docs/evaluacion/juez.md). Versionada: cualquier cambio
+# de criterio, descriptor o umbral sube `version`, y `novela juicio` rechaza un qa/juicio.json de
+# otra versión. Los criterios son los de `Criterio` en backend/novela/dominio/juicio.py, en orden.
+#
+# Cada criterio se puntúa de 1 a 5 con una justificación y al menos una cita literal del texto
+# (capítulo y frase). Los descriptores fijan 1, 3 y 5; 2 y 4 son los intermedios.
+
+version: rubrica-1
+
+criterios:
+  continuidad:
+    pregunta: ¿Los hechos, objetos, tiempos y personajes se mantienen coherentes entre capítulos?
+    escala:
+      1: Contradicciones que cambian la trama o que el lector nota sin buscarlas.
+      3: Algún desliz menor (un detalle, una hora) que no altera la trama.
+      5: Ninguna contradicción; lo establecido pesa en lo que viene después.
+  tono:
+    pregunta: ¿El tono de la novela es el que pide el brief (campo tono) y se sostiene?
+    escala:
+      1: El tono contradice el del brief o cambia sin motivo.
+      3: Coincide en general, con tramos que se desvían.
+      5: Es el del brief de principio a fin, con variaciones al servicio de la historia.
+  arco:
+    pregunta: ¿La historia tiene planteamiento, escalada y resolución que cierra lo planteado?
+    escala:
+      1: No hay arco reconocible o el final no resuelve lo planteado.
+      3: El arco existe pero tiene tramos planos o una resolución apresurada.
+      5: Cada acto hace avanzar el conflicto y el final lo resuelve con sentido.
+  personajes:
+    pregunta: ¿Los personajes actúan de acuerdo con su voz y psicología, o cambian con motivo?
+    escala:
+      1: Actúan o hablan de forma incoherente con lo establecido.
+      3: Coherentes en lo esencial, con algún comportamiento sin justificar.
+      5: Voces distinguibles y decisiones que nacen de quiénes son.
+  ritmo:
+    pregunta: ¿El ritmo entre capítulos alterna tensión y respiro y mantiene el interés?
+    escala:
+      1: Capítulos intercambiables o una tensión plana durante toda la novela.
+      3: Ritmo aceptable con algún tramo que se estanca o se precipita.
+      5: Cada capítulo empuja al siguiente; la tensión sube hacia el clímax.
+  personalizacion:
+    pregunta: ¿Los recuerdos y rasgos del brief están integrados de forma natural, no forzada?
+    escala:
+      1: Ausentes, o metidos a calzador sin función en la historia.
+      3: Presentes y reconocibles, pero alguno suena a inserción.
+      5: Tejidos en la trama y los personajes; se reconocen sin que el texto los señale.
+
+# El gate de /novela-auditar: pasa si la media llega a media_minima y ningún criterio baja de
+# minimo_por_criterio.
+umbral:
+  media_minima: 3
+  minimo_por_criterio: 2

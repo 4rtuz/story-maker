@@ -8,7 +8,7 @@ que su briefing le da.
 import math
 import re
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from fnmatch import fnmatchcase
 from typing import Any
 
@@ -64,6 +64,7 @@ class Fuentes:
     sha_actual: str | None  # sha256 de capitulos/NN.md en disco
     resumenes: Mapping[int, Memoria]  # capítulos anteriores
     digitos: int = 2  # 3 si la novela pasa de 99 capítulos, en todo el workspace
+    capitulos: Mapping[int, str] = field(default_factory=dict)  # la obra, solo para el juez
 
     def nn(self, capitulo: int) -> str:
         return f"{capitulo:0{self.digitos}d}"
@@ -86,6 +87,7 @@ class _Ajuste:
     remotas_recortadas: int = 0
     reciente_a_linea: bool = False
     solo_con_dialogo: bool = False
+    obra_muestreada: bool = False
 
 
 def estimar_tokens(texto: str) -> int:
@@ -216,11 +218,29 @@ def _capas(receta: Receta, f: Fuentes, ajuste: _Ajuste) -> list[str]:
                     raise FuenteAusente(f"falta plan/capitulos/{f.nn(n)}.md")
                 apertura = f.ficha.restriccion_de_apertura
                 secciones.append(_seccion("variacion · restricción de apertura", apertura))
+            case recipes.Obra(obra=o):
+                secciones += _obra(f, o.muestra if ajuste.obra_muestreada else None)
             case recipes.Objetivo():
                 if f.capitulo_actual is None:
                     raise FuenteAusente(f"falta capitulos/{f.nn(n)}.md")
                 secciones.append(_seccion(f"objetivo · capítulo {f.nn(n)}", f.capitulo_actual))
     return secciones
+
+
+def muestra(n: int, k: int) -> list[int]:
+    """k capítulos de 1..n repartidos, con el primero y el último."""
+    if k == 1:
+        return [n]
+    return sorted({round(1 + i * (n - 1) / (k - 1)) for i in range(k)})
+
+
+def _obra(f: Fuentes, k: int | None) -> list[str]:
+    todos = range(1, f.capitulo + 1)
+    completos = todos if k is None else muestra(f.capitulo, k)
+    if faltan := [c for c in completos if c not in f.capitulos]:
+        raise FuenteAusente(f"falta capitulos/{f.nn(faltan[0])}.md")
+    secciones = [] if k is None else [_seccion("obra · resúmenes", _resumenes(f, todos, "parrafo"))]
+    return secciones + [_seccion(f"obra · capítulo {f.nn(c)}", f.capitulos[c]) for c in completos]
 
 
 # --- guardarraíl del secreto (invariante 3) --------------------------------------------------
@@ -315,7 +335,10 @@ def _remotas(receta: Receta, f: Fuentes, ajuste: _Ajuste) -> range:
 
 def _degradar(receta: Receta, f: Fuentes, ajuste: _Ajuste) -> _Ajuste | None:
     """El siguiente paso de §6.5, de menos a más doloroso. canon/ y el estado filtrado no se
-    degradan nunca: su ausencia produce contradicción, no imprecisión."""
+    degradan nunca: su ausencia produce contradicción, no imprecisión. La obra, que solo pide el
+    juez, se degrada antes que nada: es lo único suyo que abulta."""
+    if any(isinstance(c, recipes.Obra) for c in receta.capas) and not ajuste.obra_muestreada:
+        return replace(ajuste, obra_muestreada=True)
     if _remotas(receta, f, ajuste):
         return replace(ajuste, remotas_recortadas=ajuste.remotas_recortadas + 1)
     reciente = next((c.reciente for c in receta.capas if isinstance(c, recipes.Reciente)), None)
@@ -338,6 +361,8 @@ def _pasos(ajuste: _Ajuste) -> list[str]:
         pasos.append("2 resúmenes a párrafo bajados a una línea")
     if ajuste.solo_con_dialogo:
         pasos.append("3 personajes reducidos a los que tienen diálogo")
+    if ajuste.obra_muestreada:
+        pasos.append("4 obra reducida a resúmenes a párrafo y una muestra de capítulos")
     return pasos
 
 

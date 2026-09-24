@@ -52,3 +52,4 @@ class Agente(StrEnum):
     EDITOR_ESTILO = "editor-estilo"
     LECTOR_SUSPENSE = "lector-suspense"
     CRONISTA = "cronista"
+    JUEZ = "juez"
