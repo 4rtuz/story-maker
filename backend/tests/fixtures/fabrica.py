@@ -566,9 +566,11 @@ def huella(raiz: Path) -> str:
         shutil.rmtree(copia)
 
 
-def pedir_cambio(base: Path, slug: str, texto: str = TEXTO_CAMBIO) -> Result:
+def pedir_cambio(
+    base: Path, slug: str, texto: str = TEXTO_CAMBIO, hecho: str = "hec-002"
+) -> Result:
     """La petición de spec 0007 §7, sin NOVELA_RUN_ID: su run sale del reloj."""
-    orden = ("cambio", slug, "--hecho", "hec-002", "--texto", texto)
+    orden = ("cambio", slug, "--hecho", hecho, "--texto", texto)
     return cli(base, *orden, run="", entorno={"NOVELAS_DIR": str(base)})
 
 
