@@ -159,7 +159,7 @@ export function metrica({ etiqueta: rotulo, icono: nombre, tono }: {
   icono: NombreDeIcono;
   tono: Tono;
 }): Metrica {
-  const valor = el('p', 'q-metrica__valor');
+  const valor = el('p', 'q-metrica__valor', esqueleto('q-esqueleto--metrica'));
   const detalle = el('p', 'q-metrica__detalle');
   const raiz = el(
     'section',

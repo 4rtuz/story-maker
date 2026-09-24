@@ -417,3 +417,89 @@
 .q-esqueleto--slugs {
   height: 64px;
 }
+
+/* --- Progreso: fila de cuatro métricas y rejilla de dos columnas desde 1280 px (RF-54) ------- */
+
+.q-metricas {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--q-hueco);
+}
+
+.q-rejilla {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--q-hueco);
+  align-items: start;
+}
+
+@media (width < 1280px) {
+  .q-metricas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .q-rejilla {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.q-esqueleto--metrica {
+  width: 96px;
+  height: 37px;
+}
+
+.q-esqueleto--lista {
+  height: 132px;
+}
+
+.q-lista {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.q-subtarjeta__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.q-subtarjeta__texto {
+  margin: 0;
+  font-size: var(--q-texto-meta);
+  color: var(--q-texto-secundario);
+}
+
+.q-desplazable {
+  max-height: 420px;
+  overflow: auto;
+  padding: 2px;
+  border-radius: var(--q-radio-control);
+}
+
+.q-desplazable:focus-visible {
+  outline: var(--q-contorno-foco) solid var(--q-foco);
+  outline-offset: var(--q-separacion-foco);
+}
+
+.q-sha {
+  font: var(--q-texto-meta) var(--q-fuente-mono);
+  color: var(--q-texto);
+}
+
+.q-fecha {
+  white-space: nowrap;
+}
+
+.q-run__id {
+  font: 600 var(--q-texto-meta) var(--q-fuente-mono);
+}
+
+.q-run__etiquetas {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
