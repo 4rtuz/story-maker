@@ -17,6 +17,7 @@ import typer
 from novela.dominio.artefactos import Checkpoint, Manifest
 from novela.plataforma import estado_db, versiones
 from novela.plataforma.libro import capitulo as _capitulo
+from novela.plataforma.libro import dedicatoria_de
 from novela.plataforma.libro import ficha as _ficha
 from novela.plataforma.workspace import WorkspaceRepository
 from novela.slices.export import epub, markdown, pdf
@@ -59,7 +60,7 @@ def _pdf(
     libro = pdf.Libro(
         titulo=titulo,
         idioma=ws.config().parametros_obra.idioma,
-        dedicatoria=None,
+        dedicatoria=dedicatoria_de(ws),
         capitulos=tuple(pdf.Capitulo(n, t, c) for n, (t, c) in enumerate(capitulos, 1)),
         ficha=_ficha(ws, punto.capitulo),
         creado=_creado(ws, punto),

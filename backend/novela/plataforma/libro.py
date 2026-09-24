@@ -48,7 +48,7 @@ def ficha(ws: WorkspaceRepository, n: int) -> fichas.Ficha:
         raise WorkspaceInvalido(str(exc)) from exc
 
 
-def _dedicatoria(ws: WorkspaceRepository) -> str | None:
+def dedicatoria_de(ws: WorkspaceRepository) -> str | None:
     ruta = ws.raiz / "brief" / "brief.json"
     if not ruta.is_file():
         return None
@@ -73,7 +73,7 @@ def libro(ws: WorkspaceRepository) -> Libro:
     ficha_ = ficha(ws, cerrados) if cerrados else fichas.Ficha((), ())
     return Libro(
         titulo=ws.slug,
-        dedicatoria=_dedicatoria(ws),
+        dedicatoria=dedicatoria_de(ws),
         capitulos=[
             EntradaDeIndice(capitulo=n, titulo=capitulo(ws, n)[0]) for n in range(1, cerrados + 1)
         ],

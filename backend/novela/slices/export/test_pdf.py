@@ -635,3 +635,16 @@ def test_pagina_de_novedades(novelas: Novelas, regenerada: str) -> None:
     paginas = [inicio_de(ts, f"La linterna, noche {n}") for n in (2, 4, 6)]
     assert enlaces(r, 1) == paginas
     assert "Capítulo 4 — La linterna, noche 4" in ts[1]
+
+
+def test_pdf_con_brief_lleva_la_dedicatoria(novelas: Novelas) -> None:
+    """La portada de una novela de regalo lleva la dedicatoria del brief, la misma que la web."""
+    ws = novelas("demo-regalo")
+    (ws.raiz / "brief").mkdir(exist_ok=True)
+    brief = Path(__file__).parents[3] / "tests" / "fixtures" / "brief" / "brief-completo.json"
+    (ws.raiz / "brief" / "brief.json").write_bytes(brief.read_bytes())
+    resultado = exportar(ws)
+    assert resultado.exit_code == 0, resultado.output
+    assert SIN_BRIEF not in resultado.stdout
+    portada = libro_de(ws).pages[0].extract_text()
+    assert "Para Aurora Ficticia" in portada
