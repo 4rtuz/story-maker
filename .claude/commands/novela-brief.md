@@ -73,7 +73,11 @@ La ruta se copia de la salida de `novela brief preparar`
    `novela brief entrada <slug> --tipo texto-libre --fichero <ruta>`.
 3. `novela brief preparar <slug>` → Task `entrevistador` con el prompt de arriba.
 4. `novela brief validar <slug>`:
-   - Sale con 0 → paso 5.
+   - Sale con 0 y `brief/informe.json` trae `preguntas` → muéstraselas al operador: el CLI no
+     ve una contradicción entre recuerdos (dos lugares a la misma hora, un muerto que regala
+     algo) y el `entrevistador` solo puede dejarla como pregunta. Si el operador responde, pide
+     el fichero y vuelve al paso 2; cuenta como una ronda. Si decide seguir sin responder, paso 5.
+   - Sale con 0 sin `preguntas` → paso 5.
    - Sale con 1 y la línea es `· agente:` → vuelve al paso 3: el briefing nuevo trae el informe.
      Con **2 reintentos seguidos** ya consumidos, el siguiente fallo escribe
      `novelas/<slug>/runs/<run_id>/intervencion.md` con el gate `entrevistador`, los códigos de la
