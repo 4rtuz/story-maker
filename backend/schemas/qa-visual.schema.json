@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Comprobacion": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "enum": [
+            "portada",
+            "dedicatoria",
+            "indice",
+            "navegacion",
+            "ficha"
+          ],
+          "title": "Id",
+          "type": "string"
+        },
+        "ok": {
+          "title": "Ok",
+          "type": "boolean"
+        },
+        "detalle": {
+          "default": "",
+          "maxLength": 500,
+          "title": "Detalle",
+          "type": "string"
+        },
+        "responsable": {
+          "anyOf": [
+            {
+              "enum": [
+                "escritor",
+                "exportacion",
+                "frontend"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Responsable"
+        }
+      },
+      "required": [
+        "id",
+        "ok"
+      ],
+      "title": "Comprobacion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "slug": {
+      "pattern": "^[a-z0-9-]+$",
+      "title": "Slug",
+      "type": "string"
+    },
+    "herramienta": {
+      "enum": [
+        "playwright-mcp",
+        "playwright-test"
+      ],
+      "title": "Herramienta",
+      "type": "string"
+    },
+    "comprobaciones": {
+      "items": {
+        "$ref": "#/$defs/Comprobacion"
+      },
+      "minItems": 1,
+      "title": "Comprobaciones",
+      "type": "array"
+    },
+    "capturas": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Capturas",
+      "type": "array"
+    }
+  },
+  "required": [
+    "slug",
+    "herramienta",
+    "comprobaciones"
+  ],
+  "title": "InformeVisual",
+  "type": "object"
+}

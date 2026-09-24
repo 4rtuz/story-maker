@@ -24,6 +24,13 @@ export const COMPLETO: Respuestas = {
   '/escaleta': json(ESCALETA),
   '/checkpoint': json({ capitulo: 7 }),
   '/capitulos': json(INDICE),
+  '/libro': json({
+    titulo: 'demo-24',
+    dedicatoria: 'Para Aurora Ficticia, en el día de su boda.',
+    capitulos: INDICE.slice(0, 7),
+    personajes: [{ id: 'per-elena-vidal', nombre: 'Elena Vidal', detalle: null, capitulos: [1, 3] }],
+    lugares: [],
+  }),
 };
 
 /** Sirve demo-24 con `respuestas` por encima de COMPLETO; `capitulos/N` da un markdown mínimo. */

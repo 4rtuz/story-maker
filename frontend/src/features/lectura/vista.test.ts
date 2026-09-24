@@ -95,4 +95,27 @@ describe('Lectura', () => {
     expect(raiz.querySelectorAll('.q-volumenes [data-capitulo]')).toHaveLength(24);
     expect(raiz.querySelectorAll('.q-volumenes [data-capitulo]')[7]?.textContent).toContain('en curso');
   });
+
+  it('la tarjeta Libro: portada con dedicatoria, índice de los cerrados y ficha enlazada', async () => {
+    servirLectura();
+    montar('#/novelas/demo-24/lectura');
+    await vi.advanceTimersByTimeAsync(0);
+    const por = (id: string) => [...raiz.querySelectorAll<HTMLElement>(`[data-testid="${id}"]`)];
+    expect(por('portada-dedicatoria')[0]?.textContent).toBe('Para Aurora Ficticia, en el día de su boda.');
+    expect(por('indice-capitulo')).toHaveLength(7);
+    expect(por('ficha-enlace').map((a) => a.dataset.destino)).toEqual(['1', '3']);
+  });
+
+  it('un enlace de la ficha abre el lector de ese capítulo', async () => {
+    const pedidas = servirLectura();
+    montar('#/novelas/demo-24/lectura');
+    await vi.advanceTimersByTimeAsync(0);
+    const enlace = raiz.querySelector('[data-testid="ficha-enlace"][data-destino="3"]');
+    // jsdom no navega al pulsar un enlace: se sigue su href a mano; el clic real lo cubre e2e/libro.spec.ts.
+    location.hash = enlace?.getAttribute('href') ?? '';
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(pedidas).toContain('/capitulos/3');
+    expect(raiz.querySelector('[data-testid="lector-titulo"]')?.textContent).toBe('Capítulo tres');
+  });
 });

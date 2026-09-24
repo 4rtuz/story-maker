@@ -12,6 +12,7 @@ import { aviso, boton, el, esqueleto, estadoVacio, etiqueta, tarjeta, vacio } fr
 import { disposicion } from './disposicion';
 import type { Escena, FabricaDeRenderer } from './escena';
 import { estadosDeVolumen, TEXTO_DE_ESTADO, type EstadoDeVolumen } from './estados';
+import { libro } from './libro';
 import { tecla } from './navegacion';
 
 type E = api.Esquemas;
@@ -21,6 +22,7 @@ interface Datos {
   escaleta?: E['Escaleta'] | null;
   checkpoint?: E['Checkpoint'] | null;
   capitulos?: E['FrontmatterCapitulo'][];
+  libro?: E['Libro'];
 }
 
 const FOCUSABLES = 'button, [href], [tabindex]:not([tabindex="-1"])';
@@ -48,6 +50,10 @@ export function lectura(
   tarjetaEscena.cuerpo.append(escena);
   const tarjetaLista = tarjeta({ titulo: 'Capítulos', icono: 'book-open', tono: 'cian', clase: 'q-lectura__lista' });
   tarjetaLista.cuerpo.append(esqueleto('q-esqueleto--lista'));
+  // Portada, índice y ficha (docs/lectura-web.md): se rehace solo si cambia el libro.
+  const tarjetaLibro = tarjeta({ titulo: 'Libro', icono: 'book-open', tono: 'naranja', clase: 'q-lectura__libro' });
+  tarjetaLibro.cuerpo.append(esqueleto('q-esqueleto--lista'));
+  let libroPintado = '';
   const lista = el('ol', 'q-volumenes');
   lista.setAttribute('aria-label', 'Capítulos de la novela');
   const capa = el('div', 'q-lector-capa');
@@ -156,6 +162,10 @@ export function lectura(
     if (!datos.config) return;
     escena.dataset.volumenes = String(total());
     pintarLista();
+    if (datos.libro && JSON.stringify(datos.libro) !== libroPintado) {
+      libroPintado = JSON.stringify(datos.libro);
+      tarjetaLibro.cuerpo.replaceChildren(libro(datos.libro, slug));
+    }
     if (estadoEscena === 'sin-empezar') void iniciarEscena();
     pintarEscena();
     if (datos.checkpoint === undefined || datos.capitulos === undefined) return;
@@ -213,6 +223,7 @@ export function lectura(
   function mostrarDialogo(n: number, cuerpo: HTMLElement): void {
     const encabezado = el('h2', 'q-lector__titulo');
     encabezado.id = 'q-lector-titulo';
+    encabezado.dataset.testid = 'lector-titulo';
     encabezado.textContent = titulo(n); // el título lo escribe un agente: siempre como texto (D56)
     const cerrarBoton = boton('Cerrar', { variante: 'secundario' });
     cerrarBoton.addEventListener('click', cerrar);
@@ -224,6 +235,7 @@ export function lectura(
       el('header', 'q-lector__cabecera', el('div', '', el('p', 'q-lector__capitulo', `Capítulo ${n}`), encabezado), cerrarBoton),
       desplazable,
     );
+    dialogo.dataset.testid = 'lector';
     dialogo.setAttribute('role', 'dialog');
     dialogo.setAttribute('aria-modal', 'true');
     dialogo.setAttribute('aria-labelledby', encabezado.id);
@@ -271,6 +283,7 @@ export function lectura(
       'div',
       'q-vista q-vista--lectura',
       cabecera,
+      tarjetaLibro.raiz,
       el('div', 'q-lectura', tarjetaEscena.raiz, tarjetaLista.raiz),
       capa,
     ),
@@ -279,6 +292,7 @@ export function lectura(
       recurso('escaleta', async (s) => void (datos.escaleta = await api.escaleta(slug, s))),
       recurso('checkpoint', async (s) => void (datos.checkpoint = await api.checkpoint(slug, s))),
       recurso('capitulos', async (s) => void (datos.capitulos = await api.capitulos(slug, s))),
+      recurso('libro', async (s) => void (datos.libro = await api.libro(slug, s))),
     ],
     actualizar(ruta) {
       if (ruta.vista !== 'lectura') return false;

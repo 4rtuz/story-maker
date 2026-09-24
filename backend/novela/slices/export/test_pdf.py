@@ -19,9 +19,9 @@ from pypdf.generic import Destination
 from typer.testing import CliRunner, Result
 
 from novela.cli import app
+from novela.dominio.ficha import EntradaFicha, Ficha
 from novela.plataforma.workspace import WorkspaceRepository
 from novela.slices.export import pdf
-from novela.slices.export.ficha import EntradaFicha, Ficha
 from tests.fixtures import fabrica
 
 PROHIBIDAS = {"/URI", "/Launch", "/JavaScript", "/SubmitForm", "/GoToR"}

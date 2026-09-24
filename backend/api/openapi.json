@@ -477,6 +477,50 @@
         }
       }
     },
+    "/novelas/{slug}/libro": {
+      "get": {
+        "tags": [
+          "capitulos"
+        ],
+        "summary": "Libro",
+        "description": "Portada, índice y ficha de la lectura web; lo mismo que el PDF (docs/lectura-web.md).",
+        "operationId": "libro_novelas__slug__libro_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Libro"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/lanzamientos": {
       "get": {
         "tags": [
@@ -911,6 +955,64 @@
         ],
         "title": "EntradaConocimiento",
         "description": "Misma entrada para `conocimiento` (por personaje) y `conocimiento_lector` (plana)."
+      },
+      "EntradaDeFicha": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "detalle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detalle"
+          },
+          "capitulos": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Capitulos"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "nombre",
+          "detalle",
+          "capitulos"
+        ],
+        "title": "EntradaDeFicha"
+      },
+      "EntradaDeIndice": {
+        "properties": {
+          "capitulo": {
+            "type": "integer",
+            "title": "Capitulo"
+          },
+          "titulo": {
+            "type": "string",
+            "title": "Titulo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "capitulo",
+          "titulo"
+        ],
+        "title": "EntradaDeIndice"
       },
       "EntradaTemporal": {
         "properties": {
@@ -1475,6 +1577,56 @@
           "actualizado"
         ],
         "title": "Lanzamiento"
+      },
+      "Libro": {
+        "properties": {
+          "titulo": {
+            "type": "string",
+            "title": "Titulo"
+          },
+          "dedicatoria": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dedicatoria"
+          },
+          "capitulos": {
+            "items": {
+              "$ref": "#/components/schemas/EntradaDeIndice"
+            },
+            "type": "array",
+            "title": "Capitulos"
+          },
+          "personajes": {
+            "items": {
+              "$ref": "#/components/schemas/EntradaDeFicha"
+            },
+            "type": "array",
+            "title": "Personajes"
+          },
+          "lugares": {
+            "items": {
+              "$ref": "#/components/schemas/EntradaDeFicha"
+            },
+            "type": "array",
+            "title": "Lugares"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "titulo",
+          "dedicatoria",
+          "capitulos",
+          "personajes",
+          "lugares"
+        ],
+        "title": "Libro"
       },
       "Manifest": {
         "properties": {

@@ -17,6 +17,7 @@ from novela.slices.export.cmd import exportar
 from novela.slices.nueva.cmd import nueva
 from novela.slices.producir.cmd import producir
 from novela.slices.validacion.cmd import validar
+from novela.slices.visual.cmd import registrar_visual
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, pretty_exceptions_enable=False)
 
@@ -42,6 +43,7 @@ app.command()(con_codigos(auditar))
 app.command()(con_codigos(exportar))
 app.command("comprobar-entorno")(con_codigos(comprobar_entorno))
 app.command()(con_codigos(producir))
+app.command("registrar-visual")(con_codigos(registrar_visual))
 
 brief_app = typer.Typer(no_args_is_help=True, help="Fase de brief de una novela de regalo.")
 brief_app.command()(con_codigos(brief.iniciar))

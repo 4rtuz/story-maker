@@ -617,6 +617,94 @@
   }
 }
 
+/* Libro de la lectura web: portada, índice y ficha (docs/lectura-web.md). */
+.q-lectura__libro {
+  margin-bottom: var(--q-hueco);
+}
+
+.q-libro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: var(--q-hueco);
+  align-items: start;
+}
+
+@media (width < 1280px) {
+  .q-libro {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.q-libro__portada {
+  text-align: center;
+  padding: var(--q-hueco);
+  background: var(--q-tinte-naranja);
+  border-radius: 8px;
+}
+
+.q-libro__titulo {
+  margin: 0;
+  font: 600 1.6rem / 1.2 var(--q-fuente-display);
+  overflow-wrap: anywhere;
+}
+
+.q-libro__dedicatoria {
+  margin: 1rem 0 0;
+  font-style: italic;
+  white-space: pre-line;
+}
+
+.q-libro__seccion {
+  margin: 0 0 0.5rem;
+  font: 600 1rem / 1.3 var(--q-fuente-display);
+}
+
+.q-libro__grupo {
+  margin: 0.75rem 0 0.25rem;
+  color: var(--q-texto-secundario);
+}
+
+.q-libro__lista {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+/* El texto ya lleva «N. título», como el índice del PDF: sin el marcador, que lo duplicaba. */
+.q-libro__indice .q-libro__lista {
+  padding-left: 0;
+  list-style: none;
+}
+
+/* Un número por capítulo, en línea: una línea por aparición hacía la ficha interminable. */
+.q-libro__apariciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: 0.125rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.q-libro__aparece {
+  display: block;
+  color: var(--q-texto-secundario);
+  font-size: 0.875rem;
+}
+
+.q-libro__entrada {
+  margin-bottom: 0.5rem;
+}
+
+.q-libro__detalle {
+  display: block;
+  color: var(--q-texto-secundario);
+  font-size: 0.875rem;
+}
+
+.q-libro__enlace {
+  color: var(--q-primario);
+}
+
 .q-escena {
   position: relative;
   height: 420px;

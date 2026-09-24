@@ -2,8 +2,8 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from novela.dominio import ficha
 from novela.dominio.estado import Aparicion
-from novela.slices.export import ficha
 
 ids_personaje = st.integers(0, 14).map(lambda i: f"per-p{i:02d}")
 ids_escenario = st.integers(0, 14).map(lambda i: f"esc-e{i:02d}")
