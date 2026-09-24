@@ -28,6 +28,8 @@ slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise
 whitesmoke yellow yellowgreen`.split(/\s+/);
 const NOMBRE = new RegExp(`^(?:${NOMBRES.join('|')})$`, 'i');
 const FUNCIONES = /(?:#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklch)\(|\b0x[0-9a-f]{6}\b)/i;
+const ASIGNACION_DE_COLOR =
+  /(?:style\.\w+\s*=|\b(?:color|fill|stroke|background\w*|border\w*)\s*[:=]|setAttribute\(\s*['"](?:fill|stroke|color|stop-color)['"]\s*,|setProperty\([^,]+,|Color\()\s*(['"`])(\w+)\1/gi;
 const PRIMITIVO = /--q-(?:(?:pizarra|naranja|cian|marron|ambar|crema|gris)-\d+|blanco)\b/;
 
 /** Lo que cada fichero `.ts` o `.css` de `directorio` hace mal, sin contar tests ni tokens.css. */
@@ -40,7 +42,9 @@ function infracciones(directorio: string): string[] {
     const texto = fs.readFileSync(path.join(directorio, f), 'utf8');
     const valores = f.endsWith('.css')
       ? [...texto.matchAll(/:\s*([^;{}]+)[;}]/g)].flatMap((m) => (m[1] ?? '').split(/[\s,()]+/))
-      : [...texto.matchAll(/(['"`])([^'"`\n]*)\1/g)].map((m) => m[2] ?? '');
+      : // En TS, un color con nombre es un valor donde se pinta: estilo, atributo SVG o Color().
+        // Una cadena cualquiera no: `'red'` es también un ErrorDeApi.tipo de la spec.
+        [...texto.matchAll(ASIGNACION_DE_COLOR)].map((m) => m[2] ?? '');
     const motivos = [
       FUNCIONES.test(texto) && 'color literal',
       valores.some((v) => NOMBRE.test(v.trim())) && 'color con nombre',

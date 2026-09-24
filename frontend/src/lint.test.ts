@@ -37,6 +37,24 @@ describe('HTML sin sanear (no-unsanitized)', () => {
   });
 });
 
+describe('red solo desde src/shared/api/ (CA-03, VER-12)', () => {
+  it.each([
+    'red-fetch.ts',
+    'red-xhr.ts',
+    'red-websocket.ts',
+    'red-eventsource.ts',
+    'red-window-fetch.ts',
+    'red-global-fetch.ts',
+    'red-beacon.ts',
+  ])('%s fuera de src/shared/api/ es error', async (fixture) => {
+    expect(await errores(fixture, 'src/features/progreso/x.ts')).not.toEqual([]);
+  });
+
+  it('dentro de src/shared/api/ no lo es (control positivo)', async () => {
+    expect(await errores('red-fetch.ts', 'src/shared/api/x.ts')).toEqual([]);
+  });
+});
+
 describe('logo.png reservado a logo.ts (CA-51, parte estática)', () => {
   it('importarlo fuera de logo.ts es error', async () => {
     expect(await errores('import-logo.ts', 'src/app/x.ts')).not.toEqual([]);

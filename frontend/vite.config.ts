@@ -15,5 +15,7 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],
     environment: 'jsdom',
+    // El origen del panel: el CORS de la API solo admite este (RF-01).
+    environmentOptions: { jsdom: { url: 'http://localhost:5173/' } },
   },
 });

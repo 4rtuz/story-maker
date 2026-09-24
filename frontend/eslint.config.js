@@ -32,7 +32,34 @@ function porDestino(mensaje, prohibido) {
   };
 }
 
+// RF-03: toda petición sale del cliente. Se mira el nombre y no solo la global suelta, así que
+// window.fetch, globalThis['fetch'] y navigator.sendBeacon también cuentan (VER-12).
+const RED = new Set(['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'sendBeacon']);
+const redSoloEnApi = {
+  meta: {
+    type: 'problem',
+    messages: { red: '{{nombre}} fuera de src/shared/api/: toda petición va por el cliente (RF-03)' },
+    schema: [],
+  },
+  create(context) {
+    const dentro = !path.relative(path.join(SRC, 'shared', 'api'), path.resolve(context.filename)).startsWith('..');
+    if (dentro) return {};
+    const avisar = (nodo, nombre) => context.report({ node: nodo, messageId: 'red', data: { nombre } });
+    return {
+      Identifier(nodo) {
+        const clave = nodo.parent?.type === 'Property' && nodo.parent.key === nodo && !nodo.parent.computed;
+        if (RED.has(nodo.name) && !clave) avisar(nodo, nodo.name);
+      },
+      Literal(nodo) {
+        const indice = nodo.parent?.type === 'MemberExpression' && nodo.parent.property === nodo;
+        if (indice && RED.has(nodo.value)) avisar(nodo, nodo.value);
+      },
+    };
+  },
+};
+
 const reglas = {
+  'red-solo-en-api': redSoloEnApi,
   // RF-43: nada de fuera de src/, en particular de novelas/ ni de backend/.
   'solo-de-src': porDestino('import de fuera de src/: {{ruta}} (RF-43)', (destino) => {
     const relativa = path.relative(SRC, destino);
@@ -63,6 +90,10 @@ export default tseslint.config(
   {
     files: ['src/**/*.ts'],
     plugins: { panel: { rules: reglas } },
-    rules: { 'panel/solo-de-src': 'error', 'panel/logo-solo-en-logo-ts': 'error' },
+    rules: {
+      'panel/solo-de-src': 'error',
+      'panel/logo-solo-en-logo-ts': 'error',
+      'panel/red-solo-en-api': 'error',
+    },
   },
 );
