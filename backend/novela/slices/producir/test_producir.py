@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 from novela.cli import app
 from novela.plataforma import lanzador
 from novela.plataforma.workspace import WorkspaceRepository
+from novela.slices.producir.cmd import entorno_de_sesion
 from novela.slices.producir.flujo import Puertos, orden_nueva, producir
 
 NUM = 3
@@ -200,3 +201,11 @@ def test_cascara_deja_el_estado_final_y_respeta_el_cerrojo(
     assert final is not None and final.estado == "fallido" and "claude" in final.detalle
     with FileLock(lanzador.cerrojo()):
         assert CliRunner().invoke(app, ["producir", "demo", "--idea", "x"]).exit_code == 3
+
+
+def test_la_sesion_exporta_el_slug_para_el_hook() -> None:
+    """security-report.md S-02: la regla 6 del hook limita las lecturas de los roles a la novela
+    de NOVELA_SLUG."""
+    entorno = entorno_de_sesion("boda-ana", "0f8fad5b-d9cb-469f-a165-70867728950e")
+    assert entorno["NOVELA_SLUG"] == entorno["CC_LANGFUSE_TRACE_TAGS"] == "boda-ana"
+    assert entorno["NOVELA_SESSION_ID"] == "0f8fad5b-d9cb-469f-a165-70867728950e"

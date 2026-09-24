@@ -11,7 +11,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Agent|Task",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Read|Bash|PowerShell|Agent|Task",
         "hooks": [
           {
             "type": "command",
