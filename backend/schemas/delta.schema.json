@@ -135,6 +135,89 @@
       "title": "EstadoPersonaje",
       "type": "object"
     },
+    "EventoCronologia": {
+      "additionalProperties": false,
+      "description": "Un evento datado: lo que alimenta `novela verificar-lean`. `momento` son minutos desde el\ndía 1 a las 00:00; `excluye`, quién sale de la historia en él (muerte o partida definitiva);\n`edades`, las que el texto declara; `tras`, los eventos que el texto sitúa antes.",
+      "properties": {
+        "id": {
+          "pattern": "^evt-[0-9]{2,3}-[0-9]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "momento": {
+          "minimum": 0,
+          "title": "Momento",
+          "type": "integer"
+        },
+        "duracion_min": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Duracion Min",
+          "type": "integer"
+        },
+        "lugar": {
+          "pattern": "^esc-[a-z][a-z0-9-]*$",
+          "title": "Lugar",
+          "type": "string"
+        },
+        "personajes": {
+          "default": [],
+          "items": {
+            "pattern": "^per-[a-z0-9-]+$",
+            "type": "string"
+          },
+          "title": "Personajes",
+          "type": "array"
+        },
+        "excluye": {
+          "default": [],
+          "items": {
+            "pattern": "^per-[a-z0-9-]+$",
+            "type": "string"
+          },
+          "title": "Excluye",
+          "type": "array"
+        },
+        "edades": {
+          "default": {},
+          "patternProperties": {
+            "^per-[a-z0-9-]+$": {
+              "type": "integer"
+            }
+          },
+          "title": "Edades",
+          "type": "object"
+        },
+        "tras": {
+          "default": [],
+          "items": {
+            "pattern": "^evt-[0-9]{2,3}-[0-9]+$",
+            "type": "string"
+          },
+          "title": "Tras",
+          "type": "array"
+        },
+        "cita": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cita"
+        }
+      },
+      "required": [
+        "id",
+        "momento",
+        "lugar"
+      ],
+      "title": "EventoCronologia",
+      "type": "object"
+    },
     "Hecho": {
       "additionalProperties": false,
       "properties": {
@@ -468,6 +551,14 @@
     },
     "resumen": {
       "$ref": "#/$defs/Resumen"
+    },
+    "cronologia": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EventoCronologia"
+      },
+      "title": "Cronologia",
+      "type": "array"
     }
   },
   "required": [

@@ -9,9 +9,9 @@ y `tension_real`— son `ColeccionAppendOnly`: el tipo evita escribir el bug y e
 `pistas` y `metricas` son derivadas: se calculan al aplicar el delta, no vienen en él.
 """
 
-from typing import Literal, Self, get_args
+from typing import Annotated, Literal, Self, get_args
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, StringConstraints, field_validator, model_validator
 
 from novela.dominio.base import (
     SCHEMA_VERSION,
@@ -176,6 +176,32 @@ class UsoCitado(Modelo):
     cita: str = Field(min_length=1)
 
 
+# docs/formal/lean.md: el capítulo y un correlativo, como las escenas.
+EventoId = Annotated[str, StringConstraints(pattern=r"^evt-[0-9]{2,3}-[0-9]+$")]
+
+
+class EventoCronologia(Modelo):
+    """Un evento datado: lo que alimenta `novela verificar-lean`. `momento` son minutos desde el
+    día 1 a las 00:00; `excluye`, quién sale de la historia en él (muerte o partida definitiva);
+    `edades`, las que el texto declara; `tras`, los eventos que el texto sitúa antes."""
+
+    id: EventoId
+    momento: int = Field(ge=0)
+    duracion_min: int = Field(default=0, ge=0)
+    lugar: EscenarioId
+    personajes: list[PersonajeId] = []
+    excluye: list[PersonajeId] = []
+    edades: dict[PersonajeId, int] = {}
+    tras: list[EventoId] = []
+    cita: str | None = None
+
+    @model_validator(mode="after")
+    def _edades_de_presentes(self) -> Self:
+        if ausentes := set(self.edades) - set(self.personajes):
+            raise ValueError(f"{self.id}: edades de quien no está: {sorted(ausentes)}")
+        return self
+
+
 class Delta(Modelo):
     """`estado/deltas/NN.json`: la salida del cronista y la única entrada de `aplicar-delta`.
 
@@ -197,6 +223,7 @@ class Delta(Modelo):
     hechos_usados: list[UsoCitado] = []
     hilos: list[Hilo] = []
     resumen: Resumen
+    cronologia: list[EventoCronologia] = []
 
 
 class Aparicion(Modelo):

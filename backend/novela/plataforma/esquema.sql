@@ -171,3 +171,33 @@ CREATE TRIGGER IF NOT EXISTS usos_de_hecho_no_update BEFORE UPDATE ON usos_de_he
 BEGIN SELECT RAISE(ABORT, 'usos_de_hecho es append-only'); END;
 CREATE TRIGGER IF NOT EXISTS usos_de_hecho_no_delete BEFORE DELETE ON usos_de_hecho
 BEGIN SELECT RAISE(ABORT, 'usos_de_hecho es append-only'); END;
+
+-- cronologia: eventos datados para la verificación en Lean (docs/formal/lean.md). Los escribe
+-- aplicar-delta desde `Delta.cronologia`; append-only. `tras` es una lista JSON de ids de evento.
+-- Aditivo sobre bases anteriores: todo lleva IF NOT EXISTS.
+-- cronologia: inicio
+CREATE TABLE IF NOT EXISTS cronologia (
+    evento       TEXT PRIMARY KEY,
+    capitulo     INTEGER NOT NULL,
+    momento      INTEGER NOT NULL CHECK (momento >= 0),
+    duracion_min INTEGER NOT NULL CHECK (duracion_min >= 0),
+    lugar        TEXT NOT NULL,
+    tras         TEXT NOT NULL,
+    cita         TEXT
+) STRICT;
+CREATE TABLE IF NOT EXISTS cronologia_personajes (
+    evento    TEXT NOT NULL,
+    personaje TEXT NOT NULL,
+    papel     TEXT NOT NULL CHECK (papel IN ('presente', 'excluido')),
+    edad      INTEGER,
+    PRIMARY KEY (evento, personaje, papel)
+) STRICT;
+CREATE TRIGGER IF NOT EXISTS cronologia_no_update BEFORE UPDATE ON cronologia
+BEGIN SELECT RAISE(ABORT, 'cronologia es append-only'); END;
+CREATE TRIGGER IF NOT EXISTS cronologia_no_delete BEFORE DELETE ON cronologia
+BEGIN SELECT RAISE(ABORT, 'cronologia es append-only'); END;
+CREATE TRIGGER IF NOT EXISTS cronologia_personajes_no_update BEFORE UPDATE ON cronologia_personajes
+BEGIN SELECT RAISE(ABORT, 'cronologia_personajes es append-only'); END;
+CREATE TRIGGER IF NOT EXISTS cronologia_personajes_no_delete BEFORE DELETE ON cronologia_personajes
+BEGIN SELECT RAISE(ABORT, 'cronologia_personajes es append-only'); END;
+-- cronologia: fin

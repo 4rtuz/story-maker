@@ -1,0 +1,5 @@
+name = "StoryMaker"
+defaultTargets = ["StoryMaker"]
+
+[[lean_lib]]
+name = "StoryMaker"
