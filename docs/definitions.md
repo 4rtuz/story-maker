@@ -380,7 +380,7 @@ Subagentes de Claude Code. Cada uno tiene un contrato explícito: `{rol, entrada
 
 **`prompts_versionados`** — Un prompt por agente gestionado en Langfuse, con etiqueta de versión, de modo que un cambio de prompt sea un evento identificable en las trazas.
 
-**`scores[]`** — Coherencia, continuidad, tensión, longitud, fair play, estilo, y uno por validador programático con su nombre (`vp_schema`, `vp_longitud`, `vp_pistas`, `vp_hilos`, `vp_ids`, `vp_nombres`; `docs/validators.md` §3.10). Se emiten por capítulo y se agregan por sesión.
+**`scores[]`** — Coherencia, continuidad, tensión, longitud, fair play, estilo, y uno por validador programático con su nombre (`vp_schema`, `vp_longitud`, `vp_pistas`, `vp_hilos`, `vp_ids`, `vp_nombres`; `docs/validators.md` §3.10; `vp_prohibidas`, `docs/guardrails.md`), y `guardrail_prohibidas` desde `validar` cuando hay coincidencias. Se emiten por capítulo y se agregan por sesión.
 
 **`validador`** — Una comprobación determinista con nombre estable, puntos de ejecución, punto en que bloquea, tipos de hallazgo propios y un score. El catálogo es `dominio/validadores.py`; cada tipo de hallazgo de un gate programático pertenece a un solo validador.
 

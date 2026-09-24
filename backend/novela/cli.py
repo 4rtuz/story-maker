@@ -16,6 +16,7 @@ from novela.slices.estado.cmd import estado, pendiente
 from novela.slices.export.cmd import exportar
 from novela.slices.nueva.cmd import nueva
 from novela.slices.producir.cmd import producir
+from novela.slices.prohibidas import cmd as prohibidas
 from novela.slices.validacion.cmd import validar
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, pretty_exceptions_enable=False)
@@ -49,3 +50,9 @@ brief_app.command()(con_codigos(brief.entrada))
 brief_app.command()(con_codigos(brief.preparar))
 brief_app.command()(con_codigos(brief.validar))
 app.add_typer(brief_app, name="brief")
+
+prohibidas_app = typer.Typer(no_args_is_help=True, help="Guardrail de palabras prohibidas.")
+prohibidas_app.command("añadir")(con_codigos(prohibidas.anadir))
+prohibidas_app.command()(con_codigos(prohibidas.listar))
+prohibidas_app.command()(con_codigos(prohibidas.comprobar))
+app.add_typer(prohibidas_app, name="prohibidas")

@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from typing import Any
 
 from hypothesis import given
@@ -8,6 +9,7 @@ from pydantic import BaseModel
 from novela.dominio import frontmatter
 from novela.dominio.config import PalabrasPorCapitulo
 from novela.dominio.plan import FichaCapitulo
+from novela.dominio.prohibidas import Termino
 from novela.slices.checkpoint import cmd as checkpoint
 from novela.slices.validacion import gates
 from tests import estrategias
@@ -348,3 +350,33 @@ def test_esquemas_casos_fijos() -> None:
     # Varios documentos, en su orden.
     dos = {"b": (modelo, None, True), "a": (modelo, None, True)}
     assert [h.referencia for h in gates.esquemas(dos)] == ["b", "a"]
+
+
+# --- vp_prohibidas (docs/guardrails.md) ---------------------------------------------------------
+
+PROHIBIDOS = (
+    Termino("gilipollas", "global"),
+    Termino("Villa Rosa", "cliente"),
+    Termino("tonto", "novela"),
+)
+
+
+@given(capitulos_validos(), st.sampled_from(PROHIBIDOS), st.data())
+def test_prohibidas_property(caso: Caso, termino: Termino, datos: st.DataObject) -> None:
+    """Un capítulo válido con un término prohibido de cualquier nivel, en mayúsculas, deja un
+    solo hallazgo que dice qué término, de qué nivel y en qué línea; sin él, ninguno."""
+    meta, cuerpo, ctx = caso
+    ctx = replace(ctx, prohibidos=PROHIBIDOS)
+    assert gates.validar(meta, cuerpo, ctx) == []
+    lineas = cuerpo.split(" ")
+    linea = datos.draw(st.integers(1, len(lineas)))
+    lineas[linea - 1] = termino.texto.upper()
+    sucio = "\n".join(lineas)
+    ctx = replace(ctx, palabras=ctx.palabras.model_copy(update={"max": ctx.palabras.max + 2}))
+    [h] = gates.validar(meta, sucio, ctx)
+    assert (h.tipo, h.referencia, h.ubicacion) == (
+        "termino_prohibido",
+        termino.nivel,
+        f"línea {linea}",
+    )
+    assert f"«{termino.texto}»" in h.descripcion and termino.texto.upper() in h.descripcion

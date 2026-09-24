@@ -10,7 +10,7 @@ from novela.dominio.brief import NUM_CAPITULOS, OBJETIVO, PALABRAS_MAX, PALABRAS
 from novela.dominio.brief import idea_semilla as semilla_del_brief
 from novela.dominio.config import Config
 from novela.dominio.estado import Cursor, Estado
-from novela.plataforma import estado_db
+from novela.plataforma import estado_db, policy_db
 from novela.plataforma.salida import USO_INCORRECTO
 from novela.plataforma.workspace import CONFIG_DIR, WorkspaceRepository
 
@@ -44,6 +44,8 @@ def _crear(ws: WorkspaceRepository, config: Config) -> None:
         with estado_db.abrir(ws.estado_db) as conn, estado_db.transaccion(conn):
             inicial = Cursor(capitulo=1, fase="escritura", ultimo_paso=None, intento=1)
             estado_db.guardar(conn, Estado(cursor=inicial))
+            # Guardrail (docs/guardrails.md): el global y, con --brief, los vetos del cliente.
+            policy_db.preparar(conn, config.parametros_obra.restricciones_contenido)
 
 
 def _desde_brief(ws: WorkspaceRepository, idioma: str | None) -> Config:

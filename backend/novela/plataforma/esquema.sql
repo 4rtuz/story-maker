@@ -171,3 +171,29 @@ CREATE TRIGGER IF NOT EXISTS usos_de_hecho_no_update BEFORE UPDATE ON usos_de_he
 BEGIN SELECT RAISE(ABORT, 'usos_de_hecho es append-only'); END;
 CREATE TRIGGER IF NOT EXISTS usos_de_hecho_no_delete BEFORE DELETE ON usos_de_hecho
 BEGIN SELECT RAISE(ABORT, 'usos_de_hecho es append-only'); END;
+
+-- Guardrail de palabras prohibidas (docs/guardrails.md): las listas de los tres niveles y el log
+-- de auditoría de sus decisiones, append-only como libro_de_hechos. No son estado de la trama:
+-- las escribe policy_db, no aplicar-delta. Aditivo sobre bases anteriores (policy_db.preparar
+-- ejecuta este bloque entre sus marcas), así que todo lleva IF NOT EXISTS.
+-- policy: inicio
+CREATE TABLE IF NOT EXISTS prohibidas (
+    termino TEXT NOT NULL,
+    nivel   TEXT NOT NULL CHECK (nivel IN ('global', 'cliente', 'novela')),
+    PRIMARY KEY (termino, nivel)
+) STRICT;
+CREATE TABLE IF NOT EXISTS auditoria_policy (
+    id       INTEGER PRIMARY KEY,
+    momento  TEXT NOT NULL,
+    origen   TEXT NOT NULL,
+    decision TEXT NOT NULL,
+    nivel    TEXT NOT NULL,
+    termino  TEXT NOT NULL,
+    capitulo INTEGER,
+    detalle  TEXT NOT NULL
+) STRICT;
+CREATE TRIGGER IF NOT EXISTS auditoria_policy_no_update BEFORE UPDATE ON auditoria_policy
+BEGIN SELECT RAISE(ABORT, 'auditoria_policy es append-only'); END;
+CREATE TRIGGER IF NOT EXISTS auditoria_policy_no_delete BEFORE DELETE ON auditoria_policy
+BEGIN SELECT RAISE(ABORT, 'auditoria_policy es append-only'); END;
+-- policy: fin

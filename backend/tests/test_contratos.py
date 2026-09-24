@@ -386,9 +386,11 @@ def test_settings_de_claude() -> None:
     assert orden.startswith("python "), "python3 es el alias de la Store en Windows (E-11)"
 
 
-def _tabla_de_validadores(texto: str) -> list[tuple[str, tuple[str, ...]]]:
+def _tabla_de_validadores(
+    texto: str, titulo: str = "### 3.10 "
+) -> list[tuple[str, tuple[str, ...]]]:
     """(nombre, puntos) de cada fila de docs/validators.md §3.10, y de nada más del documento."""
-    seccion = texto.split("### 3.10 ", 1)[1].split("\n---", 1)[0]
+    seccion = texto.split(titulo, 1)[1].split("\n---", 1)[0]
     filas = [linea.split("|")[1:-1] for linea in seccion.splitlines() if linea.startswith("| `vp_")]
     return [
         (celdas[0].strip().strip("`"), tuple(re.findall(r"`([a-z]+)`", celdas[2])))
@@ -399,7 +401,12 @@ def _tabla_de_validadores(texto: str) -> list[tuple[str, tuple[str, ...]]]:
 def test_tabla_de_validadores() -> None:
     """CA-19 (spec 0009, RF-19): la tabla de §3.10 nombra los validadores del catálogo con sus
     puntos; con una fila borrada o un punto cambiado, deja de coincidir."""
-    catalogo = [(v.nombre, v.puntos) for v in VALIDADORES]
+    # vp_prohibidas se documenta aparte, con su tabla en el mismo formato (docs/guardrails.md).
+    guardrails = (RAIZ_REPO / "docs" / "guardrails.md").read_text(encoding="utf-8")
+    aparte = _tabla_de_validadores(guardrails, "## Validadores y verificadores")
+    assert [n for n, _ in aparte] == ["vp_prohibidas"]
+    catalogo = [(v.nombre, v.puntos) for v in VALIDADORES if (v.nombre, v.puntos) not in aparte]
+    assert len(catalogo) == len(VALIDADORES) - 1
     texto = (RAIZ_REPO / "docs" / "validators.md").read_text(encoding="utf-8")
     assert _tabla_de_validadores(texto) == catalogo
     sin_fila = re.sub(r"\n\| `vp_hilos` [^\n]*", "", texto)

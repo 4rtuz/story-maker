@@ -12,6 +12,7 @@
             "hilo_cerrado_sin_abrir",
             "id_inexistente",
             "nombre_mal_escrito",
+            "termino_prohibido",
             "esquema_invalido",
             "contradiccion_hecho",
             "contradiccion_temporal",

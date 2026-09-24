@@ -127,7 +127,7 @@ def test_langfuse_caido_no_impide_cerrar(novelas: Novelas, monkeypatch: pytest.M
     monkeypatch.setattr(urllib.request, "urlopen", caido_contado)
     monkeypatch.setenv("TRACE_TO_LANGFUSE", "true")
     assert _cli(ws, "checkpoint").exit_code == 0
-    assert len(llamadas) == 1  # CA-18 (0009): con doce scores, un solo intento
+    assert len(llamadas) == 1  # CA-18 (0009): con trece scores, un solo intento
     assert ws.ultimo_checkpoint() is not None
     log = (ws.raiz / "runs" / fabrica.run_id(8) / "harness.log").read_text(encoding="utf-8")
     assert "checkpoint 08 -> 0 · Langfuse no recibió" in log
@@ -171,7 +171,7 @@ def _lineas(entorno: dict[str, str]) -> str:
 def test_claves_desde_env(
     novelas: Novelas, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """CA-20 (RF-32): con las claves solo en RAIZ_REPO/.env, el sink recibe los doce scores; una
+    """CA-20 (RF-32): con las claves solo en RAIZ_REPO/.env, el sink recibe los trece scores; una
     clave ajena no llega al sink, y os.environ no cambia."""
     ws = _cerrar_hasta_delta(novelas)
     _repo_con_env(tmp_path, monkeypatch, _lineas(_EMISOR) + "OTRA=x\n")
@@ -200,7 +200,7 @@ def test_claves_desde_env(
     antes = dict(os.environ)
     assert _cli(ws, "checkpoint").exit_code == 0
     assert dict(os.environ) == antes
-    assert urls == ["https://env.invalid/api/public/scores"] * 12
+    assert urls == ["https://env.invalid/api/public/scores"] * 13
     assert len(vistos) == 1 and "OTRA" not in vistos[0]
 
 
@@ -318,16 +318,24 @@ def test_vp_schema_obligatorios_y_opcionales(novelas: Novelas, espia: SinkEspia)
     assert (ws.raiz / "checkpoints" / "08.json").exists()
 
 
-VP_SIN_BRIEF = ["vp_schema", "vp_longitud", "vp_pistas", "vp_hilos", "vp_ids", "vp_nombres"]
+VP_SIN_BRIEF = [
+    "vp_schema",
+    "vp_longitud",
+    "vp_pistas",
+    "vp_hilos",
+    "vp_ids",
+    "vp_nombres",
+    "vp_prohibidas",
+]
 
 
 def test_sin_brief_sin_cobertura(novelas: Novelas, espia: SinkEspia) -> None:
-    """CA-16 (checkpoint) y VAL-39: seis vp_* a 1, sin vp_cobertura, detrás de los agregados y en
+    """CA-16 (checkpoint) y VAL-39: siete vp_* a 1, sin vp_cobertura, detrás de los agregados y en
     el orden del catálogo, en una sola emisión."""
     ws = _cerrar_hasta_delta(novelas)
     assert _cli(ws, "checkpoint").exit_code == 0
     nombres = [n for n, _ in espia.recibidos]
-    assert nombres[-6:] == VP_SIN_BRIEF and len(nombres) == 12
+    assert nombres[-7:] == VP_SIN_BRIEF and len(nombres) == 13
     assert all(v == 1.0 for n, v in espia.recibidos if n.startswith("vp_"))
 
 
@@ -339,6 +347,7 @@ def test_sin_brief_sin_cobertura(novelas: Novelas, espia: SinkEspia) -> None:
         ("hilo_cerrado_sin_abrir", "vp_hilos"),
         ("id_inexistente", "vp_ids"),
         ("nombre_mal_escrito", "vp_nombres"),
+        ("termino_prohibido", "vp_prohibidas"),
         ("frontmatter_invalido", None),  # VER-14: vp_schema solo sale de RF-03
     ],
 )

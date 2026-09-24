@@ -12,11 +12,13 @@ ASIGNADOS = {
     "id_inexistente": "vp_ids",
     "nombre_mal_escrito": "vp_nombres",
     "elemento_sin_cubrir": "vp_cobertura",
+    "termino_prohibido": "vp_prohibidas",
 }
 
 
 def test_catalogo() -> None:
-    """CA-01: siete validadores sin repetir; bloquean en uno de sus puntos; binarios salvo la
+    """CA-01: ocho validadores (los siete de la 0009 y vp_prohibidas) sin repetir; bloquean en
+    uno de sus puntos; binarios salvo la
     cobertura."""
     nombres = [v.nombre for v in VALIDADORES]
     assert nombres == [
@@ -27,6 +29,7 @@ def test_catalogo() -> None:
         "vp_ids",
         "vp_nombres",
         "vp_cobertura",
+        "vp_prohibidas",
     ]
     for v in VALIDADORES:
         assert v.puntos and v.bloquea_en in v.puntos
