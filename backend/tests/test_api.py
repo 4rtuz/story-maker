@@ -395,3 +395,9 @@ def test_get_del_panel_en_solo_lectura(solo_lectura: WorkspaceRepository) -> Non
         assert cliente.get(ruta).status_code == 200, ruta
         for metodo in ("POST", "PUT", "PATCH", "DELETE"):
             assert cliente.request(metodo, ruta).status_code == 405, (metodo, ruta)
+
+
+def test_sin_rutas_de_brief() -> None:
+    """CA-29 (spec 0005, RF-29): el brief lleva datos personales y la API no lo sirve."""
+    rutas = [getattr(r, "path", "") for r in app.routes]
+    assert rutas and [r for r in rutas if "brief" in r] == []
