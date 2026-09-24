@@ -1,6 +1,8 @@
 import json
+import shutil
 import sqlite3
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -9,7 +11,7 @@ from typer.testing import Result
 from novela.dominio.artefactos import Memoria
 from novela.dominio.estado import Delta, Estado
 from novela.plataforma import estado_db
-from novela.plataforma.workspace import WorkspaceRepository
+from novela.plataforma.workspace import WorkspaceRepository, huella
 from tests.fixtures import fabrica
 
 
@@ -151,3 +153,98 @@ def test_renderiza_memoria(novelas: Novelas) -> None:
         resumen.escena,
     )
     assert set(memoria.escena) == {"esc-08-1", "esc-08-2"}
+
+
+def _huellas(ws: WorkspaceRepository) -> tuple[bytes, str]:
+    return ws.estado_db.read_bytes(), huella(ws.raiz / "memoria")
+
+
+def _tabla(ws: WorkspaceRepository) -> list[tuple[str]]:
+    with estado_db.abrir(ws.estado_db, solo_lectura=True) as conn:
+        consulta = "SELECT name FROM sqlite_master WHERE name LIKE 'apariciones%' ORDER BY name"
+        return conn.execute(consulta).fetchall()
+
+
+def _copia(ws: WorkspaceRepository, slug: str) -> WorkspaceRepository:
+    shutil.copytree(ws.raiz, ws.raiz.parent / slug)
+    return WorkspaceRepository(ws.raiz.parent / slug)
+
+
+@pytest.mark.parametrize(
+    "romper",
+    [
+        lambda ruta: ruta.unlink(),
+        lambda ruta: ruta.write_text(
+            ruta.read_text(encoding="utf-8").replace("escenas:", "escenas_no:", 1), encoding="utf-8"
+        ),
+        lambda ruta: ruta.write_text("---\ncapitulo: [8\n---\n", encoding="utf-8"),
+    ],
+    ids=["sin-ficha", "sin-escenas", "yaml-roto"],
+)
+def test_aplicar_sin_ficha(novelas: Novelas, romper: Callable[[Path], object]) -> None:
+    """CA-21 (RF-21), VAL-23: sin ficha de plan válida sale con 4 y no toca la base ni memoria/."""
+    ws, _ = _preparado(novelas)
+    romper(ws.raiz / "plan" / "capitulos" / "08.md")
+    antes = _huellas(ws)
+    resultado = _aplicar(ws)
+    assert resultado.exit_code == 4, resultado.output
+    assert "08.md" in resultado.output
+    assert _huellas(ws) == antes
+
+
+def test_migracion_apariciones(novelas: Novelas) -> None:
+    """CA-22 (RF-22), VAL-24 (a): una base sin la tabla la gana al aplicar, con sus triggers e
+    índice y filas solo del capítulo aplicado; el resto del estado queda igual que con la tabla."""
+    con, _ = _preparado(novelas)
+    sin = _copia(con, "demo-24-sin")
+    fabrica.quitar_apariciones(sin.raiz)
+    for ws in (con, sin):
+        assert _aplicar(ws).exit_code == 0
+    assert _tabla(sin) == _tabla(con) and len(_tabla(sin)) == 4
+    with estado_db.abrir(sin.estado_db, solo_lectura=True) as a:
+        with estado_db.abrir(con.estado_db, solo_lectura=True) as b:
+            assert estado_db.leer(a) == estado_db.leer(b)
+            migradas = estado_db.apariciones(a, 99)
+            assert migradas and migradas == [
+                f for f in estado_db.apariciones(b, 99) if f.capitulo == 8
+            ]
+
+
+def test_delta_rechazado_no_migra(novelas: Novelas) -> None:
+    """VAL-24 (b), VER-9: un delta que rechaza `violaciones` deja la base sin la tabla."""
+    ws, _ = _preparado(novelas)
+    fabrica.quitar_apariciones(ws.raiz)
+    ruta = ws.raiz / "estado" / "deltas" / "08.json"
+    delta = json.loads(ruta.read_text(encoding="utf-8"))
+    otra = {"id": "hec-003", "texto": "El faro nunca se apagó.", "capitulo": 8}
+    delta["libro_de_hechos"].append(otra | {"cita": fabrica.frase_de_hecho(8)})
+    ruta.write_text(json.dumps(delta), encoding="utf-8")
+    assert _aplicar(ws).exit_code == 1
+    assert _tabla(ws) == []
+
+
+def test_fallo_al_registrar_no_deja_nada(novelas: Novelas, monkeypatch: pytest.MonkeyPatch) -> None:
+    """VER-8: el registro va en la transacción del estado: si falla, ni estado ni memoria."""
+    ws, _ = _preparado(novelas)
+    antes = _huellas(ws)
+
+    def falla(conn: sqlite3.Connection, filas: object) -> None:
+        raise RuntimeError("corte al registrar")
+
+    monkeypatch.setattr(estado_db, "registrar_apariciones", falla)
+    assert _aplicar(ws).exit_code != 0
+    assert _huellas(ws) == antes
+
+
+def test_aplicar_registra_apariciones(novelas: Novelas) -> None:
+    """CA-19 (RF-19), VAL-20: los 15 pares de demo-regalo, 5 por capítulo."""
+    ws = novelas("demo-regalo")
+    todos = {fabrica.ELENA, fabrica.TOMAS, fabrica.INES, fabrica.FARO, fabrica.PUERTO}
+    segundo = todos - {fabrica.INES} | {fabrica.ARCHIVO}
+    esperadas = {1: todos, 2: segundo, 3: todos}
+    with estado_db.abrir(ws.estado_db, solo_lectura=True) as conn:
+        filas = estado_db.apariciones(conn, 3)
+    assert {(f.entidad, f.capitulo) for f in filas} == {
+        (e, c) for c, entidades in esperadas.items() for e in entidades
+    }
+    assert len(filas) == 15

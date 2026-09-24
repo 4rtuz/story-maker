@@ -39,6 +39,7 @@ from novela.dominio.estado import (
     Resumen,
     UsoCitado,
 )
+from novela.dominio.plan import FichaCapitulo
 from novela.slices.validacion.gates import plegar
 
 LETRAS = string.ascii_letters + "áéíóúñÁÉÍÓÚÑ"
@@ -366,3 +367,35 @@ def nombres_en_cuerpo(draw: st.DrawFn) -> tuple[list[tuple[str, str]], list[list
     lineas = draw(st.lists(st.lists(palabra, min_size=1, max_size=8), min_size=1, max_size=6))
     lineas[draw(st.integers(0, len(lineas) - 1))].append(draw(st.sampled_from(tokens)))
     return formas, lineas
+
+
+# --- Ficha de plan coherente con un capítulo ----------------------------------------------------
+
+
+@st.composite
+def fichas_de(draw: st.DrawFn, capitulo: int) -> FichaCapitulo:
+    """Fichas del capítulo con escenas `esc-NN-1..9`; unas las declara el frontmatter y otras no."""
+    escenas = []
+    for k in draw(st.lists(st.integers(1, 9), min_size=1, max_size=4, unique=True)):
+        presentes = draw(st.lists(personaje_id, min_size=1, max_size=3, unique=True))
+        escenas.append(
+            {
+                "id": f"esc-{capitulo:02d}-{k}",
+                "lugar": draw(escenario_id),
+                "tiempo_diegetico": "dia 1",
+                "personajes": presentes,
+                "dialogo": draw(st.lists(st.sampled_from(presentes), unique=True)),
+                "beat": "b",
+                "conflicto": "c",
+            }
+        )
+    return FichaCapitulo.model_validate(
+        {
+            "capitulo": capitulo,
+            "pov": draw(personaje_id),
+            "objetivo_dramatico": "o",
+            "escenas": escenas,
+            "gancho_final": "amenaza",
+            "restriccion_de_apertura": "r",
+        }
+    )

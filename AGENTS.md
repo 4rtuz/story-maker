@@ -80,7 +80,7 @@ novela aplicar-delta <slug> <cap>     única vía de escritura de estado.db
 novela checkpoint <slug> <cap>
 novela pendiente <slug>               salida 0 si quedan capítulos
 novela auditar <slug>                 pistas huérfanas, hilos sin cerrar
-novela exportar <slug> --formato epub
+novela exportar <slug> --formato md|epub|pdf
 novela comprobar-entorno [--limpio]   hook, python, settings.local.json y .env antes de lanzar
 novela producir <slug> [--idea "..."] la novela entera, una sesión de claude por paso; sin idea, reanuda
 ```

@@ -249,6 +249,9 @@ Lo que ya ocurrió. Fuente única de verdad sobre el texto existente. Vive en `e
 
 Los nombres de esta rama son los del documento serializado de `architecture.md` §7.1, que es el que valida `state.schema.json`, el que responde la API y el que nombra las tablas de `esquema.sql`. Un nombre por campo: no hay alias. `usos_de_hecho` es la excepción: una tabla de `esquema.sql` que no está en el documento serializado.
 
+**`apariciones`** — La excepción a lo anterior: una tabla de `estado.db` que no está en la vista serializada, ni en `state.schema.json`, ni en el delta. Filas `Aparicion {entidad, tipo, capitulo}`, una por personaje (`per-`) o escenario (`esc-`) y capítulo en que sale, con `tipo` `personaje | escenario` casado con el prefijo del id. `novela aplicar-delta` las deriva, en la misma transacción que el estado, del `pov` del frontmatter, de los `personajes` y el `lugar` de las escenas de la ficha de plan que el frontmatter declara, y de los personajes del delta con `ultima_aparicion` en ese capítulo junto con su `ubicacion`. Es un índice de lo que el plan y el cronista dicen que aparece, no de cada mención en el texto. La consulta la ficha del libro de `novela exportar --formato pdf`. Los capítulos aplicados antes de que existiera la tabla no tienen filas.
+`tabla` · **APPEND-ONLY, DERIVADO** · aplicar-delta → exportar
+
 ---
 
 ## 5. MEMORIA
@@ -300,6 +303,9 @@ El contexto persiste como ficheros, no como historial de conversación. Cada sub
 **`runs/<run_id>/`** — `manifest.json`, la procedencia del run, y `harness.log`, una línea por subcomando que el CLI añade al terminar cada uno. La API sirve el log por tramos como `TramoDeLog`: `desde`, `hasta` (el siguiente `desde`), `tamano`, `modificado` (ISO 8601 con zona, o `null` si el run aún no tiene log) y `lineas`, completas y sin `\r\n` ni `\n` finales. No es contrato de ningún agente.
 
 **`novelas/.lanzador/`** — Fuera de todo workspace; no es rama de contexto. Lo escribe `novela producir`, que lanza el panel. `<slug>.json` es un `Lanzamiento`: `slug`, `estado` (`en_marcha`, `terminado`, `fallido`, `detenido` o `interrumpido`, este último si no hay proceso que sostenga `activo.lock`), `paso` (`entorno`, `nueva`, `capitulo NN`, `auditoria`), `detalle`, `actualizado` y, solo en la API, `detener_pedido` y `registro`, las últimas 40 líneas de `<slug>.log`. La petición es `PeticionDeLanzamiento`: `slug`, `idea` y, opcionales, `capitulos` y `palabras`.
+
+
+**`export/`** — `novela.md`, `novela.epub` y `novela.pdf`, que escribe `novela exportar` con los capítulos cerrados. `novela.pdf` es el libro de regalo: portada, índice, capítulos y una ficha de personajes y lugares con un enlace a cada capítulo en que aparece cada uno (`architecture.md` §8). Ningún agente lo lee.
 
 **`CLAUDE.md`** — Convenciones del repositorio. Todo agente lo lee antes de actuar, de modo que las reglas no se repiten en cada prompt.
 
