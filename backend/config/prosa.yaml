@@ -1,0 +1,76 @@
+# Listas de `novela lint-prosa` (docs/linters-prosa.md). Versionadas: cambiar una lista cambia
+# los scores prosa_*, y el sha del commit es lo que permite atribuir ese cambio.
+#
+# Todo en minúsculas. Los clichés son expresiones regulares (sin distinguir mayúsculas) para
+# cubrir la variación de pronombre y tiempo: «le recorrió», «me recorrió», «recorría».
+
+# Regla 1. Una palabra con contenido repetida este número de veces en un párrafo es hallazgo.
+repeticion_minima: 3
+# Palabras con contenido: las de 4 letras o más que no están aquí.
+funcionales: [
+  aquel, aquella, aquellas, aquello, aquellos, aunque, cada, como, cómo, con, contra, cual,
+  cuál, cuando, cuándo, cuanto, desde, donde, dónde, durante, ella, ellas, ellos, entre, esas,
+  esos, esta, está, estaba, estaban, estas, este, esto, estos, había, habían, hacia, hasta,
+  mientras, mismo, misma, mucho, mucha, muy, nada, nadie, algo, alguien, nosotros, nosotras,
+  nuestra, nuestro, otra, otro, otras, otros, para, pero, poco, porque, qué, quien, quién,
+  quienes, sido, sino, sobre, suya, suyo, también, tampoco, tanto, tenía, toda, todas, todo,
+  todos, tras, unas, unos, usted, ustedes, vosotros, fuera, fueron, eran, eres, sería, luego,
+  entonces, ahora, después, antes, ante, bajo, según, solo, sólo, tan, allí, aquí, así, ahí,
+]
+# Muletillas: aparecer dos veces en el mismo párrafo ya es hallazgo.
+muletillas: [
+  de repente, de pronto, en realidad, realmente, simplemente, básicamente, sin embargo,
+  de alguna manera, de algún modo, por alguna razón, en cierto modo, en ese momento,
+  literalmente, obviamente, todavía más,
+]
+
+# Regla 3. Adverbios en -mente: a partir de este número en un párrafo es hallazgo.
+adverbios_mente_por_parrafo: 2
+# Palabras en -mente que no son adverbios.
+no_adverbios: [
+  mente, demente, dementes, clemente, vehemente, simiente, miente, siente, lamente, aumente,
+  comente, alimente, fomente, experimente, implemente, complemente, cemente, atormente,
+]
+# Clichés de suspense y giros típicos de texto generado por IA.
+cliches: [
+  'un escalofrío (le|me|te|nos|les) recorr(ió|ía) (la espalda|el cuerpo|la columna)',
+  'no (pudo|pude|podía|puede) evitar',
+  '\ben el fondo\b',
+  '\btapiz\b',
+  'un torbellino de emociones',
+  'contuvo (el aliento|la respiración)',
+  'el corazón (le|me) (latía|dio un vuelco|martilleaba)',
+  'un silencio sepulcral',
+  'el tiempo pareció detenerse',
+  'como si el mundo (entero )?se detuviera',
+  'una mezcla de (miedo|alivio|emoción|tristeza) y',
+  'sus ojos (brillaban|se llenaron de lágrimas)',
+  'soltó el aire que no sabía que (estaba conteniendo|contenía)',
+  'algo en su interior',
+  'un nudo en (el estómago|la garganta)',
+  'danza (de|entre) (luces|sombras)',
+  'no era solo .{1,40}, era',
+  'testimonio (de|del) (su|la|el)',
+  'en un mundo (donde|en el que)',
+  'navegar (por )?(las|sus) emociones',
+  'un recordatorio de que',
+  'resonaba en (su|mi) mente',
+  'la calma antes de la tormenta',
+  'sangre se (le|me) heló',
+]
+
+# Regla 4. Marcas de narrador y de tiempo, contadas solo en la narración (fuera de diálogo).
+primera_persona: [yo, me, mi, mis, mí, conmigo, nosotros, nosotras, nuestro, nuestra, nuestros, nuestras]
+pasado_formas: [
+  fue, fueron, dijo, dijeron, hizo, hicieron, tuvo, tuvieron, estuvo, pudo, vino, puso, supo,
+  quiso, era, eran, iba, iban, vio, vieron, dio, había, habían, estaba, estaban, tenía, tenían,
+  podía, sabía, quería, parecía, seguía, miró, llegó, pensó, sintió, abrió, cerró,
+]
+presente_formas: [
+  es, son, está, están, hay, tiene, tienen, va, van, puede, pueden, sabe, quiere, parece, sigue,
+  mira, llega, piensa, siente, abre, cierra, dice, dicen, hace, hacen, ve, ven, da, viene, pone,
+]
+# Terminaciones de pasado (imperfecto y pretérito), para palabras de 5 letras o más.
+pasado_terminaciones: [aba, aban, ábamos, aron, ieron, ó]
+# Palabras que acaban en esas terminaciones y no son verbos en pasado.
+no_pasado: [radió, lió]
