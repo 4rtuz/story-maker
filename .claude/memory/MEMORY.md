@@ -1,0 +1,3 @@
+- [Preparación de la máquina](maquina-sin-preparar.md) — 2026-09-24: preparada; necesita CLAUDE_CODE_GIT_BASH_PATH y el novela.exe de backend\.venv (Device Guard)
+- [Regla 4 del hook y commits](hook-regla-4-commits.md) — mensajes que nombran el misterio o estado.db: git commit -F; pre-commit no activo en este clon
+- [Entorno del frontend](entorno-frontend.md) — Node portátil (ya en el PATH de usuario), puerto 8000 libre, trampas de Git Bash y capturas con Playwright
