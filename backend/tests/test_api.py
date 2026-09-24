@@ -370,3 +370,28 @@ def test_log_rendimiento(
         respuesta = cliente.get("/novelas/demo-24/runs/r-20990101-0001/log?desde=" + str(desde))
         assert respuesta.status_code == 200
         assert 0 < sum(leidos) <= 1_048_576 + 1
+
+
+def test_get_del_panel_en_solo_lectura(solo_lectura: WorkspaceRepository) -> None:
+    """CA-38 (RF-38): los diez GET de la spec 0004 §8.4 responden 200 sobre el workspace montado
+    en solo lectura, sin cambiar su huella; POST, PUT, PATCH y DELETE, 405. Los HEAD y OPTIONS
+    que Starlette y el CORS responden solos no cuentan (D49)."""
+    run = fabrica.run_id(7)
+    base = "/novelas/demo-24"
+    rutas = [
+        "/novelas",
+        f"{base}/estado",
+        f"{base}/capitulos",
+        f"{base}/capitulos/3",
+        f"{base}/runs/{run}",
+        f"{base}/config",
+        f"{base}/escaleta",
+        f"{base}/checkpoint",
+        f"{base}/runs",
+        f"{base}/runs/{run}/log",
+    ]
+    assert {m for ops in app.openapi()["paths"].values() for m in ops} == {"get"}
+    for ruta in rutas:
+        assert cliente.get(ruta).status_code == 200, ruta
+        for metodo in ("POST", "PUT", "PATCH", "DELETE"):
+            assert cliente.request(metodo, ruta).status_code == 405, (metodo, ruta)
