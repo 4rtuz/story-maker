@@ -52,7 +52,7 @@ Estas reglas no se negocian. Si una tarea parece exigir romper una, para y pregu
 4. **Fair play.** Ninguna revelación sin al menos una pista plantada antes.
 5. **El contexto vive en disco, no en la conversación.** Nunca reconstruyas estado a partir de una sesión previa; léelo de `estado.db` y `checkpoints/`.
 6. **Escritura atómica.** Todo fichero se escribe en `.tmp` y se renombra. El estado es la excepción: `estado.db` se escribe en una transacción, nunca por copia de fichero.
-7. **No se reescriben capítulos anteriores.** Si el problema del capítulo 7 nace del 5, para y pide intervención.
+7. **No se reescriben capítulos de una versión.** Si el problema del capítulo 7 nace del 5, para y pide intervención. Solo `novela cambio` abre una versión nueva, y la anterior queda intacta en `versiones/`.
 8. **Un proceso por workspace.** Respeta `estado/state.lock`.
 
 ## Cómo trabaja cada rol

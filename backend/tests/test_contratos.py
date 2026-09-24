@@ -296,3 +296,30 @@ def test_settings_de_claude() -> None:
     script = re.search(r"\$CLAUDE_PROJECT_DIR/([^\"\s]+)", orden)
     assert script and (RAIZ_REPO / script[1]).is_file(), orden  # F-10: la ruta existe
     assert orden.startswith("python "), "python3 es el alias de la Store en Windows (E-11)"
+
+
+def test_adr_de_versiones() -> None:
+    """CA-42 (RF-45): el ADR 0004 existe con su frontmatter y sus cinco secciones, y el
+    invariante 7 de AGENTS.md admite versiones sin dejar de prohibir la reescritura en sitio."""
+    _, cabecera, cuerpo = (
+        (RAIZ_REPO / "docs" / "adr" / "0004-versiones-de-la-novela.md")
+        .read_text(encoding="utf-8")
+        .split("---", 2)
+    )
+    meta = yaml.safe_load(cabecera)
+    assert (meta["adr"], meta["estado"], meta["specs"]) == (4, "aceptada", [7])
+    for seccion in (
+        "Contexto",
+        "Decisión",
+        "Alternativas descartadas",
+        "Consecuencias",
+        "Cuándo reabrirla",
+    ):
+        assert f"\n## {seccion}\n" in cuerpo, seccion
+    [invariante] = [
+        linea
+        for linea in (RAIZ_REPO / "AGENTS.md").read_text(encoding="utf-8").splitlines()
+        if linea.startswith("7. ")
+    ]
+    assert "versiones/" in invariante
+    assert "novela cambio" in invariante
