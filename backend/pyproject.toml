@@ -7,6 +7,8 @@ dependencies = [
     "ebooklib>=0.20",
     "fastapi>=0.141.1",
     "filelock>=3.13",
+    "fonttools>=4.66.0",
+    "fpdf2>=2.8.8",
     "markdown-it-py>=4.2.0",
     "pydantic>=2.7",
     "pyyaml>=6.0",
@@ -24,6 +26,7 @@ dev = [
     "jsonschema>=4.22",
     "mutmut>=2.5,<3",
     "mypy>=1.10",
+    "pypdf>=6.19.0",
     "pytest>=8.2",
     "ruff>=0.5",
     "types-jsonschema>=4.26.0.20260518",
@@ -57,6 +60,11 @@ plugins = ["pydantic.mypy"]
 [[tool.mypy.overrides]]
 # ebooklib no publica tipos.
 module = ["ebooklib", "ebooklib.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# fonttools tampoco: pdf.py lee con él el cmap de la fuente embebida.
+module = ["fontTools", "fontTools.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

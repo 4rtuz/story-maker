@@ -130,6 +130,7 @@ Hypothesis, generando estados y deltas aleatorios. Las propiedades que aquí son
 | `misterio.md ⊄ briefing(escritor, *)` | Invariante 3, sobre canons generados al azar |
 | `validar(cap) == ok ⟹ todas las pistas del plan están en el frontmatter` | El gate no puede pasar en falso |
 | Registrar dos veces `apply.apariciones` de un capítulo es registrarlo una; el `pov` está siempre y los capítulos anteriores no cambian (`test_apariciones_property`, 200 casos) | Reanudar repite `aplicar-delta`, y la tabla es append-only (spec 0006) |
+| La ficha del libro tiene un capítulo por par (entidad, capítulo) distinto, ascendentes, y solo entidades con aparición (`test_un_enlace_por_aparicion`, 200 casos) | Es la función principal de la ficha: un enlace de menos es un capítulo perdido (spec 0006) |
 
 La cuarta es la más valiosa: un test de ejemplo comprueba que *ese* misterio no se filtra; la propiedad comprueba que ninguno lo hace.
 
