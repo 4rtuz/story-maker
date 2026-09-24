@@ -570,3 +570,37 @@
 .q-detalles .q-tabla {
   margin-top: 12px;
 }
+
+/* --- Actividad ----------------------------------------------------------------------------- */
+
+.q-actividad__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 12px;
+  font-size: var(--q-texto-meta);
+  color: var(--q-texto-secundario);
+}
+
+.q-log {
+  max-height: 360px;
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  border-radius: var(--q-radio-control);
+  background: var(--q-secundario-fondo);
+  color: var(--q-texto);
+  font: var(--q-texto-etiqueta) / 1.6 var(--q-fuente-mono);
+  list-style: none;
+}
+
+.q-log:focus-visible {
+  outline: var(--q-contorno-foco) solid var(--q-foco);
+  outline-offset: var(--q-separacion-foco);
+}
+
+.q-log__linea {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

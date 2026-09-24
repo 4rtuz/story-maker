@@ -8,6 +8,7 @@ import { banner, datosDeBanner } from '../../shared/ui/banner';
 import { lectorDelNavegador } from '../../shared/marca/lector-de-tokens';
 import { el, esqueleto, estadoVacio, etiqueta, metrica, subtarjeta, tabla, tarjeta, vacio } from '../../shared/ui/componentes';
 import { hilosAbiertos, resumir } from './resumen';
+import { crearActividad } from './actividad';
 import { listaDeRuns } from './runs';
 import { filasDeTension, graficaDeTension, serieDeTension } from './tension';
 
@@ -48,6 +49,7 @@ export function progreso({ slug }: { slug: string }): Vista {
   const desviacion = metrica({ etiqueta: 'Desviación', icono: 'activity', tono: 'naranja' });
   const hilos = metrica({ etiqueta: 'Hilos abiertos', icono: 'list-tree', tono: 'cian' });
 
+  const actividad = crearActividad(slug);
   const tarjetaTension = tarjeta({ titulo: 'Tensión', icono: 'chart-line', tono: 'cian' });
   tarjetaTension.cuerpo.append(esqueleto('q-esqueleto--grafica'));
   const tarjetaHilos = tarjeta({ titulo: 'Hilos abiertos', icono: 'list-tree', tono: 'naranja' });
@@ -120,7 +122,7 @@ export function progreso({ slug }: { slug: string }): Vista {
       'q-vista q-vista--progreso',
       cabecera,
       el('div', 'q-metricas', cerrados.raiz, palabras.raiz, desviacion.raiz, hilos.raiz),
-      el('div', 'q-rejilla', tarjetaTension.raiz, tarjetaHilos.raiz, tarjetaRuns.raiz),
+      el('div', 'q-rejilla', tarjetaTension.raiz, tarjetaHilos.raiz, tarjetaRuns.raiz, actividad.tarjeta),
     ),
     recursos: [
       recurso('estado', async (s) => void (datos.estado = await api.estado(slug, s))),
@@ -128,7 +130,11 @@ export function progreso({ slug }: { slug: string }): Vista {
       recurso('escaleta', async (s) => void (datos.escaleta = await api.escaleta(slug, s))),
       recurso('checkpoint', async (s) => void (datos.checkpoint = await api.checkpoint(slug, s))),
       recurso('capitulos', async (s) => void (datos.capitulos = await api.capitulos(slug, s))),
-      recurso('runs', async (s) => void (datos.runs = await api.runs(slug, s))),
+      recurso('runs', async (s) => {
+        datos.runs = await api.runs(slug, s);
+        actividad.alCambiarRuns(datos.runs);
+      }),
+      actividad.recurso,
     ],
   };
 }
