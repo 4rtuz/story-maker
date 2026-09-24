@@ -203,6 +203,7 @@ Desatendido, una sesión por capítulo para acotar el contexto y el daño de un 
 ```bash
 export MSYS_NO_PATHCONV=1                 # sin esto, "/novela-continuar" llega como ruta de Windows
 export CC_LANGFUSE_TRACE_TAGS=<slug>
+export NOVELA_SLUG=<slug>                 # regla 6 del hook: cada rol lee solo su novela
 export CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS=30000   # sin esto, -p pierde el último turno
 novela comprobar-entorno || exit 1
 while novela pendiente <slug>; do
