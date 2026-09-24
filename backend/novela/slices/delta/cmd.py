@@ -116,6 +116,8 @@ def aplicar_delta(slug: str, capitulo: int) -> None:
                 nuevo = apply.aplicar(vigente, delta, derivados)
                 with estado_db.transaccion(conn):
                     estado_db.guardar(conn, nuevo)
+                    estado_db.asegurar_usos(conn)  # base anterior a la spec 0007 (RF-05)
+                    estado_db.registrar_usos(conn, apply.usos(delta))
 
             # Derivado de verdad: se reconstruye recorriendo estado/deltas/*.json, sin cuota.
             memoria = Memoria(capitulo=capitulo, **delta.resumen.model_dump())

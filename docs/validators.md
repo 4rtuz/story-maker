@@ -129,6 +129,7 @@ Hypothesis, generando estados y deltas aleatorios. Las propiedades que aquí son
 | `restore(checkpoint(e)) == e` | La reanudación depende de esto y nada más lo comprueba |
 | `misterio.md ⊄ briefing(escritor, *)` | Invariante 3, sobre canons generados al azar |
 | `validar(cap) == ok ⟹ todas las pistas del plan están en el frontmatter` | El gate no puede pasar en falso |
+| `⋃ usos(dᵢ) == origen ∪ conocimiento ∪ lector ∪ cita` por capítulo, sin duplicados, y repetir el último delta no lo cambia (spec 0007, CA-04) | `usos_de_hecho` decide qué capítulos se regeneran; un uso perdido deja un capítulo sin regenerar y uno duplicado rompería el `INSERT` |
 
 La cuarta es la más valiosa: un test de ejemplo comprueba que *ese* misterio no se filtra; la propiedad comprueba que ninguno lo hace.
 

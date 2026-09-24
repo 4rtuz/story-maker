@@ -34,6 +34,10 @@ class Novela:
     num_capitulos: int
     pistas: tuple[tuple[int, int | None], ...]  # (capítulo en que se planta, en que se paga)
     hilos: tuple[tuple[int, int], ...]  # (capítulo en que se abre, en que se cierra)
+    # Spec 0007: hechos además del hec-00n de cada capítulo, y los que un capítulo cita en
+    # hechos_usados.
+    hechos_extra: tuple[tuple[str, int], ...] = ()  # (id, capítulo que lo introduce)
+    usados: tuple[tuple[int, str], ...] = ()  # (capítulo, hecho que cita)
 
     def pistas_de(self, n: int) -> tuple[list[str], list[str]]:
         plantar = [f"pis-{i:03d}" for i, (p, _) in enumerate(self.pistas, 1) if p == n]
@@ -49,6 +53,14 @@ class Novela:
 DEMO = Novela(24, pistas=((2, 20), (3, 6), (5, 22), (8, 23)), hilos=((1, 10), (4, 24), (7, 15)))
 # Una pista plantada en el 1 que nadie paga: el hallazgo de CA-23.
 HUERFANA = Novela(3, pistas=((1, 3), (1, None)), hilos=((1, 3),))
+# demo-cambio (spec 0007 §7): hec-102 nace en el 2 y lo cita el 5; hec-002 lo citan el 4 y el 6.
+CAMBIO = Novela(
+    6,
+    pistas=((1, 5), (3, 6)),
+    hilos=((1, 6), (2, 4)),
+    hechos_extra=(("hec-102", 2),),
+    usados=((4, "hec-002"), (5, "hec-102"), (6, "hec-002")),
+)
 
 
 def _md(meta: dict[str, Any], cuerpo: str) -> str:
@@ -273,6 +285,19 @@ def frase_de_hecho(n: int) -> str:
     return f"En la noche {n} Elena comprobó que la puerta de la linterna seguía forzada."
 
 
+def frase_de_hecho_extra(n: int) -> str:
+    return f"En la noche {n} Elena encontró una colilla junto a la escalera."
+
+
+def _origen(novela: Novela, hecho: str) -> int:
+    return dict(novela.hechos_extra).get(hecho) or int(hecho[-3:])
+
+
+def frase_de_uso(novela: Novela, n: int, hecho: str) -> str:
+    origen = _origen(novela, hecho)
+    return f"En la noche {n} Elena volvió a pensar en lo que supo en la noche {origen}."
+
+
 def frase_de_escena(n: int, escena: int) -> str:
     return f"Aquella escena {escena} del capítulo {n} empezó con el viento del norte."
 
@@ -282,6 +307,8 @@ def capitulo(novela: Novela, n: int) -> str:
     abre, cierra = novela.hilos_de(n)
     relleno = f"Elena contó los escalones del faro por {n} vez y el mar siguió en su sitio."
     parrafos = [frase_de_escena(n, 1) + " " + frase_de_hecho(n)]
+    parrafos += [frase_de_hecho_extra(n) for _, c in novela.hechos_extra if c == n]
+    parrafos += [frase_de_uso(novela, n, h) for c, h in novela.usados if c == n]
     parrafos += [f"Elena encontró la pista {p[-1]} donde nadie miraba." for p in plantar + pagar]
     cuerpo_min = " ".join(parrafos)
     while len(cuerpo_min.split()) < PALABRAS_POR_CAPITULO - 20:
@@ -414,6 +441,19 @@ def delta(novela: Novela, n: int) -> dict[str, Any]:
                 "capitulo": n,
                 "cita": frase_de_hecho(n),
             }
+        ]
+        + [
+            {
+                "id": extra,
+                "texto": f"Había una colilla junto a la escalera en la noche {n}.",
+                "capitulo": n,
+                "cita": frase_de_hecho_extra(n),
+            }
+            for extra, c in novela.hechos_extra
+            if c == n
+        ],
+        "hechos_usados": [
+            {"hecho": h, "cita": frase_de_uso(novela, n, h)} for c, h in novela.usados if c == n
         ],
         "hilos": hilos,
         "resumen": {

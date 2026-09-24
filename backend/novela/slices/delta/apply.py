@@ -10,7 +10,15 @@ from dataclasses import dataclass
 
 from novela.dominio.artefactos import FrontmatterCapitulo
 from novela.dominio.base import ColeccionAppendOnly
-from novela.dominio.estado import Cursor, Delta, Estado, EstadoPista, Metricas
+from novela.dominio.estado import (
+    Cursor,
+    Delta,
+    Estado,
+    EstadoPista,
+    Metricas,
+    UsoDeHecho,
+    Via,
+)
 
 
 @dataclass(frozen=True)  # pragma: no mutate
@@ -68,6 +76,17 @@ def _tension(estado: Estado, capitulo: int, valor: int | None) -> ColeccionAppen
     while len(tension) < capitulo - 1:
         tension = tension.añadir(None)
     return tension.añadir(valor) if len(tension) < capitulo else tension
+
+
+def usos(delta: Delta) -> tuple[UsoDeHecho, ...]:
+    """Spec 0007 RF-03: qué hechos usa el capítulo y por qué vía, sin repetir. El capítulo del uso
+    es el del delta, no el `desde_capitulo` de la entrada."""
+    n = delta.capitulo
+    filas: list[tuple[str, Via]] = [(h.id, "origen") for h in delta.libro_de_hechos]
+    filas += [(e.hecho, "conocimiento") for es in delta.conocimiento.values() for e in es]
+    filas += [(e.hecho, "lector") for e in delta.conocimiento_lector]
+    filas += [(u.hecho, "cita") for u in delta.hechos_usados]
+    return tuple(UsoDeHecho(hecho=h, capitulo=n, via=v) for h, v in dict.fromkeys(filas))
 
 
 def aplicar(estado: Estado, delta: Delta, d: Derivados) -> Estado:
