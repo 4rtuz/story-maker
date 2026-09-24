@@ -226,7 +226,7 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │   ├── delta/            # cmd.py · apply.py · violaciones.py · test_delta.py
 │   │   │   ├── checkpoint/
 │   │   │   ├── auditoria/        # pistas huérfanas, hilos abiertos
-│   │   │   ├── entorno/          # comprobar-entorno: hook, python, settings.local.json, .env
+│   │   │   ├── entorno/          # comprobar-entorno: hooks, python, settings.local.json, .env
 │   │   │   ├── presupuesto/      # ventana de uso y degradación
 │   │   │   └── export/           # cmd.py · markdown.py · epub.py
 │   │   │
@@ -755,7 +755,7 @@ novela checkpoint <slug> <cap>
 novela pendiente <slug>            # código de salida: 0 si quedan capítulos
 novela auditar <slug>              # pistas huérfanas, hilos sin cerrar, fair play
 novela exportar <slug> --formato epub
-novela comprobar-entorno [--limpio]   # hook, python, settings.local.json y .env antes de lanzar
+novela comprobar-entorno [--limpio]   # hooks, python, settings.local.json y .env antes de lanzar
 ```
 
 **Reanudación.** `/novela-continuar` empieza leyendo `checkpoints/latest.json` y repite el último paso no confirmado. Regla dura: el estado nunca se reconstruye desde una conversación previa, ni siquiera desde la sesión anterior de Claude Code.
@@ -877,7 +877,7 @@ Se arranca desde `backend/` con `uv run uvicorn api.main:app --reload`.
 | — | Con Git para Windows instalado por usuario, `CLAUDE_CODE_GIT_BASH_PATH` en el entorno de usuario, apuntando a su `bin\bash.exe` | `claude -p "responde ok" --output-format stream-json --verbose`: el evento `init` lista `Bash` | La sesión solo tiene PowerShell: `Bash(novela:*)` no casa, y los hooks corren en PowerShell y fallan |
 | — | Con App Control (Device Guard), `novela --help` responde | `novela --help` | El `novela.exe` de `uv tool` sale con «Permission denied». El de `backend\.venv\Scripts` sí corre, y esa carpeta va por delante en el PATH |
 
-Si `python` no resuelve, se desactiva el alias en «Alias de ejecución de aplicaciones» o se pone Python 3.12 por delante en el PATH; el comando del hook no se cambia a una ruta absoluta. `novela comprobar-entorno` comprueba `python`, el script del hook, `settings.local.json` y `.env` antes de cada bucle.
+Si `python` no resuelve, se desactiva el alias en «Alias de ejecución de aplicaciones» o se pone Python 3.12 por delante en el PATH; el comando del hook no se cambia a una ruta absoluta. `novela comprobar-entorno` comprueba `python`, los scripts de los dos hooks, `settings.local.json` y `.env` antes de cada bucle.
 
 ### 11.2 Frontend (`frontend/`)
 

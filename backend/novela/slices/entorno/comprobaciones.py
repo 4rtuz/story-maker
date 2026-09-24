@@ -10,6 +10,7 @@ import re
 from collections.abc import Mapping
 
 HOOK = ".claude/hooks/denegar-escritura-estado.py"
+HOOK_VALIDACION = ".claude/hooks/validar-capitulo.py"  # PostToolUse, spec 0008
 
 
 def _json(texto: str) -> object:
@@ -23,6 +24,7 @@ def entorno(
     settings: str | None,
     local: str | None,
     hook_existe: bool,
+    hook_validacion_existe: bool,
     python: str | None,
     sucio: bool,
     limpio: bool,
@@ -50,6 +52,8 @@ def entorno(
             ]
     if not hook_existe:
         hallazgos.append(f"falta {HOOK}")
+    if not hook_validacion_existe:
+        hallazgos.append(f"falta {HOOK_VALIDACION}")
     # Con cualquier código distinto de 2, Claude Code deja pasar la acción.
     if python is None:
         hallazgos.append("python no resuelve: el hook fallaría abierto")
