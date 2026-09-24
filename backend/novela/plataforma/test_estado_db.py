@@ -6,7 +6,7 @@ import pytest
 from hypothesis import given
 
 from novela.dominio.estado import Estado, Hecho, UsoDeHecho
-from novela.plataforma import estado_db
+from novela.plataforma import estado_db, versiones
 from tests import estrategias
 
 
@@ -175,3 +175,18 @@ def test_asegurar_usos_dentro_de_la_transaccion(tmp_path: Path) -> None:
         estado_db.registrar_usos(conn, [UsoDeHecho(hecho="hec-001", capitulo=1, via="origen")])
         with pytest.raises(sqlite3.IntegrityError, match="append-only"):
             conn.execute("DELETE FROM usos_de_hecho")
+
+
+def test_meta_de_version(tmp_path: Path) -> None:
+    """RF-16 y la mitad «antes» de CA-15: sin argumentos, `meta` como siempre y la edición vigente
+    es la 1; con ellos, `version` y `cambio`, y `schema_version` no cambia."""
+    sin, con = tmp_path / "sin.db", tmp_path / "con.db"
+    estado_db.crear(sin)
+    estado_db.crear(con, version=2, cambio="cam-001")
+    for ruta, esperado, vigente in (
+        (sin, {"schema_version": "1.0.0"}, 1),
+        (con, {"schema_version": "1.0.0", "version": "2", "cambio": "cam-001"}, 2),
+    ):
+        with estado_db.abrir(ruta, solo_lectura=True) as conn:
+            assert dict(conn.execute("SELECT clave, valor FROM meta")) == esperado
+            assert versiones.version_vigente(conn) == vigente
