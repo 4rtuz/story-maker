@@ -268,7 +268,7 @@ export interface components {
          * Agente
          * @enum {string}
          */
-        Agente: "arquitecto" | "trazador" | "escritor" | "continuista" | "editor-estilo" | "lector-suspense" | "cronista";
+        Agente: "arquitecto" | "trazador" | "escritor" | "continuista" | "editor-estilo" | "lector-suspense" | "cronista" | "juez";
         /**
          * Checkpoint
          * @description `checkpoints/NN.json` y `latest.json`: cursor, versiones y run_id, no la base (RF-20).

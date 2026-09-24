@@ -26,6 +26,7 @@ CAPAS = {
     Agente.ESCRITOR: ["premisa", "estilo", "ficha", "personaje"],
     Agente.EDITOR_ESTILO: ["estilo", "personaje", "capitulo"],
     Agente.CRONISTA: ["capitulo"],
+    Agente.JUEZ: ["brief", "premisa", "estilo", "personaje", "obra"],
 }
 
 
@@ -34,6 +35,7 @@ def _fuentes_con(misterio: Misterio, agente: Agente, **textos: str) -> assemble.
         "canon/premisa.md": textos.get("premisa", "Premisa sin secretos."),
         "canon/mundo.md": "Un pueblo.",
         "canon/estilo.md": textos.get("estilo", "Seco."),
+        "brief/brief.json": textos.get("brief", "{}"),
         "canon/misterio.md": frontmatter.unir(misterio.model_dump(mode="json"), ""),
     }
     return replace(
@@ -46,6 +48,7 @@ def _fuentes_con(misterio: Misterio, agente: Agente, **textos: str) -> assemble.
         ficha_texto=textos.get("ficha", "La ficha de este capítulo."),
         personajes={"per-a": (PERSONAJE, textos.get("personaje", "Ficha de A."))},
         capitulo_actual=textos.get("capitulo", "El capítulo recién escrito."),
+        capitulos={1: textos.get("obra", "La novela entera.")},
     )
 
 
@@ -406,3 +409,30 @@ def test_pista_permitida_dentro_del_secreto_no_lo_tapa(misterio: Misterio) -> No
     f = _fuentes_con(misterio, Agente.CRONISTA, capitulo=f"Relleno. {secreto}")
     with pytest.raises(assemble.FugaDelSecreto):
         assemble.ensamblar(RECETAS[Agente.CRONISTA], f)
+
+
+BRIEF = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "brief" / "brief-completo.json"
+
+
+def test_juez_ve_la_novela_entera_y_el_brief(novelas: Novelas) -> None:
+    """El juez juzga la obra: brief, canon sin misterio, todos los personajes y los capítulos
+    del 1 al pedido, completos si caben."""
+    ws = novelas("demo-regalo")
+    (ws.raiz / "brief").mkdir(exist_ok=True)
+    (ws.raiz / "brief" / "brief.json").write_bytes(BRIEF.read_bytes())
+    resultado = _briefing(ws, 3, "juez", run_id=fabrica.run_id(3))
+    assert resultado.exit_code == 0, resultado.output
+    texto = _fichero(ws, 3, "juez", run_id=fabrica.run_id(3)).read_text(encoding="utf-8")
+    assert "## permanente · brief/brief.json" in texto
+    for c in (1, 2, 3):
+        capitulo = (ws.raiz / "capitulos" / f"{c:02d}.md").read_text(encoding="utf-8")
+        assert capitulo.strip() in texto
+    misterio = (ws.raiz / "canon" / "misterio.md").read_text(encoding="utf-8")
+    assert misterio.strip() not in texto and "misterio.md" not in texto
+
+
+def test_juez_sin_brief_falla(novelas: Novelas) -> None:
+    ws = novelas("demo-regalo")
+    resultado = _briefing(ws, 3, "juez", run_id=fabrica.run_id(3))
+    assert resultado.exit_code == 4
+    assert "brief/brief.json" in resultado.output

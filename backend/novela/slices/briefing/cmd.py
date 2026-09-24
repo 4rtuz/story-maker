@@ -6,6 +6,7 @@ import typer
 from pydantic import BaseModel
 
 from novela.dominio.artefactos import Memoria
+from novela.dominio.brief import Brief
 from novela.dominio.canon import Estilo, Misterio, Mundo, Personaje, Premisa
 from novela.dominio.ids import Agente
 from novela.dominio.plan import FichaCapitulo
@@ -51,6 +52,8 @@ def cargar_fuentes(
             if ruta.parent.name == "canon" and ruta.stem in _CANON:
                 ws.modelo_de_md(ruta, texto, _CANON[ruta.stem])
             ficheros[ruta.relative_to(raiz).as_posix()] = texto
+    if (brief := raiz / "brief" / "brief.json").is_file():
+        ficheros["brief/brief.json"] = ws.leer_json(brief, Brief).model_dump_json(indent=2)
     if con_borrador:
         texto = borrador.read_text(encoding="utf-8")
         ws.modelo_de_md(borrador, texto, Misterio)
@@ -82,13 +85,20 @@ def cargar_fuentes(
     with estado_db.abrir(ws.estado_db, solo_lectura=True) as conn:
         estado = estado_db.leer(conn, personajes=presentes)
 
+    # El juez juzga la obra hasta el capítulo pedido, ese incluido; el resto, lo anterior a él.
+    hasta = capitulo + 1 if agente is Agente.JUEZ else capitulo
     resumenes = {}
-    for c in range(1, capitulo):
+    for c in range(1, hasta):
         ruta = raiz / "memoria" / "resumenes" / f"{ws.nn(c)}.md"
         if (resumen := _texto(ruta)) is not None:
             resumenes[c] = ws.modelo_de_md(ruta, resumen, Memoria)
     anterior = raiz / "capitulos" / f"{ws.nn(capitulo - 1)}.md" if capitulo > 1 else None
     actual = raiz / "capitulos" / f"{nn}.md"
+    obra = {}
+    if agente is Agente.JUEZ:
+        for c in range(1, hasta):
+            if (escrito := _texto(raiz / "capitulos" / f"{ws.nn(c)}.md")) is not None:
+                obra[c] = escrito
     return assemble.Fuentes(
         agente=agente,
         capitulo=capitulo,
@@ -105,6 +115,7 @@ def cargar_fuentes(
         sha_actual=sha256(actual) if actual.is_file() else None,
         resumenes=resumenes,
         digitos=len(nn),
+        capitulos=obra,
     )
 
 

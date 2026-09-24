@@ -61,3 +61,15 @@ cronista:
     - estado: [personajes, conocimiento, hilos_abiertos, objetos, relaciones, libro_de_hechos]
     - objetivo: capitulo_recien_escrito
   excluir: [canon/misterio]
+
+# La novela entera, no un capítulo: ritmo y arco son entre capítulos. Una novela de regalo (10 ×
+# 1.500 palabras, ~26.000 tokens) cabe entera; una larga degrada a resúmenes y una muestra de tres
+# capítulos completos (docs/evaluacion/juez.md). Sin brief/brief.json falla: tono y personalización
+# se juzgan contra él. Juzga como lector, así que el misterio queda fuera y vigilado.
+juez:
+  presupuesto_tokens: 70000
+  capas:
+    - permanente: [brief/brief.json, canon/premisa, canon/estilo]
+    - personajes: todos
+    - obra: {muestra: 3}
+  excluir: [canon/misterio]

@@ -1,0 +1,66 @@
+{
+  "rubrica_version": "rubrica-1",
+  "evaluador": "humano",
+  "criterios": {
+    "continuidad": {
+      "puntuacion": null,
+      "justificacion": "",
+      "citas": [
+        {
+          "capitulo": null,
+          "texto": ""
+        }
+      ]
+    },
+    "tono": {
+      "puntuacion": null,
+      "justificacion": "",
+      "citas": [
+        {
+          "capitulo": null,
+          "texto": ""
+        }
+      ]
+    },
+    "arco": {
+      "puntuacion": null,
+      "justificacion": "",
+      "citas": [
+        {
+          "capitulo": null,
+          "texto": ""
+        }
+      ]
+    },
+    "personajes": {
+      "puntuacion": null,
+      "justificacion": "",
+      "citas": [
+        {
+          "capitulo": null,
+          "texto": ""
+        }
+      ]
+    },
+    "ritmo": {
+      "puntuacion": null,
+      "justificacion": "",
+      "citas": [
+        {
+          "capitulo": null,
+          "texto": ""
+        }
+      ]
+    },
+    "personalizacion": {
+      "puntuacion": null,
+      "justificacion": "",
+      "citas": [
+        {
+          "capitulo": null,
+          "texto": ""
+        }
+      ]
+    }
+  }
+}

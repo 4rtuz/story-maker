@@ -75,6 +75,28 @@ def test_con_true_llegan_los_seis(monkeypatch: pytest.MonkeyPatch) -> None:
     assert {e["id"] for e in enviados} == {f"demo-r-20260923-1000-08-{n}" for n in SEIS}
 
 
+def test_comentario_por_score(monkeypatch: pytest.MonkeyPatch) -> None:
+    """El juez manda su justificación como comentario; sin ella, el de siempre."""
+    enviados: list[dict[str, Any]] = []
+
+    class Respuesta:
+        def __enter__(self) -> "Respuesta":
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+    def capturar(peticion: urllib.request.Request, timeout: float) -> Respuesta:
+        enviados.append(json.loads(peticion.data))  # type: ignore[arg-type]
+        return Respuesta()
+
+    monkeypatch.setattr(urllib.request, "urlopen", capturar)
+    sink = langfuse.desde_entorno(CLAVES | {"TRACE_TO_LANGFUSE": "true"})
+    scores = {"juez_tono": 4.0, "juez_ritmo": 3.0}
+    assert sink.emitir("demo", 10, "r-1", scores, comentarios={"juez_tono": "tierno"}) == []
+    assert [e["comment"] for e in enviados] == ["tierno", "demo, capítulo 10"]
+
+
 def test_sink_caido_no_rompe(monkeypatch: pytest.MonkeyPatch) -> None:
     """validators.md §3.5: con Langfuse inalcanzable, el fallo se devuelve, no se lanza, y se
     para en el primero: seis timeouts seguidos no pueden retener el checkpoint."""

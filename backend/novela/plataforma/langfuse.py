@@ -23,7 +23,12 @@ TIMEOUT_S = 5.0
 
 class ScoreSink(Protocol):
     def emitir(
-        self, slug: str, capitulo: int, run_id: str, scores: Mapping[str, float]
+        self,
+        slug: str,
+        capitulo: int,
+        run_id: str,
+        scores: Mapping[str, float],
+        comentarios: Mapping[str, str] | None = None,
     ) -> list[str]:
         """Devuelve los fallos, vacío si todo llegó."""
         ...
@@ -31,7 +36,12 @@ class ScoreSink(Protocol):
 
 class SinkNulo:
     def emitir(
-        self, slug: str, capitulo: int, run_id: str, scores: Mapping[str, float]
+        self,
+        slug: str,
+        capitulo: int,
+        run_id: str,
+        scores: Mapping[str, float],
+        comentarios: Mapping[str, str] | None = None,
     ) -> list[str]:
         return []
 
@@ -43,7 +53,12 @@ class SinkLangfuse:
     secreta: str
 
     def emitir(
-        self, slug: str, capitulo: int, run_id: str, scores: Mapping[str, float]
+        self,
+        slug: str,
+        capitulo: int,
+        run_id: str,
+        scores: Mapping[str, float],
+        comentarios: Mapping[str, str] | None = None,
     ) -> list[str]:
         credencial = base64.b64encode(f"{self.publica}:{self.secreta}".encode()).decode()
         for nombre, valor in scores.items():
@@ -54,7 +69,7 @@ class SinkLangfuse:
                 "name": nombre,
                 "value": valor,
                 "dataType": "NUMERIC",
-                "comment": f"{slug}, capítulo {capitulo}",
+                "comment": (comentarios or {}).get(nombre, f"{slug}, capítulo {capitulo}"),
             }
             peticion = urllib.request.Request(  # noqa: S310 — la URL la fija la configuración
                 f"{self.base_url.rstrip('/')}/api/public/scores",

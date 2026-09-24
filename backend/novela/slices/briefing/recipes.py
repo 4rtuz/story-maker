@@ -70,6 +70,17 @@ class Objetivo(Modelo):
     objetivo: Literal["capitulo_recien_escrito"]
 
 
+class Muestra(Modelo):
+    muestra: int = Field(default=3, ge=1)
+
+
+class Obra(Modelo):
+    """La novela del 1 al capítulo del briefing, entera; degradada, sus resúmenes a párrafo y
+    `muestra` capítulos completos repartidos: el primero, el último y los del medio."""
+
+    obra: Muestra
+
+
 Capa = (
     Permanente
     | Personajes
@@ -80,6 +91,7 @@ Capa = (
     | Plan
     | Variacion
     | Objetivo
+    | Obra
 )
 
 

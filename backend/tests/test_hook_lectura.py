@@ -78,3 +78,13 @@ def test_rol_no_escribe_en_otra_novela(tmp_path: Path) -> None:
     assert _hook(entrada, tmp_path).returncode == 0
     r = _hook(entrada, tmp_path, {"NOVELA_SLUG": "boda-ana"})
     assert r.returncode == 2 and r.stderr.startswith(MOTIVO)
+
+
+def test_el_juez_lee_su_rubrica_y_nadie_mas_lee_config(tmp_path: Path) -> None:
+    """juez.md lee `backend/config/rubrica.yaml`; el resto de `backend/config/` sigue fuera."""
+    entorno = {"NOVELA_SLUG": "boda-ana"}
+    rubrica = "/r/backend/config/rubrica.yaml"
+    assert _hook(_lectura(rubrica, "juez"), tmp_path, entorno).returncode == 0
+    assert _hook(_lectura(rubrica, "escritor"), tmp_path, entorno).returncode != 0
+    otro = "/r/backend/config/recipes.yaml"
+    assert _hook(_lectura(otro, "juez"), tmp_path, entorno).returncode != 0

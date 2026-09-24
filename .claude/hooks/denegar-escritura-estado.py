@@ -33,6 +33,7 @@ SALIDAS = {
     "lector-suspense": [rf"qa/{_NN}-suspense\.json"],
     "cronista": [_DELTA],
     "entrevistador": [r"brief/borrador\.json"],
+    "juez": [r"qa/juicio\.json"],
 }
 ROLES = frozenset(SALIDAS)
 _PREFIJO_WIN32 = re.compile(r"^(\\\\|//)[?.][\\/]")  # \\?\  \\.\
@@ -72,6 +73,8 @@ def _relativas(ruta: str) -> list[str]:
 
 
 _ESQUEMA = re.compile(r".*/backend/schemas/[^/]+\.schema\.json")
+# Lo que un rol lee del repo fuera de su workspace, además de los esquemas.
+_DEL_REPO = {"juez": re.compile(r".*/backend/config/rubrica\.yaml")}
 
 
 def _ajena(ruta: str, entorno: Mapping[str, str]) -> bool:
@@ -88,6 +91,8 @@ def _lectura(ruta: str, rol: object, entorno: Mapping[str, str]) -> str | None:
     `novela producir`), solo su novela: una instrucción inyectada en el brief no alcanza los
     datos de otra ni `.env`. La sesión principal y los agentes de desarrollo no tienen regla."""
     if rol not in ROLES or _ESQUEMA.fullmatch(ruta):
+        return None
+    if (propia := _DEL_REPO.get(str(rol))) and propia.fullmatch(ruta):
         return None
     relativas = _relativas(ruta)
     if not relativas or _ajena(ruta, entorno):

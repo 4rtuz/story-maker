@@ -320,6 +320,7 @@ CONTRATO = {
     "lector-suspense": (["Read", "Write"], "haiku", ["qa/NN-suspense.json"]),
     "cronista": (["Read", "Write"], "haiku", ["estado/deltas/NN.json"]),
     "entrevistador": (["Read", "Write"], "sonnet", ["brief/borrador.json"]),
+    "juez": (["Read", "Write"], "sonnet", ["qa/juicio.json"]),
 }
 ESQUEMAS = {
     "arquitecto": ["backend/schemas/canon.schema.json"],
@@ -333,6 +334,7 @@ ESQUEMAS = {
     "lector-suspense": ["backend/schemas/qa-informe.schema.json"],
     "cronista": ["backend/schemas/delta.schema.json"],
     "entrevistador": ["backend/schemas/brief-borrador.schema.json"],
+    "juez": ["backend/schemas/juicio.schema.json", "backend/config/rubrica.yaml"],
 }
 PROHIBIDAS = {"Glob", "Grep", "Bash", "Task", "Agent", "Skill", "WebFetch", "WebSearch"}
 
