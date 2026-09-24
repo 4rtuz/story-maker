@@ -4,7 +4,7 @@ titulo: "Contención y bucle en `.claude/`: agentes, hooks, permisos y procedimi
 estado: aceptada
 autor: ""
 fecha: 2026-09-23
-version: 0.4
+version: 0.5
 afecta: [agentes, backend, docs]
 depende_de: [0001]
 sustituye: []
@@ -152,7 +152,7 @@ Un fichero por rol en `.claude/agents/<rol>.md`:
 
 | Agente | `tools` | `model` | Salidas (relativas a `novelas/<slug>/`) |
 |---|---|---|---|
-| `arquitecto` | `Read, Write` | `opus` | `canon/{premisa,mundo,estilo,misterio}.md`, `canon/personajes/*.md` |
+| `arquitecto` | `Read, Write` | `opus` | `canon/{premisa,mundo,estilo}.md`, `canon/misterio.borrador.md` (v0.5), `canon/personajes/*.md` |
 | `trazador` | `Read, Write` | `opus` | `plan/escaleta.md`, `plan/capitulos/NN.md` |
 | `escritor` | `Read, Write` | `opus` | `capitulos/NN.md` |
 | `continuista` | `Read, Write` | `sonnet` | `qa/NN-continuidad.json` |
@@ -202,6 +202,7 @@ Los nombres cortos 8.3, las uniones y los enlaces simbólicos no se pueden norma
 - **Por qué no se lista `Read`:** leer dentro del proyecto no pide permiso.
 - **Por qué `Agent` sin nombre:** restringirlo por subagente no surte efecto (E-9).
 - **El `deny` del misterio** es viable porque `novela briefing` ya incrusta el contenido y no pasa rutas (`assemble.py`, línea 4): ningún agente necesita abrir el fichero.
+- **Y también deniega escribirlo** (v0.5). Claude Code no deja escribir un fichero que cubre un `deny` de `Read` («File is covered by a Read deny rule in your permission settings and cannot be written»). Por eso el `arquitecto` escribe el misterio en `canon/misterio.borrador.md`, que el `deny` no cubre, y el CLI lo pone en su sitio (§5.4, paso 3).
 - **Lo que no va:** ni claves, ni `enabledPlugins`, ni `env`.
 
 ### 5.3 Fase 3 — procedencia y correlación
@@ -242,11 +243,13 @@ Prosa en `.claude/commands/`. El orden lo fijan la custodia de 0001 RF-32 y la m
 **`/novela-nueva <slug> --idea "..." [--capitulos N] [--palabras P]`**
 
 1. `novela nueva <slug> ...` con los mismos flags.
-2. `novela briefing <slug> 1 arquitecto` y después Task `arquitecto`.
-3. `novela briefing <slug> 1 trazador` y después Task `trazador`. Este briefing valida el canon contra sus modelos al cargarlo, así que funciona como gate del `arquitecto`. Un canon inválido hace salir al briefing con 4, y deja en `harness.log` la línea `briefing 01 trazador -> error · WorkspaceInvalido: …`.
+2. `novela briefing <slug> 1 arquitecto` y después Task `arquitecto`, que escribe el misterio en `canon/misterio.borrador.md` (v0.5).
+3. `novela briefing <slug> 1 trazador` y después Task `trazador`. Este briefing valida el canon contra sus modelos al cargarlo, así que funciona como gate del `arquitecto`. Un canon inválido, o incompleto, hace salir al briefing con 4, y deja en `harness.log` la línea `briefing 01 trazador -> error · WorkspaceInvalido: …`.
+   - **El borrador del misterio** (v0.5). Si existe `canon/misterio.borrador.md`, el gate lo valida en lugar de `canon/misterio.md`, junto con el resto del canon. Solo si todo valida lo escribe en `canon/misterio.md`, de forma atómica, y borra el borrador. Si algo falla, el borrador se queda, y el `arquitecto` puede leerlo y reescribirlo en el reintento.
+   - **Canon completo** (v0.5). Con cualquier agente salvo el `arquitecto`, falta un fichero del canon (`premisa`, `mundo`, `estilo`, `misterio` o, para el `trazador`, su borrador) o no hay ninguna ficha de personaje: `WorkspaceInvalido` con la ruta que falta, y salida 4.
    - **Excepción a la tabla de códigos:** aquí, y solo aquí, un 4 con esa línea es un gate fallido. Se reintenta al `arquitecto` con la causa de esa línea, dos veces como máximo.
    - La cuenta de intentos son las líneas `briefing 01 trazador -> error · WorkspaceInvalido` del run de arranque. Al tercer fallo, `intervencion.md` en el run de arranque, y se para.
-   - **Salvo si la causa nombra `misterio.md`** (v0.4, F-09). El `arquitecto` no puede reescribirlo: el `deny` le impide leerlo, y `Write` no sobrescribe un fichero que el agente no ha leído. No se reintenta. Se escribe `intervencion.md` con el gate `arquitecto` y la causa, y se para. La causa empieza por la ruta del fichero (`WorkspaceInvalido(f"{ruta}: …")`), así que se busca `misterio.md` sin separador, porque en Windows la ruta lleva `\`.
+   - **Salvo si la causa nombra `misterio.md`** (v0.4, F-09). Con el borrador de la v0.5 ya no pasa en el flujo normal: un borrador inválido nombra `misterio.borrador.md`, que no contiene esa subcadena, y se reintenta. Si pasara, el `arquitecto` no podría reescribirlo: el `deny` le impide leerlo, y `Write` no sobrescribe un fichero que el agente no ha leído. No se reintenta. Se escribe `intervencion.md` con el gate `arquitecto` y la causa, y se para. La causa empieza por la ruta del fichero (`WorkspaceInvalido(f"{ruta}: …")`), así que se busca `misterio.md` sin separador, porque en Windows la ruta lleva `\`.
    - Un 4 sin esa línea, o cualquier otro código distinto de 0, sigue la tabla.
 4. Devolver los ids creados y la orden de continuar.
 
@@ -309,6 +312,7 @@ El tercer fallo escribe `runs/<run_id>/intervencion.md` con el gate, los intento
   - **Dos controles positivos, y los dos tienen que pasar.** Sin ellos, un canario que no llegó a ejecutarse, o un hook que lo deniega todo, da el mismo verde:
     - el `canario` devuelve un nonce que solo figura en su prompt, lo que prueba que corrió él;
     - el `canario` escribe `notas/control.txt` en el workspace, que tiene que existir. Si no existe, el hook falla cerrado o ha desaparecido `agent_type`, porque sin él la regla 3 lo trata como sesión principal.
+  - **Un tercer control positivo** (v0.5): un segundo impostor, definido con `name: "arquitecto"`, escribe `canon/misterio.borrador.md`, que tiene que existir. Prueba que ni el `deny` ni el hook le impiden al `arquitecto` escribir el misterio.
   - **El impostor del intento 4** devuelve también su propio nonce. Si no aparece, `--agents` no sustituye al `escritor` del proyecto, y el intento se informa como no concluyente.
   - **Los prompts de `agente.json` y de la sesión principal presentan la prueba como lo que es** (v0.4, F-64):
     - una prueba autorizada de las barreras de este mismo harness;
@@ -420,6 +424,9 @@ Tres comprobaciones más:
 | RF-34 | `/novela-nueva` no reintenta al `arquitecto` cuando la causa del canon inválido nombra `misterio.md`: escribe `intervencion.md` y para | debe |
 | RF-35 | Los prompts del canario presentan la prueba y piden cada intento una vez, con su herramienta, como dice §5.5 | debe |
 | RF-36 | El canario marca `NO CONCLUYENTE`, y no da verde, todo intento sin su `tool_use` en el transcript (§5.5) | debe |
+| RF-37 | El `arquitecto` escribe el misterio en `canon/misterio.borrador.md`. `novela briefing <slug> 1 trazador` lo valida con el resto del canon y, si todo valida, lo escribe en `canon/misterio.md` y borra el borrador; si no, lo deja (§5.4, paso 3) | debe |
+| RF-38 | Con un agente distinto del `arquitecto`, `novela briefing` sale con 4 y nombra la ruta si falta un fichero del canon o no hay ninguna ficha de personaje | debe |
+| RF-39 | El canario lleva un tercer control positivo: un impostor `arquitecto` escribe `canon/misterio.borrador.md` (§5.5) | debe |
 
 ## 7. Requisitos no funcionales
 
@@ -448,7 +455,7 @@ Tres comprobaciones más:
 
 | Rama | Cambio |
 |---|---|
-| `canon/` | Sin cambios de forma. El `deny` impide leer `misterio.md` desde Claude Code; el CLI lo sigue leyendo |
+| `canon/` | Sin cambios de forma. El `deny` impide leer `misterio.md` desde Claude Code; el CLI lo sigue leyendo. Entre el `arquitecto` y el gate existe `canon/misterio.borrador.md` (v0.5), que el gate promueve |
 | `plan/` | Sin cambios |
 | `estado/estado.db` | Sin cambios. Hook y `deny` impiden escribirla desde una herramienta de fichero o desde `sqlite3` |
 | `memoria/` | Sin cambios |
@@ -519,6 +526,13 @@ No aplica: no hay novelas empezadas y los cambios en `manifest.json` y `harness.
   - un `Write` bajo `estado/` con el motivo del hook cuenta como intento 1 fallido;
   - un `Agent` con `subagent_type: "general-purpose"` y el motivo de la regla 5 cuenta como intento 5 fallido.
 - [x] **CA-24** (RF-29) Revisión en el commit: la tabla de códigos de `novela-nueva.md` y de `novela-continuar.md` dice que un 1 de `novela briefing` (y en `novela-continuar.md`, de `novela checkpoint`) no se reintenta
+- [ ] **CA-25** (RF-37) Tests de `test_briefing.py`, con un canon válido y el misterio solo en el borrador:
+  - `novela briefing <slug> 1 trazador` sale con 0, `canon/misterio.md` tiene los bytes del borrador y el borrador ya no existe;
+  - con el borrador inválido, sale con 4, la causa nombra `misterio.borrador.md` y no contiene `misterio.md`, el borrador se queda y `canon/misterio.md` no existe;
+  - con el borrador válido y otro fichero del canon inválido, sale con 4 y el borrador se queda;
+  - con el borrador y `canon/misterio.md` a la vez, gana el borrador.
+- [ ] **CA-26** (RF-38) Test de `test_briefing.py`: para `trazador` y `escritor`, sin cada uno de los cuatro ficheros del canon, o sin fichas de personaje, `novela briefing` sale con 4 y la última línea de `harness.log` nombra lo que falta. Con `arquitecto`, sin canon, sale con 0
+- [ ] **CA-27** (RF-39) El contrato de `test_contratos.py` y el hook dan al `arquitecto` `canon/misterio.borrador.md` y no `canon/misterio.md`. Una ejecución real del canario informa el tercer control como pasado
 
 ## 12. Trazabilidad
 
@@ -553,6 +567,9 @@ Se rellena durante la implementación.
 | RF-36 | CA-23 | `backend/tests/canario/test_veredicto.py::test_un_caso_por_fixture`, `::test_sin_error_es_logrado_y_lo_ilegible_se_ignora`, sobre `backend/tests/canario/fixtures/*.jsonl` (sin modelo; lo recoge pytest) | hecho |
 | RF-35, RF-36 | CA-09 | Ejecución real de `ejecutar.py` con los prompts nuevos | pendiente |
 | RF-29 | CA-24 | Revisión de la tabla de códigos de `.claude/commands/novela-nueva.md` (el 1 de `briefing`) y `novela-continuar.md` (el de `briefing` y el de `checkpoint`), en el commit de CA-22 | hecho |
+| RF-37 | CA-25 | `backend/novela/slices/briefing/test_briefing.py` | pendiente |
+| RF-38 | CA-26 | `backend/novela/slices/briefing/test_briefing.py` | pendiente |
+| RF-39 | CA-27 | `backend/tests/test_contratos.py`, `backend/tests/test_hook.py` y una ejecución real de `ejecutar.py` | pendiente |
 
 ## 13. Verificación
 
@@ -642,10 +659,22 @@ Se rellena al cerrar CA-10: `run_id` y `session_id` por capítulo, los seis scor
 - **Dar al `arquitecto` acceso de lectura a `misterio.md` para que pueda reescribirlo.** El `deny` es de sesión, no de agente: abrirlo para él lo abriría para todos, y el invariante 3 perdería su capa de ruta.
 - **Un canario sin modelo que llame al hook directamente.** Ya existe, y son los tests de `test_hook.py`. El canario prueba justo lo que esos tests no ven: que el hook dispara dentro de un subagente real.
 - **Dar por bueno un intento sin `tool_use`.** Es el verde falso de F-65: una negativa del modelo no prueba ninguna barrera.
+- **Cambiar el `deny` de `Read` del misterio por una regla del hook sobre `Read`** (v0.5). Era el cambio más pequeño, pero el invariante 3 perdía su capa de permisos, y F-09 seguía sin arreglo: un reintento no podría leer el fichero para sobrescribirlo. El borrador conserva el `deny` y además arregla F-09.
 
 ## 16. Preguntas abiertas
 
 Ninguna. Las once de la v0.1 se resolvieron con el experimento del 2026-09-23 y el razonamiento de `docs/implementation-plans/0003-contencion/decisiones-abiertas.md`. Los fallos en `propuesto` que dejó la implementación de la v0.3 se resuelven en la v0.4.
+
+### Enmiendas de la v0.5
+
+La novela de humo destapó dos defectos que ningún test veía, y los dos están en el paso 3 de `/novela-nueva`. El operador decidió el 2026-09-24 entre el borrador y una regla del hook (§15).
+
+| Fallo | Qué se decide | RF | CA |
+|---|---|---|---|
+| F-28 (nuevo) | El `deny` de `Read` de `canon/misterio.md` también deniega escribirlo: el `arquitecto` no puede crear el misterio y ninguna novela puede empezar. Escribe un borrador, y el gate lo promueve | RF-37, RF-39 | CA-25, CA-27 |
+| F-48 (nuevo) | El gate del `arquitecto` valida los ficheros del canon que existen y no exige los que faltan: sin misterio, `briefing 1 trazador` salía con 0 | RF-38 | CA-26 |
+
+Con el borrador, F-09 deja de darse en el flujo normal, y su excepción del paso 3 se queda como red.
 
 ### Enmiendas de la v0.4
 
