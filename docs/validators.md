@@ -5854,3 +5854,626 @@ Spec: `docs/specs/0012/spec.md` · Plan: `docs/implementation-plans/0012.md` · 
 - Q11 — ¿`checkpoint` cierra un capítulo con `qa/NN-lean.json` `rechazado`? (R23, §3.1 O-03 «`checkpoint` no cierra el capítulo» y §5 RF-23 «0 si no»): RF-23 solo dice que emite 0, y O-03 dice que no cierra.
 - Q12 — ¿Qué hace el sistema con dos nacimientos registrados para el mismo personaje? (R8, §5 RF-08, §8.3): la spec no dice si es un error de contrato o si vale el más temprano o el más tardío.
 - Q13 — ¿Contra qué commit se mide RNF-09? (R38, §6 RNF-09 «introducidos por esta spec»): G-MEM, del que depende esta spec, sí puede cambiar `state.schema.json`, y la spec no fija la base.
+
+## 0013
+Spec: `docs/specs/0013/spec.md` · Plan: `docs/implementation-plans/0013.md` · Fecha de análisis: 2026-09-24
+
+### Discrepancias spec ↔ plan
+| ID | Tipo (requisito sin cubrir / paso sin requisito / contradicción) | Detalle | Ref. spec | Ref. plan |
+|----|------|---------|-----------|-----------|
+| D1 | contradicción | RF-20 y D13 definen la mutante como «`ValidarFinal` se omite tras `EditorEstilo`». El plan añade una segunda mutación: `AplicarDelta` no aplica la guarda de custodia. El control negativo deja de probar la regresión que describe la spec (solo el procedimiento) y pasa a probar una regresión conjunta procedimiento + CLI | R20 — §5 RF-20; decisions D13 | P13 (T3.4), plan D6 |
+| D2 | contradicción | §8.3 fija `contenido` como `Tokens ∪ {Nada}`, «abstraído a un token por escritura». El plan lo abstrae a «la versión de su última escritura», así que la escritura del `Escritor` y la reescritura del `EditorEstilo` de la misma versión dan el mismo valor. RF-13 exige la validación «sobre su contenido vigente», y con esa abstracción el contenido no distingue un capítulo reescrito de uno validado | R13 — §5 RF-13, §8.3 | P10 (T3.1), plan D5 |
+| D3 | contradicción | CA-06: cuando `AplicarDelta` falla con `intentos["delta"] = 3`, «el siguiente estado tiene `etapa = "detenida"`». El plan modela el fallo en dos pasos: la acción pone `agotado = TRUE` y es otra acción, `Intervencion`, la que pasa a `detenida`. El estado siguiente al fallo no es final | R6 — §7 CA-06 | P5 (T2.2), plan D4 |
+| D4 | contradicción | RF-08 reserva `motivo = "cli"` para `FalloCLI` («código 2 o 3, o CLI roto según la regla de lectura 1»). El plan (§9 P2, T2.3) lo usa también para `Reanudar` en `configuracion`/`planificacion`, que no es un fallo del CLI | R7, R8 — §5 RF-07, RF-08 | P6 (T2.3), plan §9 P2 |
+| D5 | contradicción | CA-25 exige que el test falle «si se escribe `tlc2` en un fichero temporal bajo `backend/novela/`». El plan (D1) lo hace sobre una copia de la estructura en `tmp_path`. Así no se prueba que el test recorra las raíces reales del repositorio | R25 — §7 CA-25 | P16 (T4.3), plan D1 |
+| D6 | requisito sin cubrir | RNF-01 exige que TLC con `Harness.cfg` tarde ≤ 10 min en `ubuntu-latest`. T4.1 solo anota el tiempo en local, y el «Hecho cuando» de T5.1 solo pide que el job pase y muestre los recuentos. Ningún paso comprueba el umbral en CI | R30 — §6 RNF-01 | P14 (T4.1), P17 (T5.1) |
+
+### Validadores
+#### VAL-1: El módulo declara lo que pide RF-01 y `Spec` incluye la equidad
+- Requisito: R1 — RF-01 «TLA+ puro, sin PlusCal… declara las constantes… `Spec == Init /\ [][Next]_vars /\ Equidad`» (§5, CA-01)
+- Punto de fallo: `Spec` se define sin `Equidad` (o `Equidad` queda vacía y TLC comprueba `Termina` sin equidad), falta una constante o una etapa, o queda un bloque PlusCal traducido.
+- Precondiciones: `formal/tla/Harness.tla` y `Harness.cfg` definitivos.
+- Cómo validarlo: `grep -c -- "--algorithm" formal/tla/Harness.tla`; buscar `CONSTANTS` con las seis constantes; buscar la definición de `Spec`; ejecutar el comando de RF-23 con `Harness.cfg` y buscar en la salida `Parsing file` sin `***Parse Error***`.
+- Resultado esperado: `0` apariciones de `--algorithm`; `NumCapitulos`, `MaxIntentos`, `MaxCaidas`, `MaxCambios`, `Procesos` y `Mutante` declaradas; `Spec` contiene literalmente `/\ Equidad`; las seis cadenas `"configuracion"`, `"planificacion"`, `"capitulos"`, `"auditoria"`, `"publicada"` y `"detenida"` están en `TypeOK` para `etapa`; TLC no informa error de análisis.
+- Tipo de prueba sugerida: revisión manual + TLC
+- Severidad: Alta — sin `Equidad` en `Spec` la propiedad `Termina` no se puede cumplir y el resto de garantías dependen del módulo.
+
+#### VAL-2: `Fases`, `Pasos` y `Finales` iguales a los enums
+- Requisito: R2 — RF-02 «`Fases` es igual a `FASES` y `Pasos` a `PASOS`… `Finales` es igual a los valores de `Final`» (§5, CA-02)
+- Punto de fallo: el `.tla` usa `"editor_estilo"` o añade un paso propio del modelo (`"validar-final"`) a `Pasos`, y el modelo deja de nombrar lo mismo que el dominio.
+- Precondiciones: `backend/novela/dominio/estado.py` con `FASES` y `PASOS`; `flujo.py` con `Final`.
+- Cómo validarlo: ejecutar `uv run pytest tests/test_tla.py::test_nombres_coinciden_con_el_dominio`; repetir sobre una copia del texto del `.tla` con `"publicado"` añadido a `Pasos`.
+- Resultado esperado: verde con el repositorio; con la copia alterada, rojo con un mensaje que contiene `publicado`.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Alta — es el único contrato automático entre el modelo y los nombres del código.
+
+#### VAL-3: Los tres resultados de `GateArquitecto` son alcanzables
+- Requisito: R3 — RF-03 «canon válido… canon inválido reintentable… causa `misterio.md` (va directo a `Intervencion`, sin reintento)» (§5, CA-03; §9 «`GateArquitecto` con causa `misterio.md` en el primer intento»)
+- Punto de fallo: la rama `misterio.md` consume un intento, o la rama reintentable pasa de 3 sin ir a `Intervencion`, o una de las ramas queda muerta.
+- Precondiciones: `Harness.cfg`.
+- Cómo validarlo: ejecutar TLC con `-coverage 1`; en copias locales, añadir por separado las invariantes auxiliares `~(intentos["arquitecto"] = 3)` y `~(motivo = "intervencion" /\ intentos["arquitecto"] = 1 /\ cerrados = <<>> /\ etapa = "detenida")`.
+- Resultado esperado: `Nueva`, `Arquitecto`, `GateArquitecto` y `Trazador` con más de 0 estados distintos; TLC informa `Invariant … is violated` para las dos auxiliares, y la traza de la segunda contiene un único `GateArquitecto`.
+- Tipo de prueba sugerida: TLC (alcanzabilidad)
+- Severidad: Alta — RF-03 es Must y la parada por `misterio.md` protege el invariante 3 de `AGENTS.md`.
+
+#### VAL-4: Orden del abanico de revisión
+- Requisito: R4 — RF-04 «los tres briefings de revisión se generan antes de cualquier revisor, los tres revisores se intercalan en cualquier orden, `EditorEstilo` invalida la validación» (§5, CA-04)
+- Punto de fallo: un revisor arranca con solo uno o dos briefings, o se fija un orden (siempre `Continuista` primero) que oculta intercalaciones, o `EditorEstilo` no pone `validado = FALSE`.
+- Precondiciones: `Harness.cfg`.
+- Cómo validarlo: TLC con `-coverage 1`; en una copia, la invariante auxiliar `revisores # {} => (briefings de revisión generados = 3)` expresada con las variables del modelo; y las auxiliares negadas `~(revisores = {"lector-suspense"})` y `~(revisores = {"editor-estilo"} /\ validado)`.
+- Resultado esperado: las once acciones del bucle con más de 0 estados distintos; la primera auxiliar no se viola; `~(revisores = {"lector-suspense"})` se viola (intercalación con `LectorSuspense` primero); `~(revisores = {"editor-estilo"} /\ validado)` no se viola.
+- Tipo de prueba sugerida: TLC
+- Severidad: Crítica — si `EditorEstilo` no invalida la validación, `PublicaSoloValidado` pasa aunque se cierre prosa sin validar.
+
+#### VAL-5: Cada fallo reintenta en el paso que dice el procedimiento
+- Requisito: R5 — RF-05 «un fallo de `Validar` vuelve a `Escritor`; uno de `ValidarFinal` vuelve a `EditorEstilo`…; uno de `GateRevision` vuelve a `Escritor` y repite todos los gates desde `Validar`; uno de `AplicarDelta` vuelve a `Cronista`» (§5, CA-05)
+- Punto de fallo: un fallo de `ValidarFinal` vuelve a `Escritor` (como hacía la enumeración antigua), o tras `GateRevision` se salta `Validar` y se reutiliza la validación anterior.
+- Precondiciones: `Harness.cfg`.
+- Cómo validarlo: en copia local, invariante auxiliar `~(intentos["mecanico"] = 2 /\ paso = "editor-estilo")` (CA-05); otra `~(intentos["revision"] = 2 /\ paso = "escritor")` y otra `~(intentos["delta"] = 2 /\ paso = "cronista")`; retirar las auxiliares y ejecutar de nuevo.
+- Resultado esperado: cada auxiliar produce un contraejemplo cuyo penúltimo estado es el fallo del gate correspondiente y cuyo último paso es, respectivamente, `EditorEstilo`, `Escritor` y `Cronista`; tras la traza de `GateRevision`, el siguiente gate aprobado es `Validar` y no `GateRevision`; sin auxiliares, TLC sale con 0. La entrada queda en `docs/tla-contraejemplos.md`.
+- Tipo de prueba sugerida: TLC (alcanzabilidad)
+- Severidad: Alta — un reintento al paso equivocado repite trabajo de modelo o, peor, salta un gate.
+
+#### VAL-6: Los intentos sobreviven a la caída y la reanudación consume intento de revisión
+- Requisito: R5, R16 — §9 «Los intentos ya consumidos del gate mecánico siguen contando, porque viven en `harness.log`» y «Una reanudación genera un nuevo briefing del `continuista`… Cuenta como intento de revisión consumido» (§9)
+- Punto de fallo: `Caida` o `Reanudar` reinicia `intentos` a 1, lo que permite más de tres fallos reales por gate; o la reanudación no consume el intento de revisión que sí consume el procedimiento («todas menos una»).
+- Precondiciones: `Harness.cfg` con `MaxCaidas = 2`.
+- Cómo validarlo: en copia local, invariante auxiliar `~(intentos["mecanico"] = 2 /\ sesion = "caida")`, y comprobar en la traza que tras `Reanudar` sigue `intentos["mecanico"] = 2`; otra auxiliar `~(intentos["revision"] = 2 /\ "rechazos reales" = 0)` usando las variables que el implementador documente.
+- Resultado esperado: TLC viola las dos auxiliares; en la primera traza el valor de `intentos["mecanico"]` es 2 antes y después de `Reanudar`; en la segunda, `intentos["revision"]` sube tras un `Briefing` de revisión posterior a `Reanudar` sin ningún `GateRevision` fallido. Si aparece como traza de `Termina` hacia `detenida`, hay una entrada en `docs/tla-contraejemplos.md`.
+- Tipo de prueba sugerida: TLC (alcanzabilidad)
+- Severidad: Alta — si el modelo reinicia la cuenta, verifica un procedimiento más permisivo que el real.
+
+#### VAL-7: La intervención es terminal y no admite reintento
+- Requisito: R6 — RF-06 «si falla la custodia de `AplicarDelta`, un `Briefing` o un `Checkpoint` (incluido `vp_schema`), entonces… `etapa = "detenida"` y `motivo = "intervencion"`, sin reintento» (§5, CA-06; §9 «`vp_schema` rechaza»)
+- Punto de fallo: tras la intervención queda habilitada otra acción del sistema (un reintento, `Caida` + `Reanudar`, `FalloCLI` que cambia `motivo` a `cli`), o uno de los tres fallos sin reintento consume intento y vuelve a su agente.
+- Precondiciones: `Harness.cfg`.
+- Cómo validarlo: en copia local, invariante auxiliar `motivo = "intervencion" => etapa = "detenida"` combinada con una propiedad `[](motivo = "intervencion" => [](motivo = "intervencion"))`; auxiliares negadas para alcanzar cada causa: `~(motivo = "intervencion" /\ intentos["delta"] = 3)`, `~(motivo = "intervencion" /\ delta = "aplicado" /\ paso # "checkpoint")` para `vp_schema`, y una por `Briefing` con 1.
+- Resultado esperado: las propiedades no se violan; cada auxiliar negada da un contraejemplo; en el estado final de cada traza, el único sucesor es `Terminado` (TLC no genera sucesores distintos).
+- Tipo de prueba sugerida: TLC
+- Severidad: Crítica — una intervención de la que el modelo sale sola oculta un bucle que en la realidad debe pararse para una decisión humana.
+
+#### VAL-8: Reanudar en las fronteras críticas de §9
+- Requisito: R7, R14 — RF-07 «`Reanudar`… decide el paso de retoma con la tabla literal de `novela-continuar.md` § Punto de reanudación» y §9 «Caída entre `AplicarDelta` y `Checkpoint`… cierra el capítulo una sola vez», «Caída tras los revisores y antes de `ValidarFinal`… retoma en el paso 2»
+- Punto de fallo: tras una caída entre `AplicarDelta` y `Checkpoint`, el modelo reescribe el capítulo y aplica el delta dos veces; o tras la caída antes de `ValidarFinal`, retoma en `ValidarFinal` y cierra con la validación previa a la reescritura.
+- Precondiciones: `Harness.cfg`.
+- Cómo validarlo: auxiliares negadas en copia local: `~(sesion = "caida" /\ delta = "aplicado" /\ paso = "aplicar-delta")` y `~(sesion = "caida" /\ revisores = {"continuista","editor-estilo","lector-suspense"} /\ ~validado)`; inspeccionar los dos contraejemplos y prolongarlos con TLC (`-simulate` o una auxiliar sobre el paso siguiente a `Reanudar`).
+- Resultado esperado: en el primer caso, el paso siguiente a `Reanudar` es `Checkpoint` y `cap` aparece una sola vez en `cerrados`; en el segundo, el paso siguiente es `Briefing`/`Escritor` (paso 2) y no `ValidarFinal`; `ReanudacionSinDuplicarNiPerder` y `PublicaSoloValidado` no se violan en `Harness.cfg`.
+- Tipo de prueba sugerida: TLC
+- Severidad: Crítica — son las dos fronteras que §4.12 reconoce sin ensayar y donde se duplica o se publica sin validar.
+
+#### VAL-9: Las tres paradas y su correspondencia con `Finales`
+- Requisito: R8 — RF-08 «`Detener`… `motivo = "panel"`, `SinAvance`… `motivo = "sin_avance"` y `FalloCLI`… `motivo = "cli"`» (§5, CA-08; §8.4 «Correspondencia de estados finales»)
+- Punto de fallo: una parada deja `etapa` en `capitulos`, o `Detener` está habilitada a mitad de capítulo (el panel solo se comprueba «antes de empezar cada capítulo»).
+- Precondiciones: `Harness.cfg`.
+- Cómo validarlo: TLC con `-coverage 1`; auxiliares negadas `~(motivo = "panel")`, `~(motivo = "sin_avance")`, `~(motivo = "cli")`; en copia, invariante auxiliar `motivo = "panel" => paso = "ninguno"` en el estado previo (expresada con una variable de historia o con la guarda de `Detener`).
+- Resultado esperado: cobertura > 0 en las tres acciones; las tres auxiliares negadas se violan con `etapa = "detenida"` en el estado final; `Detener` no aparece nunca con `paso ≠ "ninguno"` del capítulo en curso.
+- Tipo de prueba sugerida: TLC
+- Severidad: Media — RF-08 es Should y las paradas no afectan a lo publicado.
+
+#### VAL-10: `Auditar` solo con todo cerrado y `Exportar` solo tras aprobar
+- Requisito: R9 — RF-09 «`Auditar` solo está habilitada con los `NumCapitulos` capítulos cerrados. Si pasa, habilita `Exportar`… Si falla… `motivo = "auditoria"`» (§5, CA-09)
+- Punto de fallo: `Auditar` se habilita tras cerrar el capítulo 4, o `Exportar` se alcanza con `auditada = "rechazada"`.
+- Precondiciones: `Harness.cfg`.
+- Cómo validarlo: en copia local, invariantes auxiliares `ENABLED Auditar => Len(cerrados) = NumCapitulos` y `etapa = "publicada" => auditada = "aprobada"`; negada `~(motivo = "auditoria")`.
+- Resultado esperado: las dos primeras no se violan; la negada se viola con `Len(cerrados) = 5`.
+- Tipo de prueba sugerida: TLC
+- Severidad: Crítica — publicar una novela sin auditoría aprobada es lo que prohíbe D1.
+
+#### VAL-11: Regeneración: todos afectados, reaplicación rechazada y un solo cambio
+- Requisito: R10 — RF-10 «`Cambio`, habilitada solo con `etapa = "publicada"` y `cambios < MaxCambios`… subconjunto no vacío… `Reaplicar`… Si falla, lleva a `Intervencion`» (§5, CA-10; §9 «`Cambio` con los 5 capítulos afectados», «`Reaplicar` rechazado»)
+- Punto de fallo: `afectados` puede ser vacío, un capítulo afectado se cierra con `Reaplicar`, `Reaplicar` rechazado reintenta, o `Cambio` sigue habilitada con `cambios = 1`.
+- Precondiciones: `Harness.cfg` con `MaxCambios = 1`.
+- Cómo validarlo: auxiliares en copia local: `afectados # {}` tras `Cambio`; negada `~(version = 2 /\ afectados = 1..5 /\ Len(cerrados) = 5)`; negada `~(version = 2 /\ motivo = "intervencion" /\ paso = "ninguno")` para el rechazo; `cambios = 1 => ~ENABLED Cambio`.
+- Resultado esperado: la primera y la última no se violan; en la traza con los 5 afectados no aparece ningún `Reaplicar`; la traza del rechazo acaba en `detenida` sin un segundo `Reaplicar` del mismo capítulo.
+- Tipo de prueba sugerida: TLC
+- Severidad: Alta — es la rama que valida el diseño de la spec 0007 antes de codificarlo.
+
+#### VAL-12: Lock ocupado: salida 3 sin efecto
+- Requisito: R11 — RF-11 «Un proceso que intenta tomar un lock ocupado sale con 3 sin cambiar nada más, y solo el poseedor del lock ejecuta acciones que escriben» (§5, CA-11; §9 «`p2` lanza con el lock de `p1`»)
+- Punto de fallo: `p2` toma un lock ocupado, o ejecuta una acción que escribe sin poseer el lock.
+- Precondiciones: `Harness.cfg` con `Procesos = {p1, p2}`.
+- Cómo validarlo: TLC con `UnSoloProceso`; auxiliar negada `~(lock = p1 /\ salida3)` (o la marca que se documente); comparar en la traza las variables antes y después del `TomarLock(p2)`.
+- Resultado esperado: `UnSoloProceso` no se viola; la auxiliar se viola y entre los dos estados solo difiere la marca de salida 3.
+- Tipo de prueba sugerida: TLC
+- Severidad: Media — RF-11 es Should y el lock real ya tiene test propio.
+
+#### VAL-13: Sin bloqueos y `Terminado` solo en estados finales
+- Requisito: R12 — RF-12 «`Terminado`, habilitada solo en `etapa ∈ {"publicada", "detenida"}` y con todas las variables sin cambios… sin la opción `-deadlock`» (§5, CA-12)
+- Punto de fallo: un estado intermedio sin sucesores (por ejemplo, `agotado = TRUE` sin `Intervencion` habilitada) o `Terminado` habilitada en `auditoria`, que taparía el bloqueo.
+- Precondiciones: comando de RF-23 sin `-deadlock`.
+- Cómo validarlo: ejecutar TLC con `Harness.cfg`; en copia, invariante auxiliar `ENABLED Terminado => etapa \in {"publicada","detenida"}`.
+- Resultado esperado: la salida no contiene `Deadlock reached`; la auxiliar no se viola; el comando del job no contiene `-deadlock`.
+- Tipo de prueba sugerida: TLC
+- Severidad: Alta — un bloqueo no detectado hace que `Termina` pase por la razón equivocada.
+
+#### VAL-14: `PublicaSoloValidado` se viola con la mutante por la causa que dice la spec
+- Requisito: R13 — RF-13 «Todo capítulo cerrado… tiene… el último `Validar` o `ValidarFinal` aprobado después de la última escritura… `etapa = "publicada"` implica auditoría aprobada» (§5, CA-13)
+- Punto de fallo: la mutante sale con código distinto de 0 por otra causa (error de análisis, otra invariante, `Deadlock reached`) y la salida nombra `PublicaSoloValidado` de todos modos (por ejemplo, en la lista de invariantes que carga), así que el control negativo pasa sin haberse violado la invariante.
+- Precondiciones: `Harness.cfg` y `HarnessMutante.cfg`.
+- Cómo validarlo: ejecutar el comando de RF-23 con cada `.cfg`; en la salida de la mutante, buscar `Error: Invariant PublicaSoloValidado is violated.` y leer la última acción de la traza.
+- Resultado esperado: con `Harness.cfg`, salida 0 sin `is violated`; con la mutante, código distinto de 0, la línea `Invariant PublicaSoloValidado is violated` presente, y la traza acaba en `Checkpoint` de un capítulo cuyo último paso de escritura es `EditorEstilo` sin `ValidarFinal` posterior.
+- Tipo de prueba sugerida: TLC + integración (CI)
+- Severidad: Crítica — es la garantía principal de la spec; un control negativo que pasa por otra causa deja la invariante sin demostrar.
+
+#### VAL-15: La mutación de la tabla de reanudación rompe `ReanudacionSinDuplicarNiPerder`
+- Requisito: R14 — RF-14 «la secuencia de capítulos cerrados es exactamente `<<1, 2, …, k>>`… incluso después de cualquier combinación de `Caida` y `Reanudar`» (§5, CA-14)
+- Punto de fallo: la invariante es vacía respecto de la reanudación (se cumple aunque la tabla retome mal) porque `cerrados` solo crece en `Checkpoint` y nunca se puede duplicar por construcción.
+- Precondiciones: copia local de `Harness.tla` con la fila «paso 8» de la tabla sustituida por «paso 2».
+- Cómo validarlo: ejecutar TLC con `Harness.cfg` sobre la copia.
+- Resultado esperado: TLC informa `Invariant ReanudacionSinDuplicarNiPerder is violated` (o `PublicaSoloValidado`, si la spec lo admite, anotado); la entrada queda en `docs/tla-contraejemplos.md`; sin la mutación, TLC sale con 0.
+- Tipo de prueba sugerida: TLC (mutación)
+- Severidad: Crítica — la pérdida o duplicación de capítulos es corrupción de la novela.
+
+#### VAL-16: Las dos invariantes de versiones no son vacías
+- Requisito: R15 — RF-15 «`VersionAnteriorIntacta`… `ReaplicadosIdenticos`: el contenido de todo capítulo reaplicado es igual al de la instantánea» (§5, CA-15; §11 «Una invariante es vacía y pasa siempre»)
+- Punto de fallo: CA-15 solo muta `versiones`; `ReaplicadosIdenticos` puede ser tautológica si `Reaplicar` es la única acción que escribe un reaplicado y siempre copia.
+- Precondiciones: dos copias locales de `Harness.tla`.
+- Cómo validarlo: copia A: `Reaplicar` escribe también en `versiones`; copia B: `Reaplicar` asigna a `contenido[cap]` un valor distinto del de la instantánea; ejecutar TLC con `Harness.cfg` sobre cada una.
+- Resultado esperado: la copia A viola `VersionAnteriorIntacta`; la copia B viola `ReaplicadosIdenticos`; ambas quedan anotadas.
+- Tipo de prueba sugerida: TLC (mutación)
+- Severidad: Crítica — la versión anterior intacta es la garantía de ADR 0004.
+
+#### VAL-17: Cada gate alcanza 3 intentos y ninguno 4
+- Requisito: R16 — RF-16 «para cada gate `g`, `1 <= intentos[g] <= MaxIntentos`, y ningún estado alcanzable tiene un intento de valor `MaxIntentos + 1`» (§5, CA-16)
+- Punto de fallo: un gate nunca llega a 3 (la cota no se ejerce) o el cuarto fallo incrementa antes de desviar a `Intervencion`.
+- Precondiciones: `Harness.cfg` con `MaxIntentos = 3`.
+- Cómo validarlo: `IntentosAcotados` en `INVARIANTS`; en copia, cuatro auxiliares `~(intentos[g] = 3)` con `g ∈ {"arquitecto","mecanico","revision","delta"}`.
+- Resultado esperado: `IntentosAcotados` no se viola; las cuatro auxiliares se violan.
+- Tipo de prueba sugerida: TLC (alcanzabilidad)
+- Severidad: Alta — «máximo dos reintentos por gate» es la regla de parada del bucle.
+
+#### VAL-18: `OrdenDelBucle` y `UnSoloProceso` no son vacías
+- Requisito: R17 — RF-17 «`Checkpoint` solo tras `AplicarDelta`, `AplicarDelta` solo con `ValidarFinal` aprobado sobre la versión actual y ningún capítulo `N + 1` sin checkpoint de `N`» (§5, CA-17; §11 «Una invariante es vacía»)
+- Punto de fallo: las invariantes se escriben sobre variables que las guardas ya fuerzan y nunca podrían violarse.
+- Precondiciones: copias locales de `Harness.tla`.
+- Cómo validarlo: copia A: quitar la guarda `delta = "aplicado"` de `Checkpoint`; copia B: `TomarLock` sin exigir `lock = "libre"`; ejecutar TLC sobre cada una.
+- Resultado esperado: la copia A viola `OrdenDelBucle`; la copia B viola `UnSoloProceso`; con el modelo real, `TypeOK`, `OrdenDelBucle` y `UnSoloProceso` no se violan.
+- Tipo de prueba sugerida: TLC (mutación)
+- Severidad: Media — RF-17 es Should; la mutante principal ya cubre la garantía crítica.
+
+#### VAL-19: `Termina` se cumple y depende de la equidad
+- Requisito: R18 — RF-18 «`Termina == <>[](etapa \in {"publicada", "detenida"})`… equidad débil… sin equidad sobre `Caida`, `FalloCLI`, `Detener`, `SinAvance` ni `Cambio`» (§5, CA-18)
+- Punto de fallo: se pone equidad sobre una acción del entorno (`FalloCLI`), con lo que `Termina` se cumple forzando paradas, o `Termina` pasa sin equidad porque el modelo nunca tiene ciclos.
+- Precondiciones: `Harness.cfg` con `PROPERTIES Termina`.
+- Cómo validarlo: leer `Equidad` y listar las acciones con `WF_vars`; ejecutar TLC; en copia, retirar `WF_vars(AplicarDelta)`.
+- Resultado esperado: ninguna de las cinco acciones del entorno aparece en `Equidad`; TLC no informa `Temporal properties were violated`; con la copia, informa la violación de `Termina` con `Back to state` (ciclo) y queda anotada.
+- Tipo de prueba sugerida: TLC
+- Severidad: Alta — con equidad sobre el entorno, la liveness se demuestra por la vía falsa.
+
+#### VAL-20: `Harness.cfg` con los valores literales
+- Requisito: R19 — RF-19 «`NumCapitulos = 5`, `MaxIntentos = 3`… `Procesos = {p1, p2}`… `Mutante = FALSE`… `INVARIANTS` con las ocho invariantes… `PROPERTIES Termina`» (§5, CA-19)
+- Punto de fallo: falta una invariante en `INVARIANTS` (por ejemplo `ReaplicadosIdenticos`) y TLC no la comprueba nunca.
+- Precondiciones: `formal/tla/Harness.cfg`.
+- Cómo validarlo: `uv run pytest tests/test_tla.py::test_cfg_del_repo`; repetir sobre una copia del texto sin la línea `ReaplicadosIdenticos` y otra con `NumCapitulos = 4`.
+- Resultado esperado: verde con el repositorio; rojo en las dos copias, con el nombre de la invariante o de la constante en el mensaje.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Alta — una invariante fuera del `.cfg` no se comprueba y su garantía desaparece sin aviso.
+
+#### VAL-21: `HarnessMutante.cfg` solo difiere en `Mutante`
+- Requisito: R20 — RF-20 «igual que `Harness.cfg` salvo `Mutante = TRUE`» (§5, CA-20)
+- Punto de fallo: la mutante quita invariantes o reduce constantes y viola por otro motivo, o diverge de `Harness.cfg` con el tiempo.
+- Precondiciones: los dos `.cfg`.
+- Cómo validarlo: `uv run pytest tests/test_tla.py::test_cfg_mutante`; repetir sobre una copia de la mutante con `MaxCaidas = 1`.
+- Resultado esperado: verde con el repositorio; rojo con la copia, nombrando la línea `MaxCaidas`.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Media — protege el control negativo, que VAL-14 ya comprueba por su causa.
+
+#### VAL-22: `tla2tools.version` versionado y artefactos ignorados
+- Requisito: R21 — RF-21 «`formal/tla/tla2tools.version` con dos líneas, `version=<x.y.z>` y `sha256=<hex>`… `formal/tla/*.jar`, `formal/tla/states/` y `formal/tla/*_TTrace_*.tla` van al `.gitignore`» (§5, CA-21)
+- Punto de fallo: un patrón demasiado amplio ignora el propio `tla2tools.version` o `Harness.tla`, o el fichero lleva tres líneas o un hash de 63 caracteres.
+- Precondiciones: repositorio tras ejecutar TLC en local.
+- Cómo validarlo: `git check-ignore formal/tla/tla2tools.jar formal/tla/states/ formal/tla/Harness_TTrace_1.tla`; `git check-ignore formal/tla/tla2tools.version formal/tla/Harness.tla formal/tla/Harness.cfg`; `wc -l` y una regex sobre el fichero.
+- Resultado esperado: el primer comando sale con 0 para los tres; el segundo sale con 1 (ninguno ignorado); el fichero tiene exactamente 2 líneas que casan con `^version=\d+\.\d+\.\d+$` y `^sha256=[0-9a-f]{64}$`.
+- Tipo de prueba sugerida: unitaria + revisión manual
+- Severidad: Media — un jar versionado o un fichero de versión ignorado rompen la reproducibilidad, no las garantías.
+
+#### VAL-23: Job `tla`: orden, tiempo límite y verificación del jar
+- Requisito: R22, R31, R33 — RF-22 «`timeout-minutes: 15`… Descarga la versión de `tla2tools.version` y verifica su sha256, y falla si no coincide»; RNF-02; RNF-04 «Ejecuciones de TLC en CI sin verificar antes el sha256… 0» (§5, §6, CA-22)
+- Punto de fallo: la verificación está en un paso con `continue-on-error`, o TLC se ejecuta en el mismo paso antes del `sha256sum`, o el job no fija `timeout-minutes`.
+- Precondiciones: rama de prueba con el job `tla`.
+- Cómo validarlo: leer el job con `yaml.safe_load`; push A con un byte cambiado en `sha256=`; push B con `Mutante = FALSE` en `HarnessMutante.cfg`; revertir ambos.
+- Resultado esperado: `runs-on: ubuntu-latest`, `timeout-minutes: 15`, `actions/setup-java@v4` con `distribution: temurin` y `java-version: 17`; ningún paso con `continue-on-error: true`; el push A falla en el paso de verificación y el log no contiene `TLC2 Version`; el push B falla en el paso de la mutante; con el repositorio limpio, el job pasa.
+- Tipo de prueba sugerida: integración (CI)
+- Severidad: Crítica — ejecutar en CI un binario descargado sin verificar es una brecha de cadena de suministro.
+
+#### VAL-24: El mismo comando en el README y en CI
+- Requisito: R23 — RF-23 «el mismo comando, ejecutado desde `formal/tla/`: `java -XX:+UseParallelGC -cp tla2tools.jar tlc2.TLC -config <cfg> -workers auto -coverage 1 Harness.tla`» (§5, CA-23)
+- Punto de fallo: CI añade `-deadlock` o `-workers 1`, o el README documenta otra ruta de trabajo, y lo que se verifica en CI deja de ser lo que ejecuta el desarrollador.
+- Precondiciones: README y `ci.yml` definitivos.
+- Cómo validarlo: `uv run pytest tests/test_tla.py::test_comando_documentado`; repetir sobre una copia del YAML con `-deadlock` añadido.
+- Resultado esperado: verde con el repositorio; rojo con la copia, nombrando `-deadlock`.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Media — el desvío no rompe garantías por sí solo, pero permite ocultar un bloqueo (`-deadlock`).
+
+#### VAL-25: README con seis secciones y mapeo completo
+- Requisito: R24, R37 — RF-24 «seis secciones… «Acciones» es una tabla con una fila por acción de `Next`… «Variables»… con las filas de 0007 marcadas «spec 0007, sin implementar»»; RNF-08 «Acciones de `Next` sin fila… y variables del módulo sin fila… 0» (§5, §6, CA-24)
+- Punto de fallo: una variable auxiliar (`agotado`, `salida3`, `sello`) no tiene fila, o `Cambio` se describe como implementado.
+- Precondiciones: `formal/tla/README.md` y `Harness.tla` definitivos.
+- Cómo validarlo: `uv run pytest tests/test_tla.py::test_readme`; copia del README sin la fila de `agotado`; copia sin la marca de `Reaplicar`.
+- Resultado esperado: verde con el repositorio; rojo en cada copia, con el nombre de la variable o de la acción; las seis secciones «Qué modela», «Instalación», «Ejecutar TLC», «Acciones», «Variables» y «Límites» presentes.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Media — sin mapeo, el revisor no sabe qué acción cambiar cuando cambia el procedimiento.
+
+#### VAL-26: `test_tla.py` falla en los cuatro casos de CA-25
+- Requisito: R25, R34 — RF-25 «que cada acción que aparece como disyunto de `Next` tiene una fila… y que ningún fichero bajo `.claude/`, `backend/novela/` ni `backend/api/` contiene `tla2tools`, `tlc2` ni `Harness.tla`»; RNF-05 (§5, §6, CA-25)
+- Punto de fallo: el test de aislamiento recorre una raíz equivocada (por ejemplo `backend/` relativo al cwd) y pasa siempre.
+- Precondiciones: repositorio limpio.
+- Cómo validarlo: por separado, en un árbol de trabajo desechable: borrar la fila de `Checkpoint` del README; añadir `\/ Fantasma` a `Next`; crear `backend/novela/_tmp_tlc.py` con el texto `tlc2`; cambiar `"validar"` por `"validacion"` en `PASOS`. Ejecutar `uv run pytest tests/test_tla.py` tras cada cambio y revertir.
+- Resultado esperado: cuatro ejecuciones en rojo, cuyos mensajes contienen respectivamente `Checkpoint`, `Fantasma`, `_tmp_tlc.py` y `validar`; con el repositorio limpio, verde.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Crítica — RNF-05 es la frontera que impide que TLC entre en el bucle de una novela.
+
+#### VAL-27: Registro de contraejemplos completo y verificable
+- Requisito: R26 — RF-26 «fecha, configuración, propiedad violada, traza resumida…, causa y cambio provocado… ámbito… fichero y sha del commit. Incluye siempre el contraejemplo de `HarnessMutante.cfg`, marcado como control negativo» (§5, CA-26)
+- Punto de fallo: una entrada omite el ámbito o cita un sha que no existe tras fusionar, o falta la entrada de la mutante.
+- Precondiciones: `docs/tla-contraejemplos.md` y un clon con historial completo.
+- Cómo validarlo: `uv run pytest tests/test_tla.py::test_registro_de_contraejemplos`; para cada sha, `git cat-file -e <sha>^{commit}`; revisar que existe la frase explícita si ningún ámbito es `código`.
+- Resultado esperado: verde; cada entrada con los siete campos; exactamente una o más entradas marcadas «control negativo» con configuración `HarnessMutante.cfg`; `git cat-file -e` sale con 0 para todos; ámbitos dentro de `modelo`, `código`, `procedimiento`, `documentación`.
+- Tipo de prueba sugerida: unitaria + revisión manual
+- Severidad: Media — es trazabilidad de desarrollo, no una garantía del modelo.
+
+#### VAL-28: Diagrama con los mismos nombres que `Next`
+- Requisito: R27 — RF-27 «diagrama Mermaid `stateDiagram-v2`… con los mismos nombres de acción que `Harness.tla`» (§5, CA-27)
+- Punto de fallo: el diagrama usa «Validar final» en lugar de `ValidarFinal` o le falta `Intervencion`.
+- Precondiciones: `docs/domain-knowledge.md` § 7.
+- Cómo validarlo: `uv run pytest tests/test_tla.py::test_diagrama`; copia del documento sin la transición etiquetada `Reaplicar`.
+- Resultado esperado: verde con el repositorio; rojo con la copia, nombrando `Reaplicar`; el bloque empieza por `stateDiagram-v2`.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Baja — documental.
+
+#### VAL-29: ADR 0006 con formato y cita del argumento revertido
+- Requisito: R28 — RF-28 «frontmatter `adr`, `titulo`, `estado: aceptada`, `fecha`, `decide`, `specs: [0013]` y las secciones Contexto, Decisión, Alternativas descartadas, Consecuencias y Cuándo reabrirla» (§5, CA-28)
+- Punto de fallo: el número choca con los reservados (0003, 0005) o falta «Cuándo reabrirla».
+- Precondiciones: `docs/adr/0006-model-checking-con-tla.md`.
+- Cómo validarlo: parsear el frontmatter YAML y listar los encabezados `##`; buscar en Contexto la referencia a `docs/validators.md` § 4.10.
+- Resultado esperado: seis claves con `estado: aceptada` y `specs: [13]` o `[0013]` según el parser; cinco encabezados con los nombres literales; Contexto cita § 4.10.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Baja — documental.
+
+#### VAL-30: Documentos de referencia al día y `test_bucle.py` sin cambio de lógica
+- Requisito: R29 — RF-29 «actualizar, en el mismo commit que el modelo… § 4.10 (TLA+ y TLC como método activo, qué verifica, qué no y dónde se ejecuta)… cambia el mensaje del assert de la línea 117 y el docstring» (§5, CA-29; decisions D17)
+- Punto de fallo: § 4.10 sigue argumentando contra TLA+, o se cambia la condición del assert o se borra la enumeración al tocar el mensaje.
+- Precondiciones: commit de cierre.
+- Cómo validarlo: leer § 4.10, § 5.8, § 6 de `docs/validators.md` y § 3.1 de `docs/architecture.md` en ese commit; `git diff <base>..<cierre> -- backend/tests/test_bucle.py`; `uv run pytest tests/test_bucle.py`.
+- Resultado esperado: § 4.10 ya no contiene la frase de la línea 347 que acaba en «ceremonia», nombra `formal/tla/` y el job `tla` y tiene una frase de lo que no verifica; la fila «CI del harness» de § 6 menciona TLC; § 3.1 lista `formal/tla/`; el diff de `test_bucle.py` solo toca líneas de docstring y el literal del mensaje del assert; la suite pasa.
+- Tipo de prueba sugerida: revisión manual + unitaria
+- Severidad: Media — la documentación de referencia contradiría el ADR 0006.
+
+#### VAL-31: Tamaño, tiempo y registro del resultado de TLC en CI
+- Requisito: R30, R32, R38 — RNF-01 «≤ 10 min», RNF-03 «≤ 5 000 000» estados distintos, RNF-09 «log… muestra los estados generados, los distintos y la profundidad» (§6)
+- Punto de fallo: el modelo definitivo con `SUBSET (1..5)`, dos procesos y dos caídas supera el umbral y el job roza el `timeout` de 15 min.
+- Precondiciones: job `tla` verde en una rama.
+- Cómo validarlo: leer el log del paso de `Harness.cfg`: líneas `states generated, … distinct states found`, `The depth of the complete state graph search is` y la marca de tiempo de inicio y fin del paso.
+- Resultado esperado: estados distintos ≤ 5 000 000; duración del paso ≤ 600 s; las tres cifras presentes en el log.
+- Tipo de prueba sugerida: integración (CI)
+- Severidad: Media — un modelo que no cabe obliga a recortarlo, pero no invalida lo ya verificado.
+
+#### VAL-32: La suite del backend no necesita Java
+- Requisito: R35 — RNF-06 «Tests de `uv run pytest` que fallan sin `java` en el PATH… 0» (§6)
+- Punto de fallo: un test de `test_tla.py` invoca `java -version` o importa algo que lo exige.
+- Precondiciones: entorno sin `java` (`PATH` sin JDK).
+- Cómo validarlo: `env PATH=<ruta sin java> uv run pytest` desde `backend/`; `grep -n "java" backend/tests/test_tla.py`.
+- Resultado esperado: la suite sale con 0 y el mismo número de tests en verde que con Java; ninguna invocación de `subprocess` con `java`.
+- Tipo de prueba sugerida: integración
+- Severidad: Alta — un test que exige Java rompe el job `backend` y el desarrollo en cualquier máquina sin JDK.
+
+#### VAL-33: Ninguna acción muerta en la cobertura
+- Requisito: R36 — RNF-07 «Acciones de `Next` con 0 estados distintos generados en la salida de `-coverage 1`… 0» (§6)
+- Punto de fallo: `Reaplicar` o la rama de custodia quedan inalcanzables por una guarda mal escrita y TLC pasa en verde sin ejercerlas.
+- Precondiciones: salida de TLC con `Harness.cfg` y `-coverage 1`.
+- Cómo validarlo: extraer de la salida las líneas de cobertura por acción (`<Accion line … of module Harness>: <distintos>:<generados>`) y contar las de distintos = 0; repetir en una copia con la guarda de `Reaplicar` cambiada a `FALSE`.
+- Resultado esperado: 0 acciones con distintos = 0 en el repositorio; con la copia, `Reaplicar` aparece con 0 y el paso de CI falla.
+- Tipo de prueba sugerida: integración (CI)
+- Severidad: Alta — una acción muerta hace vacía cualquier invariante que dependa de ella.
+
+#### VAL-34: Ningún cambio en las rutas que la spec deja intactas
+- Requisito: R39 — §3.2 «Cambiar `AGENTS.md`, `CLAUDE.md`, la API, el frontend, `backend/schemas/` o los modelos de `backend/novela/dominio/`» como no objetivo; §8.2 «Sin cambios: `backend/novela/`, `backend/api/`, `backend/schemas/`, `.claude/`, `frontend/`, `AGENTS.md` y `CLAUDE.md`»
+- Punto de fallo: para que casen los nombres se retoca un enum de `estado.py`, o se añade una línea sobre TLC a `AGENTS.md`.
+- Precondiciones: rama de la spec lista para fusionar.
+- Cómo validarlo: `git diff --stat <base>...HEAD -- backend/novela backend/api backend/schemas .claude frontend AGENTS.md CLAUDE.md docs/auditoria-entregable.md`.
+- Resultado esperado: salida vacía.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Alta — cambiar el dominio para ajustar el modelo invierte la relación que exige §10 (manda el procedimiento).
+
+#### VAL-35: Las constantes pedidas no se rebajan ni se relajan invariantes
+- Requisito: R40 — §9 «Se reduce `MaxCaidas` o se parte el modelo… sin relajar ninguna invariante»; §11 «`NumCapitulos` y `MaxIntentos` no bajan de la petición»
+- Punto de fallo: para entrar en los 15 min se baja `NumCapitulos` a 3 o se retira una invariante del `.cfg`.
+- Precondiciones: `Harness.cfg` definitivo y, si hubo reducción, su registro en el ADR.
+- Cómo validarlo: leer `Harness.cfg`; comparar la lista de `INVARIANTS` con las ocho de RF-19; comparar el texto de cada invariante con el de la primera versión commiteada (`git log -p formal/tla/Harness.tla`).
+- Resultado esperado: `NumCapitulos = 5`, `MaxIntentos = 3`; ocho invariantes; ninguna invariante debilitada en el historial sin entrada en `docs/tla-contraejemplos.md` y en el ADR.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Alta — rebajar las constantes pedidas incumple la petición que origina la spec.
+
+### Verificadores
+#### VER-1: `conjunto(texto, nombre)` no confunde nombres ni lee comentarios
+- Paso del plan: P1 — T1.1 «la función pura `conjunto(texto, nombre) -> set[str]` (expresión regular entre `Nombre ==` y su `}`, solo cadenas con comillas dobles)» (§5)
+- Punto de fallo: la regex casa `FasesDelModelo ==` o una línea comentada `\* Pasos == {...}`, o se detiene en una `}` interior de otra expresión si `Pasos` se define en varias líneas.
+- Precondiciones: función `conjunto` importable desde `test_tla.py`.
+- Cómo verificarlo: casos unitarios sobre texto: (a) `\* Pasos == {"x"}` seguido de la definición real; (b) `PasosExtra == {"y"}` antes de `Pasos == {...}`; (c) `Pasos` en tres líneas; (d) `Pasos == {"a", 'b'}`.
+- Resultado esperado: (a) y (b) devuelven solo los nueve pasos reales; (c) los nueve; (d) lanza error o devuelve `{"a"}` y el test lo marca como formato inválido.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Media — un falso verde oculta una divergencia de nombres.
+
+#### VER-2: `acciones_de_next` no pierde disyuntos
+- Paso del plan: P2 — plan D2 «`Next ==` va seguido de una línea por disyunto, que empieza por `\/`… y la definición termina en la primera línea en blanco»
+- Punto de fallo: una línea en blanco o un comentario dentro de `Next` corta la lectura y las acciones siguientes quedan fuera del test de filas del README y de diagrama, que pasan en verde.
+- Precondiciones: función `acciones_de_next`.
+- Cómo verificarlo: sobre texto: `Next ==` con 10 disyuntos, una línea en blanco tras el quinto; otro con `\* comentario` entre disyuntos; otro con `\/ \E p \in Procesos : TomarLock(p)`; además, un test que compara el número de disyuntos leídos con el número de `\/` entre `Next ==` y `vars ==`.
+- Resultado esperado: el primer caso falla con un error explícito de formato (no devuelve 5); el segundo devuelve los disyuntos sin el comentario; el tercero devuelve `TomarLock`; los dos recuentos coinciden en el `.tla` real.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Alta — es el mecanismo del que dependen RNF-08 y CA-27.
+
+#### VER-3: El fichero de versión alimenta `sha256sum -c` en Linux
+- Paso del plan: P3, P17 — T1.3 «dos líneas, `version=` y `sha256=` (64 hex, LF)»; T5.1 «Leer `version` y `sha256`… verificarlo con `sha256sum -c`»
+- Punto de fallo: `sha256sum -c` espera `<hash>  <fichero>`, no `sha256=<hash>`; si se le pasa el fichero tal cual, o si el fichero lleva CRLF (escrito en Windows), la comprobación falla siempre o, peor, se interpreta mal y se omite.
+- Precondiciones: `tla2tools.version` commiteado desde Windows; job `tla`.
+- Cómo verificarlo: `git ls-files --eol formal/tla/tla2tools.version`; revisar el script del paso: debe construir `echo "$SHA  tla2tools.jar" | sha256sum -c -`; ejecutarlo en local con el jar correcto y con un jar de 0 bytes.
+- Resultado esperado: `i/lf`; con el jar correcto, salida `tla2tools.jar: OK` y código 0; con el de 0 bytes, `FAILED` y código 1; el paso no usa `|| true`.
+- Tipo de prueba sugerida: integración
+- Severidad: Crítica — una verificación que nunca falla anula RNF-04.
+
+#### VER-4: `GateArquitecto` no consume intento con `misterio.md` ni pasa de 3
+- Paso del plan: P4 — T2.1 «causa `misterio.md` con `agotado = TRUE` sin consumir intento… `GateArquitecto` con `intentos["arquitecto"] = MaxIntentos` e inválido lleva a `agotado`»
+- Punto de fallo: el incremento se evalúa antes de comprobar `MaxIntentos` y se alcanza `intentos["arquitecto"] = 4`, que `TypeOK` o `IntentosAcotados` detectan tarde, o la rama `misterio.md` incrementa por reutilizar la misma expresión.
+- Precondiciones: `.cfg` provisional de plan D7.
+- Cómo verificarlo: TLC con `IntentosAcotados`; auxiliar negada `~(agotado /\ intentos["arquitecto"] = 1 /\ etapa = "planificacion")`.
+- Resultado esperado: `IntentosAcotados` no se viola; la auxiliar se viola con una traza de un solo `GateArquitecto`.
+- Tipo de prueba sugerida: TLC
+- Severidad: Media — lo detectan también VAL-3 y VAL-17.
+
+#### VER-5: Del estado `agotado` solo se sale por `Intervencion`
+- Paso del plan: P5, P4 — plan D4 «La acción que falla pone `agotado = TRUE`, e `Intervencion` pasa a `etapa = "detenida"`»
+- Punto de fallo: con `agotado = TRUE` la etapa sigue sin ser final, así que `Caida` (habilitada «en cualquier estado no final»), `FalloCLI`, `Detener` o `SinAvance` siguen habilitadas: `Caida` + `Reanudar` retoma el capítulo y el gate agotado se reintenta, o `FalloCLI` deja `motivo = "cli"` en vez de `intervencion`.
+- Precondiciones: modelo con `agotado`.
+- Cómo verificarlo: en copia, invariante auxiliar `agotado => ~ENABLED (Caida \/ Reanudar \/ FalloCLI \/ Detener \/ SinAvance \/ Escritor \/ Cronista \/ EditorEstilo \/ Arquitecto)`; y propiedad `[](agotado => <>(motivo = "intervencion"))`.
+- Resultado esperado: ninguna de las dos se viola; si el plan decide que `Caida` sí está habilitada, la traza `agotado → Caida → Reanudar` termina en `motivo = "intervencion"` (lectura de `intervencion.md` vivo, `flujo.py:48-54`).
+- Tipo de prueba sugerida: TLC
+- Severidad: Crítica — permite reintentar un gate agotado y viola «sin reintento» de RF-06.
+
+#### VER-6: La rama de custodia no es inalcanzable en el modelo no mutante
+- Paso del plan: P5 — T2.2 «custodia en `AplicarDelta` (determinista: `validado = FALSE` hace fallar la custodia; ver D6)»
+- Punto de fallo: con `Mutante = FALSE`, `OrdenDelBucle` garantiza `validado` al llegar a `AplicarDelta`, así que el fallo de custodia no se da nunca; la cobertura por acción no lo detecta porque `AplicarDelta` tiene otras ramas vivas, y RF-06 queda sin ejercer.
+- Precondiciones: `Harness.cfg`.
+- Cómo verificarlo: auxiliar negada `~(agotado /\ paso = "aplicar-delta" /\ intentos["delta"] < MaxIntentos)`; revisar la cobertura por sub-expresión de `-coverage 1` para la disyunción de custodia.
+- Resultado esperado: la auxiliar se viola (la rama es alcanzable, por ejemplo tras una `Caida` que deja un delta escrito sobre un capítulo reescrito); si no se viola, el plan debe documentarlo en «Límites» del README y en `docs/tla-contraejemplos.md`.
+- Tipo de prueba sugerida: TLC
+- Severidad: Alta — una rama de RF-06 (Must) muerta sin aviso.
+
+#### VER-7: El reinicio tras `GateRevision` limpia todo el abanico
+- Paso del plan: P5 — T2.2 «`GateRevision` falla y vuelve a `Escritor` con `validado`, `revisado` y `revisores` reiniciados»
+- Punto de fallo: `briefingsRevision` o `subpaso` no se reinician y en la segunda ronda los revisores arrancan sin generar de nuevo sus briefings; o se reinicia también `intentos["mecanico"]`, que según RF-05 solo se reinicia al empezar capítulo.
+- Precondiciones: `.cfg` provisional.
+- Cómo verificarlo: auxiliar negada `~(intentos["revision"] = 2 /\ paso = "continuista")` y leer en la traza que entre el `GateRevision` fallido y el `Continuista` hay `Escritor`, `Validar` y tres `Briefing`; comprobar que `intentos["mecanico"]` no baja en esa traza.
+- Resultado esperado: la traza contiene la secuencia completa; `briefingsRevision` vale su valor inicial justo tras el fallo; `intentos["mecanico"]` es monótono dentro del capítulo.
+- Tipo de prueba sugerida: TLC
+- Severidad: Alta — reutilizar briefings de la ronda anterior no representa el procedimiento del paso 4.
+
+#### VER-8: Contadores a 1 también en los capítulos reaplicados y tras `Cambio`
+- Paso del plan: P5, P8 — T2.2 «Contadores `mecanico`, `revision` y `delta` a 1 al cerrar el capítulo»; T2.5 «`Reaplicar`… cierra el capítulo»
+- Punto de fallo: el reinicio está en `Checkpoint` y no en `Reaplicar`, así que un capítulo afectado posterior a uno reaplicado hereda intentos del anterior; o `intentos["arquitecto"]` nunca vuelve a 1 y no importa, pero `TypeOK` lo exige en `1..MaxIntentos`.
+- Precondiciones: `Harness.cfg` con `MaxCambios = 1`.
+- Cómo verificarlo: en copia, invariante auxiliar `(paso = "ninguno" /\ etapa = "capitulos") => intentos["mecanico"] = 1 /\ intentos["revision"] = 1 /\ intentos["delta"] = 1`.
+- Resultado esperado: no se viola en ningún estado, incluidos los de `version = 2`.
+- Tipo de prueba sugerida: TLC
+- Severidad: Media — acelera intervenciones espurias en la rama de regeneración.
+
+#### VER-9: `Caida` y `Reanudar` con el lock y el cursor correctos
+- Paso del plan: P6 — T2.3 «Pierde `sesion` y libera `lock`… conserva los ficheros, el log fantasma, `intentos`, `cerrados` y `delta`. Añadir `Reanudar`, que aplica la tabla literal… filas en orden, con `cap = Len(cerrados) + 1`… En `auditoria`, se repite `Auditar`»
+- Punto de fallo: las filas de la tabla se evalúan sin orden (dos filas casan y TLC elige), `Caida` borra `validado` (volátil en el plan) cuando la tabla lo lee del log, o tras `Cambio` `Len(cerrados) + 1` no coincide con lo que leería `latest.json`.
+- Precondiciones: `.cfg` provisional y `Harness.cfg`.
+- Cómo verificarlo: revisar que `Reanudar` usa `CASE` con `[]` en el orden de `novela-continuar.md:126-131` o guardas mutuamente excluyentes; auxiliar `sesion = "caida" => lock = "libre"`; auxiliar negada `~(etapa = "auditoria" /\ sesion = "caida")` y leer el paso siguiente.
+- Resultado esperado: guardas exclusivas (un solo sucesor de `Reanudar` por estado); la auxiliar de lock no se viola; tras la caída en `auditoria`, el siguiente paso del sistema es `Auditar` con `cerrados` de longitud 5.
+- Tipo de prueba sugerida: TLC + revisión manual
+- Severidad: Alta — una tabla no determinista verifica una reanudación que el procedimiento no hace.
+
+#### VER-10: `Terminado` es lo único habilitado en los estados finales
+- Paso del plan: P7 — T2.4 «`Terminado`, solo en estados finales. En esos estados no puede haber habilitada ninguna otra acción, tampoco `TomarLock` ni `SoltarLock`»; «`Detener`, habilitada en `etapa = "capitulos"` al inicio de un capítulo»
+- Punto de fallo: `TomarLock(p2)` sigue habilitada en `publicada` y cambia la marca de salida 3, lo que da sucesores distintos en un estado final; o `Detener` se habilita a mitad del capítulo.
+- Precondiciones: `Harness.cfg`.
+- Cómo verificarlo: en copia, invariante auxiliar `etapa \in {"publicada","detenida"} => ~ENABLED (\E p \in Procesos : TomarLock(p) \/ SoltarLock(p))` y `ENABLED Detener => paso = "ninguno"`; excepción documentada: `Cambio` en `publicada`.
+- Resultado esperado: ninguna auxiliar se viola.
+- Tipo de prueba sugerida: TLC
+- Severidad: Media — no rompe garantías, pero infla estados y confunde los finales.
+
+#### VER-11: `Cambio` reinicia todo el estado de la versión y escribe la fantasma una sola vez
+- Paso del plan: P8 — T2.5 «Guarda `versiones[version]` y `versionesFantasma[version]` y elige un `afectados` no vacío con `\E A \in SUBSET (1..NumCapitulos) \ {{}}`. Pasa a `etapa = "capitulos"` con `version + 1`, `cerrados = <<>>`, `cap = 1` y `auditada = "no"`»
+- Punto de fallo: no se reinician `aplicados`, `sello`, `delta`, `validado` o `revisado`, y el primer capítulo afectado de la versión 2 hereda el sello o el delta aplicado del capítulo 5 de la versión 1; o `\ {{}}` se escribe `\ {}` y el vacío entra.
+- Precondiciones: `Harness.cfg`.
+- Cómo verificarlo: revisar la asignación de cada variable en `Cambio`; auxiliar `version = 2 /\ cerrados = <<>> => aplicados = {} /\ delta = "ninguno"`; contar los sucesores distintos de un estado `publicada` con `cambios = 0`.
+- Resultado esperado: la auxiliar no se viola; 31 sucesores de `Cambio` desde ese estado; `versionesFantasma` solo aparece a la izquierda de `'` en `Cambio`.
+- Tipo de prueba sugerida: TLC + revisión manual
+- Severidad: Alta — estado heredado entre versiones puede hacer pasar `ReanudacionSinDuplicarNiPerder` o `PublicaSoloValidado` por datos de otra versión.
+
+#### VER-12: El lock por subcomando no bloquea a los agentes ni al orquestador
+- Paso del plan: P9 — T2.6 «Toda acción que escribe exige `lock = p` para algún `p`. `SoltarLock` libera tras cada paso de CLI, porque el lock es por subcomando (`lock.py:4`)»
+- Punto de fallo: acciones de agentes (`Escritor`, `EditorEstilo`, `Cronista`) exigen el lock aunque en la realidad no lo toman; el modelo prohíbe intercalaciones reales y además `p2` puede ejecutar el bucle al tomar el lock libre, lo que duplica el espacio de estados (D8: «el segundo proceso no ejecuta el bucle»).
+- Precondiciones: modelo con `Procesos = {p1, p2}`.
+- Cómo verificarlo: listar las acciones con la guarda `lock = p` y compararlas con la tabla de § 8.4 (solo las implementadas por subcomandos del CLI); medir estados distintos con `Procesos = {p1}` y `{p1, p2}`.
+- Resultado esperado: solo `Nueva`, `Briefing`, `Validar`, `ValidarFinal`, `AplicarDelta`, `Checkpoint`, `Auditar`, `Exportar` y `Reaplicar` exigen lock; con dos procesos, los estados distintos crecen menos del doble; la diferencia queda documentada en «Límites».
+- Tipo de prueba sugerida: revisión manual + TLC
+- Severidad: Media — un modelo más restrictivo que la realidad oculta intercalaciones.
+
+#### VER-13: `aplicados` y `contenido` no hacen tautológicas las invariantes
+- Paso del plan: P10 — T3.1 «`aplicados` dentro de `cerrados ∪ {cap}`»; plan D5 «la igualdad de `contenido[c]` con `versiones[v][c]`»
+- Punto de fallo: con `contenido` = versión de la última escritura, `Reaplicar` asigna `versiones[v][c]` y la igualdad es cierta por construcción; `cerrados` es una secuencia y `cerrados ∪ {cap}` mezcla secuencia y conjunto (error de tipo en TLC o comparación vacía).
+- Precondiciones: `Harness.tla` tras T3.1.
+- Cómo verificarlo: revisar que se usa `Range(cerrados) \cup {cap}` o equivalente; ejecutar la mutación B de VAL-16; ejecutar una copia donde `EditorEstilo` no pone `validado = FALSE` y comprobar que `PublicaSoloValidado` se viola aunque `contenido` no cambie de valor.
+- Resultado esperado: TLC no informa error de tipos; la mutación B viola `ReaplicadosIdenticos`; la copia de `EditorEstilo` viola `PublicaSoloValidado`.
+- Tipo de prueba sugerida: TLC (mutación)
+- Severidad: Alta — invariantes tautológicas dan un verde sin garantía.
+
+#### VER-14: Las mutaciones puntuales no se commitean y se restauran
+- Paso del plan: P11 — T3.2 «sobre copias locales que no se commitean… tras retirar la mutación, el modelo vuelve a pasar»
+- Punto de fallo: una mutación o una invariante auxiliar negada queda en `Harness.tla` y se commitea; el job `tla` falla o, si era una guarda relajada, pasa con el modelo debilitado.
+- Precondiciones: rama de la spec.
+- Cómo verificarlo: `git log -p formal/tla/Harness.tla | grep -n "^+.*~(intentos"`; `git status --porcelain formal/tla` tras cada comprobación; ejecutar TLC con `Harness.cfg` sobre el `.tla` commiteado.
+- Resultado esperado: ninguna línea añadida con invariantes auxiliares negadas; `git status` vacío; TLC sale con 0.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Media — lo detecta el job si rompe, pero no si debilita.
+
+#### VER-15: `Equidad` cubre las acciones con proceso y excluye las del entorno
+- Paso del plan: P12 — T3.3 «`WF_vars` sobre cada acción del sistema (también `Reanudar` e `Intervencion`, y `\A p` para las acciones con proceso), sin equidad sobre `Caida`, `FalloCLI`, `Detener`, `SinAvance` ni `Cambio`»
+- Punto de fallo: `WF_vars(\E p : TomarLock(p))` en lugar de `\A p \in Procesos : WF_vars(TomarLock(p))`, o una acción nueva (por ejemplo `Intervencion`) queda fuera de `Equidad` y `Termina` falla, o se "arregla" poniendo `WF` sobre `FalloCLI`.
+- Precondiciones: `Harness.tla` tras T3.3.
+- Cómo verificarlo: comparar el conjunto de nombres dentro de `Equidad` con los disyuntos de `Next` leídos por `acciones_de_next` menos `{Caida, FalloCLI, Detener, SinAvance, Cambio, Terminado}`; ejecutar la mutación de CA-18.
+- Resultado esperado: los dos conjuntos son iguales; la mutación produce `Temporal properties were violated` con un ciclo.
+- Tipo de prueba sugerida: unitaria (sobre texto) + TLC
+- Severidad: Alta — una equidad incorrecta invalida la prueba de terminación.
+
+#### VER-16: La rama mutante no altera el modelo con `Mutante = FALSE`
+- Paso del plan: P13 — T3.4 «con `Mutante = TRUE`, `EditorEstilo` pasa directamente a `GateRevision` sin `ValidarFinal`, y `AplicarDelta` no aplica la guarda de custodia»
+- Punto de fallo: la guarda `IF Mutante THEN … ELSE …` cambia también el camino no mutante (por ejemplo, invierte la condición de custodia), o la mutante viola primero otra invariante (`OrdenDelBucle`: «`AplicarDelta` solo con `ValidarFinal` aprobado») y TLC se detiene en ella, sin llegar a `PublicaSoloValidado`.
+- Precondiciones: los dos `.cfg`.
+- Cómo verificarlo: comparar los recuentos de estados distintos de `Harness.cfg` antes y después de añadir la rama mutante; ejecutar la mutante y leer qué invariante nombra la línea `Invariant … is violated`.
+- Resultado esperado: el recuento de `Harness.cfg` no cambia; la invariante violada es `PublicaSoloValidado` y no `OrdenDelBucle` (si fuera `OrdenDelBucle`, el orden de `INVARIANTS` o la invariante deben ajustarse y registrarse).
+- Tipo de prueba sugerida: TLC
+- Severidad: Alta — TLC informa la primera invariante violada; con `OrdenDelBucle` delante, el paso de CI de la mutante falla por el motivo equivocado.
+
+#### VER-17: La política de reducción no choca con `test_cfg_del_repo`
+- Paso del plan: P14 — T4.1 «Si se superan RNF-01 o RNF-03, reducir primero `MaxCaidas` y después `Procesos` (D12), y registrarlo»
+- Punto de fallo: se reduce `MaxCaidas` a 1 en `Harness.cfg` y `test_cfg_del_repo`, que exige los valores de RF-19, queda en rojo; o se ajusta el test en silencio para aceptar el nuevo valor.
+- Precondiciones: medición de T4.1.
+- Cómo verificarlo: si hubo reducción, comprobar que el mismo commit cambia `Harness.cfg`, `HarnessMutante.cfg`, `test_cfg_del_repo`, el ADR y `docs/tla-contraejemplos.md`, y que `NumCapitulos` y `MaxIntentos` siguen en 5 y 3.
+- Resultado esperado: o no hubo reducción (valores de RF-19), o el commit contiene los cinco ficheros con el motivo y las cifras medidas.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Media — divergencia entre spec, cfg y test.
+
+#### VER-18: `filas_de_tabla` soporta las barras escapadas del README
+- Paso del plan: P15 — plan D1 «`filas_de_tabla(texto, seccion)`»; T4.2 «El test de cobertura exige que cada disyunto de `Next` (D2) tenga fila en «Acciones»»
+- Punto de fallo: la tabla de § 8.4 contiene `0\|1` y celdas con varios nombres (`` `TomarLock`, `SoltarLock` ``); un parser que divide por `|` sin tratar `\|` desplaza columnas, y uno que exige una acción por celda no reconoce `SoltarLock`.
+- Precondiciones: funciones de parseo de `test_tla.py`.
+- Cómo verificarlo: casos sobre texto con la fila `| \`Validar\` | ... | línea \`validar NN -> 0\|1\` |` y con la fila `| \`TomarLock\`, \`SoltarLock\` | ... |`.
+- Resultado esperado: tres columnas en la primera fila; la segunda fila cuenta para `TomarLock` y `SoltarLock`.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Media — un falso rojo o un falso verde en el contrato del README.
+
+#### VER-19: El test de aislamiento recorre las raíces reales
+- Paso del plan: P16 — T4.3 «`apariciones(raices, patrones)`… a `.claude/`, `backend/novela/` y `backend/api/`… Lee con `errors="replace"`. Caso negativo en `tmp_path`»
+- Punto de fallo: el caso negativo solo prueba la función sobre `tmp_path`; el test real puede pasar una lista de raíces vacía o relativa al cwd (`backend/` al ejecutar desde `backend/`) y no encontrar nada nunca; `errors="replace"` no evita leer binarios grandes de `.claude/` (por ejemplo, un `.venv` de plugin).
+- Precondiciones: `test_tla.py` tras T4.3.
+- Cómo verificarlo: un test adicional que exige que cada raíz exista (`RAIZ_REPO / r` con `is_dir()`) y que el recorrido encuentre al menos un fichero en cada una; ejecutar el test desde `backend/` y desde la raíz.
+- Resultado esperado: las tres raíces existen y cada una aporta más de 0 ficheros; mismo resultado desde los dos cwd.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Alta — un escáner que no escanea deja RNF-05 sin protección.
+
+#### VER-20: Los pasos del job no enmascaran códigos de salida
+- Paso del plan: P17 — T5.1 «Ejecutar TLC con `HarnessMutante.cfg` bajo `set +e`. Falla si sale con 0 o si su salida no contiene `PublicaSoloValidado`»; «Comprobar la cobertura de RNF-07… (formato por confirmar, P6)»
+- Punto de fallo: `java … | tee out.txt` sin `pipefail` devuelve el código de `tee` (0), así que el paso de `Harness.cfg` no falla nunca y el de la mutante falla siempre; `grep PublicaSoloValidado` casa con líneas que TLC imprime al cargar la configuración aunque no haya violación; el paso de cobertura no falla si el formato no casa y cuenta 0 acciones.
+- Precondiciones: job `tla`.
+- Cómo verificarlo: revisar el script de cada paso (`${PIPESTATUS[0]}` o `set -o pipefail`); en una rama, cambiar `Harness.cfg` para incluir una invariante falsa `FALSE` definida en el `.tla`; hacer que el paso de cobertura exija encontrar tantas líneas de acción como disyuntos de `Next`.
+- Resultado esperado: con la invariante falsa, el paso de `Harness.cfg` falla con el código de TLC (≠ 0); el paso de la mutante busca `Invariant PublicaSoloValidado is violated`; el paso de cobertura falla si encuentra 0 líneas de acción.
+- Tipo de prueba sugerida: integración (CI)
+- Severidad: Crítica — un paso que no propaga el código de TLC deja el job en verde con el modelo roto.
+
+#### VER-21: `test_comando_documentado` compara el comando efectivo
+- Paso del plan: P18 — T5.2 «extrae los argumentos de `tlc2.TLC` del README y de los pasos del job `tla` (con `yaml.safe_load`…) y exige que sean idénticos salvo el `.cfg`»
+- Punto de fallo: el `run` del job es multilínea con `set +e`, `| tee` o variables (`$CFG`), y el extractor toma la primera línea o no encuentra `tlc2.TLC`; el `working-directory` del job difiere de `formal/tla/` y el comando es idéntico pero se ejecuta desde otra carpeta.
+- Precondiciones: `ci.yml` con el job `tla`.
+- Cómo verificarlo: casos sobre texto con un `run: |` multilínea y con un `run` que usa `-config "$CFG"`; comprobar que el test lee también `defaults.run.working-directory` o `working-directory` del paso.
+- Resultado esperado: el extractor devuelve los mismos tokens que el README en los dos casos; el test falla si `working-directory` no es `formal/tla`.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Media — el desvío de comando pasaría sin detectarse.
+
+#### VER-22: El ensayo de integración falla en el paso previsto y no deja residuo
+- Paso del plan: P19 — T5.3 «dos pushes: uno con un byte cambiado en el `sha256=`… y otro con `Mutante = FALSE`… Después, revertir los dos»
+- Punto de fallo: el primer push falla en otro paso (descarga) y se da por bueno; un revert incompleto deja `Mutante = FALSE` en la rama y el job de la mutante queda desactivado de hecho (el push B también rompe `test_cfg_mutante` en el job `backend`, lo que puede confundir la lectura).
+- Precondiciones: rama de prueba.
+- Cómo verificarlo: en cada ejecución, anotar el nombre del paso fallido; tras los reverts, `git diff <base>..HEAD -- formal/tla/tla2tools.version formal/tla/HarnessMutante.cfg`.
+- Resultado esperado: push A: falla el paso de verificación, el paso de TLC no llega a ejecutarse; push B: falla el paso de la mutante; el diff tras los reverts es vacío; los dos enlaces están en la descripción del PR.
+- Tipo de prueba sugerida: integración (CI)
+- Severidad: Media — valida CA-22 y evita dejar el control negativo desactivado.
+
+#### VER-23: Los sha del registro sobreviven al clon superficial y al rebase
+- Paso del plan: P20 — T6.1 «cada sha citado presente en `git log` (ver P7)»; plan §9 P7 «Añadir `fetch-depth: 0` al checkout del job `backend`»; plan §9 P10 «rebasar la rama de la spec sobre el resultado»
+- Punto de fallo: el job `backend` usa `actions/checkout@v4` sin `fetch-depth` y el test falla en CI; o el rebase de P10 (o una fusión squash) reescribe los commits citados y el test pasa en la rama pero falla en `main`.
+- Precondiciones: registro con al menos un sha de un commit de la rama.
+- Cómo verificarlo: comprobar `fetch-depth: 0` en el job `backend` de `ci.yml`; tras el rebase y tras fusionar en `main`, ejecutar `test_registro_de_contraejemplos` en un clon nuevo de `main`.
+- Resultado esperado: el test pasa en un clon completo de `main` después de la fusión; si la estrategia de fusión es squash, los sha del registro apuntan a commits presentes en `main`.
+- Tipo de prueba sugerida: integración
+- Severidad: Media — un test que empieza a fallar tras fusionar bloquea la rama principal.
+
+#### VER-24: `test_diagrama` lee las etiquetas de transición de Mermaid
+- Paso del plan: P21 — T6.2 «cada disyunto de `Next`, salvo `Terminado`, `TomarLock` y `SoltarLock`, aparece como etiqueta de transición»
+- Punto de fallo: el test busca el nombre en cualquier parte del bloque y cuenta un estado llamado `Intervencion` o una nota como etiqueta; o no reconoce etiquetas con varias acciones (`: Caida / Reanudar`).
+- Precondiciones: función de lectura del diagrama.
+- Cómo verificarlo: casos sobre texto: bloque con `state Intervencion` pero sin transición `: Intervencion`; bloque con `A --> B : Cambio / Reaplicar`.
+- Resultado esperado: el primero falla nombrando `Intervencion`; el segundo cuenta `Cambio` y `Reaplicar`.
+- Tipo de prueba sugerida: unitaria
+- Severidad: Baja — documental.
+
+#### VER-25: El ADR sigue el formato de 0004
+- Paso del plan: P22 — T6.3 «Frontmatter `adr: 0006`… `decide` (el mismo criterio de autoría que el ADR 0004)… Contexto (cita `docs/validators.md:347`)»
+- Punto de fallo: el Contexto cita la línea 347, que se mueve al editar § 4.10 en el mismo commit, y la referencia queda rota.
+- Precondiciones: commit de cierre.
+- Cómo verificarlo: comprobar que el ADR cita la sección (§ 4.10) y el texto, no solo el número de línea; comparar las claves del frontmatter con las de `docs/adr/0004-versiones-de-la-novela.md`.
+- Resultado esperado: mismas seis claves que el ADR 0004; referencia por sección presente.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Baja — documental.
+
+#### VER-26: El commit de cierre no depende de un grep sobre todo `docs/validators.md`
+- Paso del plan: P23 — T6.4 «Hecho cuando: `grep "…" docs/validators.md backend/tests/test_bucle.py` no devuelve nada» (el patrón es la frase de § 4.10 que acaba en «ceremonia»; no se reproduce aquí para no hacer fallar ese grep); «Depende de… la resolución de P10»
+- Punto de fallo: `docs/validators.md` contiene, además de § 1-6, las secciones de análisis de specs (`## 0006` en adelante), que pueden citar la frase y hacen que el grep devuelva líneas aunque § 4.10 esté corregido; las ediciones por número de línea alcanzan esas secciones; y si la fusión de `entrega` sigue abierta, `docs/architecture.md` está en `UU` y el commit no se puede hacer.
+- Precondiciones: rama con la fusión resuelta.
+- Cómo verificarlo: `git status --porcelain | grep "^UU"` antes de T6.4; acotar la comprobación a § 4.10 (entre `### 4.10` y el siguiente `### 4.`); `git diff -U0 -- docs/validators.md` y comprobar que todos los bloques caen en § 2, § 4.10, § 5.8 y § 6.
+- Resultado esperado: sin rutas `UU`; la frase no aparece en § 4.10 ni en `test_bucle.py`; ningún bloque del diff por debajo del encabezado `## 0006`.
+- Tipo de prueba sugerida: revisión manual
+- Severidad: Media — un criterio de cierre que falla por texto ajeno, o ediciones que corrompen secciones de otras specs.
+
+### Matriz de cobertura
+| Requisito | Validadores | Verificadores |
+|-----------|-------------|---------------|
+| R1 — RF-01: módulo, constantes, `Spec` | VAL-1 | VER-2 |
+| R2 — RF-02: conjuntos iguales a los enums | VAL-2 | VER-1, VER-2 |
+| R3 — RF-03: configuración, planificación y gate del arquitecto | VAL-3 | VER-4 |
+| R4 — RF-04: acciones y orden del bucle | VAL-4 | VER-5, VER-6, VER-7, VER-8 |
+| R5 — RF-05: reintentos por gate | VAL-5, VAL-6 | VER-5, VER-6, VER-7, VER-8, VER-14 |
+| R6 — RF-06: intervención sin reintento | VAL-7 | VER-4, VER-5, VER-6, VER-7, VER-8 |
+| R7 — RF-07: `Caida` y `Reanudar` | VAL-8 | VER-9 |
+| R8 — RF-08: `Detener`, `SinAvance`, `FalloCLI` | VAL-9 | VER-10 |
+| R9 — RF-09: `Auditar` y `Exportar` | VAL-10 | VER-10 |
+| R10 — RF-10: `Cambio` y `Reaplicar` | VAL-11 | VER-8, VER-11 |
+| R11 — RF-11: lock con dos procesos | VAL-12 | VER-12 |
+| R12 — RF-12: `Terminado` y ausencia de bloqueo | VAL-13 | VER-2, VER-10 |
+| R13 — RF-13: `PublicaSoloValidado` | VAL-14 | VER-13, VER-16 |
+| R14 — RF-14: `ReanudacionSinDuplicarNiPerder` | VAL-8, VAL-15 | VER-13, VER-14 |
+| R15 — RF-15: `VersionAnteriorIntacta`, `ReaplicadosIdenticos` | VAL-16 | VER-13, VER-14 |
+| R16 — RF-16: `IntentosAcotados` | VAL-6, VAL-17 | VER-13, VER-14 |
+| R17 — RF-17: `TypeOK`, `OrdenDelBucle`, `UnSoloProceso` | VAL-18 | VER-13 |
+| R18 — RF-18: `Termina` y `Equidad` | VAL-19 | VER-15 |
+| R19 — RF-19: `Harness.cfg` | VAL-20 | VER-17 |
+| R20 — RF-20: `HarnessMutante.cfg` | VAL-21 | VER-16, VER-17 |
+| R21 — RF-21: `tla2tools.version` y `.gitignore` | VAL-22 | VER-3, VER-17 |
+| R22 — RF-22: job `tla` | VAL-23 | VER-3, VER-20, VER-22 |
+| R23 — RF-23: mismo comando en CI y README | VAL-24 | VER-18, VER-20, VER-21 |
+| R24 — RF-24: README con seis secciones | VAL-25 | VER-18 |
+| R25 — RF-25: `test_tla.py` | VAL-26 | VER-1, VER-18, VER-19 |
+| R26 — RF-26: registro de contraejemplos | VAL-27 | VER-14, VER-15, VER-23 |
+| R27 — RF-27: diagrama en `domain-knowledge.md` § 7 | VAL-28 | VER-24 |
+| R28 — RF-28: ADR 0006 | VAL-29 | VER-25 |
+| R29 — RF-29: docs de referencia y `test_bucle.py` | VAL-30 | VER-26 |
+| R30 — RNF-01: TLC ≤ 10 min | VAL-31 | VER-17, VER-20 |
+| R31 — RNF-02: `timeout-minutes: 15` | VAL-23 | VER-20 |
+| R32 — RNF-03: ≤ 5 000 000 estados | VAL-31 | VER-17 |
+| R33 — RNF-04: sha256 verificado antes de ejecutar | VAL-23 | VER-3, VER-20, VER-22 |
+| R34 — RNF-05: TLC ausente del bucle | VAL-26 | VER-19 |
+| R35 — RNF-06: pytest sin Java | VAL-32 | VER-1, VER-19 |
+| R36 — RNF-07: ninguna acción muerta | VAL-33 | VER-20 |
+| R37 — RNF-08: mapeo completo | VAL-25 | VER-18 |
+| R38 — RNF-09: log con estados y profundidad | VAL-31 | VER-20 |
+| R39 — §3.2/§8.2: sin cambios en `backend/novela/`, API, esquemas, `.claude/`, frontend, `AGENTS.md`, `CLAUDE.md` | VAL-34 | SIN CUBRIR |
+| R40 — §9/§11: `NumCapitulos` y `MaxIntentos` no bajan; ninguna invariante relajada | VAL-35 | VER-17 |
+
+### Preguntas abiertas
+- Q1 — ¿Qué hacen `Caida` y `Reanudar` en `configuracion` y `planificacion`, y con qué `motivo`? (R7, R8, §5 RF-07 y RF-08, §8.5 punto 11): la spec habilita `Caida` en cualquier estado no final y `Reanudar` «según la tabla», pero `flujo.py` no reanuda `/novela-nueva` y § 8.3 no tiene un `motivo` para ese caso. El plan usa `cli`, que RF-08 reserva para otro fallo.
+- Q2 — ¿Cuándo está habilitada `SinAvance` en el modelo? (R8, §5 RF-08): «una sesión termina sin avanzar `checkpoints/latest.json`», pero el modelo no tiene fronteras de sesión explícitas. Caben «en cualquier estado de `capitulos` sin checkpoint del capítulo en curso» o «solo tras una `Caida`».
+- Q3 — ¿La mutante omite solo `ValidarFinal` o también la custodia? (R20, §5 RF-20 y decisions D13): si la custodia modelada impide el cierre, la mutante de la spec no viola nunca `PublicaSoloValidado`, y CA-13 es inalcanzable. La solución del plan (D6) cambia lo que demuestra el control negativo.
+- Q4 — ¿Vale abstraer `contenido` a la versión de la última escritura? (R13, R15, §8.3 «un token por escritura»): con esa abstracción, `PublicaSoloValidado` depende solo del booleano `validado` y `ReaplicadosIdenticos` puede quedar tautológica. Con un token por escritura, hay que acotar las escrituras.
+- Q5 — ¿Existe una variable de marca de salida 3? (R11, §5 RF-11 «sin cambiar nada más» frente a §9 «salvo la marca de salida 3»): sin ella, `TomarLock` con el lock ocupado es un paso tartamudo sin estados distintos y la cobertura de RNF-07 la marca como muerta.
+- Q6 — ¿Basta con que la salida de la mutante «nombre» `PublicaSoloValidado`? (R22, §5 RF-22): TLC nombra las invariantes también en mensajes de error que no son violaciones (por ejemplo, una invariante no definida). CA-13 exige la violación con su traza, y RF-22 admite una comprobación más débil.
+- Q7 — ¿Qué es «el mismo commit que el modelo»? (R29, §5 RF-29): el modelo entra en varios commits (plan D8). Caben «el commit que crea `Harness.tla`» (regla general de `AGENTS.md`) o «el commit de cierre» (plan). En el primer caso, los commits intermedios dejarían `architecture.md` § 3.1 desfasado.
+- Q8 — ¿Se permite reducir `MaxCaidas` o `Procesos` en `Harness.cfg`? (R19, R40, §5 RF-19, §9, decisions D12): RF-19 y CA-19 fijan `MaxCaidas = 2` y `Procesos = {p1, p2}`, mientras § 9 y D12 permiten reducirlos si no caben. No se dice si en ese caso cambia la spec o solo el `.cfg` y su test.
+- Q9 — ¿Qué sha lleva una entrada del registro sin cambio de código, y qué pasa con los sha tras una fusión squash? (R26, §5 RF-26, CA-26): las comprobaciones de alcanzabilidad (CA-05) no provocan cambios, y RF-26 pide «fichero y sha del commit» en todas las entradas.
+- Q10 — ¿`Intervencion` es una acción de `Next` o el efecto directo de la acción que falla? (R6, §5 RF-06, §7 CA-06, §8.4): § 8.4 le da fila de acción, y CA-06 exige que el estado siguiente al fallo ya sea `detenida`.
+- Q11 — ¿Las acciones de agentes cuentan como «acciones que escriben» a efectos del lock? (R11, §5 RF-11, decisions D8 «el segundo proceso no ejecuta el bucle»): `lock.py` bloquea por subcomando del CLI, y los agentes escriben sin lock. No se dice si `p2` puede llegar a ejecutar el bucle con el lock libre.
+- Q12 — ¿Los contadores se reinician también al empezar un capítulo reaplicado, y el del `arquitecto` en algún momento? (R5, §5 RF-05 «los contadores se reinician al empezar un capítulo»): `Reaplicar` cierra sin gates, y `arquitecto` solo existe antes del primer capítulo.
+- Q13 — ¿`Reaplicar` cuenta como `AplicarDelta` para RF-14? (R14, §5 RF-14 «`AplicarDelta` solo se ha aplicado sobre `k + 1` o sobre capítulos cerrados de la versión vigente»): la spec 0007 reaplica con `aplicar-delta --reaplicar`, y la invariante cambia según se incluya o no.
