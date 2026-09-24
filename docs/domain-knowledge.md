@@ -11,6 +11,11 @@ mindmap
   root((CONTEXTO DEL HARNESS))
     1 CONFIGURACION
       idea semilla
+      brief de regalo
+        ocasion
+        destinatario
+        genero tono extension
+        temas vetados
       parametros de obra
         longitud total
         num capitulos
@@ -53,6 +58,7 @@ mindmap
       recetas de ensamblado
     6 ARTEFACTOS EN DISCO
       config.yaml
+      brief/
       canon/
       plan/
       estado/estado.db
@@ -63,6 +69,7 @@ mindmap
       CLAUDE.md
     7 AGENTES
       orquestador
+      entrevistador
       arquitecto
       trazador
       escritor de capitulo
@@ -272,6 +279,13 @@ Una fila por agente, con sus entradas a la izquierda y sus salidas a la derecha.
 
 ```mermaid
 flowchart TB
+    subgraph R0["entrevistador · solo en novelas de regalo"]
+        direction LR
+        i0["briefing de novela brief preparar<br/>entradas delimitadas"] --> a0(["entrevistador"])
+        a0 --> o0["brief/borrador.json"]
+        o0 -. "novela brief validar" .-> o00["brief/brief.json<br/>lo escribe el CLI"]
+    end
+
     subgraph R1["arquitecto · solo en setup"]
         direction LR
         i1["config.yaml"] --> a1(["arquitecto"])
@@ -335,6 +349,7 @@ flowchart TB
         a7 --> o12["memoria/ y checkpoints/<br/>los escribe el CLI"]
     end
 
+    R0 -. "novela nueva --brief" .-> R1
     R1 --> R2 --> R3 --> R4 --> R5 --> R6 --> R7
 ```
 

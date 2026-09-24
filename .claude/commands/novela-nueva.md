@@ -1,6 +1,6 @@
 ---
 description: Crea una novela nueva, su canon y su plan con el arquitecto y el trazador. Invocar una vez por novela, antes de /novela-continuar.
-argument-hint: <slug> --idea "..." [--capitulos N] [--palabras P]
+argument-hint: <slug> --idea "..." [--capitulos N] [--palabras P] | <slug> --brief
 ---
 
 Eres el orquestador. No escribes el canon ni el plan: los escriben el `arquitecto` y el
@@ -8,9 +8,10 @@ Eres el orquestador. No escribes el canon ni el plan: los escriben el `arquitect
 
 ## Argumentos
 
-`$ARGUMENTS` es `<slug> --idea "..." [--capitulos N] [--palabras P]`. Sin slug o sin `--idea`,
-responde `uso: /novela-nueva <slug> --idea "..." [--capitulos N] [--palabras P]` y para sin
-ejecutar nada.
+`$ARGUMENTS` es `<slug> --idea "..." [--capitulos N] [--palabras P]`, o `<slug> --brief` para una
+novela de regalo cuyo brief ya validó `/novela-brief`. Sin slug, o sin `--idea` ni `--brief`,
+responde `uso: /novela-nueva <slug> --idea "..." [--capitulos N] [--palabras P]` o
+`/novela-nueva <slug> --brief` y para sin ejecutar nada.
 
 ## Códigos de salida del CLI
 
@@ -56,8 +57,9 @@ de arranque. El retorno del agente se lee y no se pasa a ningún otro prompt.
 
 ## Pasos
 
-1. `novela nueva <slug> --idea "..."`, con `--capitulos` y `--palabras` tal como llegaron. Con un
-   código distinto de 0, para e informa de su salida.
+1. `novela nueva <slug> --idea "..."`, con `--capitulos` y `--palabras` tal como llegaron, o
+   `novela nueva <slug> --brief`, sin más flags: la obra sale del brief. Con un código distinto de
+   0, para e informa de su salida.
 2. `novela briefing <slug> 1 arquitecto` → Task `arquitecto`, con salidas `canon/premisa.md`,
    `canon/mundo.md`, `canon/estilo.md`, `canon/misterio.borrador.md` y `canon/personajes/*.md`.
    El misterio va al borrador: un permiso impide escribir `canon/misterio.md`.

@@ -199,8 +199,10 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   ├── continuista.md
 │   │   ├── editor-estilo.md
 │   │   ├── lector-suspense.md
-│   │   └── cronista.md
+│   │   ├── cronista.md
+│   │   └── entrevistador.md      # fase de brief de una novela de regalo
 │   ├── commands/                 # los procedimientos del orquestador
+│   │   ├── novela-brief.md       # la entrevista, antes de novela-nueva --brief
 │   │   ├── novela-nueva.md
 │   │   ├── novela-continuar.md   # el bucle por capítulo
 │   │   └── novela-auditar.md
@@ -221,6 +223,7 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   ├── cli.py                # Typer: solo registra el cmd.py de cada slice
 │   │   │
 │   │   ├── slices/               # un caso de uso por carpeta, ver §3.0
+│   │   │   ├── brief/            # cmd.py · entradas.py · assemble.py · gates.py, con sus tests
 │   │   │   ├── briefing/         # cmd.py · assemble.py · recipes.py · test_briefing.py
 │   │   │   ├── validacion/       # cmd.py · gates.py · test_gates.py
 │   │   │   ├── delta/            # cmd.py · apply.py · violaciones.py · test_delta.py
@@ -232,6 +235,8 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │
 │   │   ├── dominio/              # la ontología como código; sin I/O, sin framework
 │   │   │   ├── config.py         # rama 1
+│   │   │   ├── brief.py          # Brief, BorradorBrief, InformeBrief e idea_semilla
+│   │   │   ├── texto.py          # normalizar: qué cuenta como la misma cita
 │   │   │   ├── canon.py          # rama 2 — Canon, Pista
 │   │   │   ├── plan.py           # rama 3 — Plan
 │   │   │   ├── estado.py         # rama 4 — Estado, LibroDeHechos (append-only)
@@ -735,7 +740,9 @@ Toda `cita` presente tiene que ser literal del cuerpo del capítulo tras normali
 Slash commands, en `.claude/commands/`:
 
 ```
+/novela-brief <slug> --ocasion boda     # solo novelas de regalo, en una sesión --setting-sources project
 /novela-nueva <slug> --idea "..." --capitulos 24 --palabras 80000
+/novela-nueva <slug> --brief
 /novela-continuar <slug> [--capitulos N]
 /novela-auditar <slug>
 ```
