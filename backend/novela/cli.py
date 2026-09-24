@@ -45,4 +45,5 @@ brief_app = typer.Typer(no_args_is_help=True, help="Fase de brief de una novela 
 brief_app.command()(con_codigos(brief.iniciar))
 brief_app.command()(con_codigos(brief.entrada))
 brief_app.command()(con_codigos(brief.preparar))
+brief_app.command()(con_codigos(brief.validar))
 app.add_typer(brief_app, name="brief")

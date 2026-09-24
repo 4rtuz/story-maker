@@ -17,11 +17,19 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from novela.dominio import frontmatter
-from novela.dominio.brief import EntradaMeta, InicioBrief, Ocasion, TipoEntrada
+from novela.dominio.brief import (
+    Brief,
+    EntradaMeta,
+    Hallazgo,
+    InformeBrief,
+    InicioBrief,
+    Ocasion,
+    TipoEntrada,
+)
 from novela.plataforma import run
 from novela.plataforma.salida import USO_INCORRECTO
 from novela.plataforma.workspace import WorkspaceInvalido, WorkspaceRepository
-from novela.slices.brief import assemble, entradas
+from novela.slices.brief import assemble, entradas, gates
 
 MAX_ENTRADAS, MAX_CARACTERES = 20, 20000
 TIPOS: dict[str, TipoEntrada] = {"respuesta": "respuesta", "texto-libre": "texto_libre"}
@@ -178,3 +186,57 @@ def preparar(slug: str) -> None:
                 ruta = abierto.dir / "briefings" / f"brief-{rr:02d}-entrevistador.md"
                 ws.escribir(ruta, texto)
     typer.echo(f"{ruta.relative_to(ws.raiz).as_posix()} · {tokens} tokens")
+
+
+def resumen(hallazgos: list[Hallazgo]) -> str:
+    """La causa de la línea de log (PD7): `agente:` si el fallo es del borrador, `usuario:` si
+    falta un dato o se contradice. Solo códigos y rutas de campo."""
+    de_agente = any(h.tipo in ("esquema", "procedencia") for h in hallazgos)
+    pares = [f"{h.codigo}@{c}" for h in hallazgos for c in h.campos or ["-"]]
+    return f"{'agente' if de_agente else 'usuario'}: {'; '.join(pares)}"
+
+
+def validar(slug: str) -> None:
+    """Valida brief/borrador.json, escribe brief/informe.json y, sin hallazgos, brief/brief.json."""
+    ws = WorkspaceRepository.resolver(slug)
+    _brief_abierto(ws)
+    inicio = _inicio(ws)
+    brief = ws.raiz / "brief"
+    with ws.bloquear(), run.abrir(ws, 1, "arranque").registro("brief", "validar") as causas:
+        lista = _entradas(ws)
+        # Custodia (RF-22): lo que el agente citó es lo que se ingirió.
+        for e in lista:
+            if hashlib.sha256(e.texto.encode()).hexdigest() != e.meta.sha256:
+                raise WorkspaceInvalido(
+                    f"brief/entradas/{e.meta.id}.md: el cuerpo no casa con su sha256; "
+                    "las entradas no se editan a mano"
+                )
+        ruta = brief / "borrador.json"
+        borrador, hallazgos = gates.esquema(ruta.read_bytes() if ruta.is_file() else None)
+        if borrador is not None:
+            hallazgos = (
+                gates.faltantes(borrador)
+                + gates.contradicciones(borrador)
+                + gates.procedencia(borrador, lista)
+            )
+        definitivo = None
+        if not hallazgos and borrador is not None:  # sin hallazgos, siempre hay borrador
+            datos = borrador.model_dump(exclude={"schema_version", "preguntas"})
+            entradas_ = [e.meta.model_dump() for e in lista]
+            try:
+                definitivo = Brief.model_validate(
+                    datos | {"ocasion": inicio.ocasion, "entradas": entradas_}
+                )
+            except ValidationError as exc:  # sin su valor: un gate dejó pasar algo que Brief no
+                campos = ", ".join(".".join(map(str, e["loc"])) for e in exc.errors())
+                raise WorkspaceInvalido(f"brief/brief.json no valida ({campos})") from None
+        preguntas = borrador.preguntas if borrador is not None else []
+        informe = InformeBrief(valido=not hallazgos, hallazgos=hallazgos, preguntas=preguntas)
+        ws.escribir(brief / "informe.json", informe.model_dump_json(indent=2))
+        if definitivo is None:
+            causa = resumen(hallazgos)
+            causas.append(causa)
+            typer.echo(f"{causa}\ndetalle en brief/informe.json", err=True)
+            raise typer.Exit(1)
+        ws.escribir(brief / "brief.json", definitivo.model_dump_json(indent=2))
+    typer.echo("brief/brief.json")

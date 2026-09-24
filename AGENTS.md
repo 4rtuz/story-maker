@@ -84,6 +84,7 @@ novela comprobar-entorno [--limpio]   hook, python, settings.local.json y .env a
 novela brief iniciar <slug> --ocasion <o>            novela de regalo: workspace del brief
 novela brief entrada <slug> --tipo <t> --fichero <f> ingiere lo que aporta el cliente
 novela brief preparar <slug>                         briefing del entrevistador
+novela brief validar <slug>                          informe y, si valida, brief.json
 ```
 
 Ejecuta `novela validar` antes de invocar a ningún agente de revisión: detecta gratis lo que no merece una llamada a un modelo.
