@@ -74,6 +74,143 @@
         }
       }
     },
+    "/novelas/{slug}/config": {
+      "get": {
+        "tags": [
+          "novelas"
+        ],
+        "summary": "Config",
+        "operationId": "config_novelas__slug__config_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Config"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/novelas/{slug}/escaleta": {
+      "get": {
+        "tags": [
+          "novelas"
+        ],
+        "summary": "Escaleta",
+        "operationId": "escaleta_novelas__slug__escaleta_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Escaleta"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/novelas/{slug}/checkpoint": {
+      "get": {
+        "tags": [
+          "novelas"
+        ],
+        "summary": "Checkpoint",
+        "operationId": "checkpoint_novelas__slug__checkpoint_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Checkpoint"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Checkpoint Novelas  Slug  Checkpoint Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/novelas/{slug}/runs/{run_id}": {
       "get": {
         "tags": [
@@ -231,6 +368,133 @@
   },
   "components": {
     "schemas": {
+      "Acto": {
+        "properties": {
+          "numero": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Numero"
+          },
+          "funcion_dramatica": {
+            "type": "string",
+            "title": "Funcion Dramatica"
+          },
+          "capitulos": {
+            "items": {
+              "type": "integer",
+              "maximum": 999.0,
+              "minimum": 1.0
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Capitulos"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "numero",
+          "funcion_dramatica",
+          "capitulos"
+        ],
+        "title": "Acto"
+      },
+      "Agente": {
+        "type": "string",
+        "enum": [
+          "arquitecto",
+          "trazador",
+          "escritor",
+          "continuista",
+          "editor-estilo",
+          "lector-suspense",
+          "cronista"
+        ],
+        "title": "Agente"
+      },
+      "Checkpoint": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Schema Version",
+            "default": "1.0.0"
+          },
+          "capitulo": {
+            "type": "integer",
+            "maximum": 999.0,
+            "minimum": 1.0,
+            "title": "Capitulo"
+          },
+          "cursor": {
+            "$ref": "#/components/schemas/Cursor"
+          },
+          "run_id": {
+            "type": "string",
+            "pattern": "^r-[0-9]{8}-[0-9]{4}$",
+            "title": "Run Id"
+          },
+          "version_canon": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Version Canon"
+          },
+          "version_plan": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Version Plan"
+          },
+          "capitulos_sha256": {
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "type": "object",
+            "title": "Capitulos Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "capitulo",
+          "cursor",
+          "run_id",
+          "version_canon",
+          "version_plan",
+          "capitulos_sha256"
+        ],
+        "title": "Checkpoint",
+        "description": "`checkpoints/NN.json` y `latest.json`: cursor, versiones y run_id, no la base (RF-20).\n`capitulos_sha256` es el sello de los capítulos cerrados hasta N (RF-35)."
+      },
+      "Config": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Schema Version",
+            "default": "1.0.0"
+          },
+          "idea_semilla": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Idea Semilla"
+          },
+          "parametros_obra": {
+            "$ref": "#/components/schemas/ParametrosObra"
+          },
+          "parametros_sistema": {
+            "$ref": "#/components/schemas/ParametrosSistema"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "idea_semilla",
+          "parametros_obra",
+          "parametros_sistema"
+        ],
+        "title": "Config"
+      },
       "Cursor": {
         "properties": {
           "capitulo": {
@@ -385,6 +649,45 @@
           "duracion_min"
         ],
         "title": "EntradaTemporal"
+      },
+      "Escaleta": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Schema Version",
+            "default": "1.0.0"
+          },
+          "actos": {
+            "items": {
+              "$ref": "#/components/schemas/Acto"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Actos"
+          },
+          "puntos_de_giro": {
+            "$ref": "#/components/schemas/PuntosDeGiro"
+          },
+          "curva_tension_objetivo": {
+            "items": {
+              "type": "integer",
+              "maximum": 10.0,
+              "minimum": 1.0
+            },
+            "type": "array",
+            "title": "Curva Tension Objetivo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "actos",
+          "puntos_de_giro",
+          "curva_tension_objetivo"
+        ],
+        "title": "Escaleta",
+        "description": "Se valida con `context={\"num_capitulos\": N}`: la curva tiene un valor por capítulo."
       },
       "Estado": {
         "properties": {
@@ -968,6 +1271,249 @@
           "relevancia"
         ],
         "title": "Objeto"
+      },
+      "PalabrasPorCapitulo": {
+        "properties": {
+          "objetivo": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Objetivo"
+          },
+          "min": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Min"
+          },
+          "max": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Max"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "objetivo",
+          "min",
+          "max"
+        ],
+        "title": "PalabrasPorCapitulo"
+      },
+      "ParametrosObra": {
+        "properties": {
+          "longitud_total_palabras": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Longitud Total Palabras"
+          },
+          "num_capitulos": {
+            "type": "integer",
+            "maximum": 999.0,
+            "minimum": 1.0,
+            "title": "Num Capitulos"
+          },
+          "palabras_por_capitulo": {
+            "$ref": "#/components/schemas/PalabrasPorCapitulo"
+          },
+          "subgenero": {
+            "type": "string",
+            "enum": [
+              "thriller_psicologico",
+              "noir",
+              "domestic_suspense",
+              "procedural"
+            ],
+            "title": "Subgenero"
+          },
+          "punto_de_vista": {
+            "type": "string",
+            "enum": [
+              "primera_persona",
+              "tercera_limitada",
+              "multiple",
+              "narrador_no_fiable"
+            ],
+            "title": "Punto De Vista"
+          },
+          "tiempo_verbal": {
+            "type": "string",
+            "enum": [
+              "presente",
+              "pasado"
+            ],
+            "title": "Tiempo Verbal"
+          },
+          "idioma": {
+            "type": "string",
+            "title": "Idioma",
+            "default": "es"
+          },
+          "restricciones_contenido": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Restricciones Contenido",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "longitud_total_palabras",
+          "num_capitulos",
+          "palabras_por_capitulo",
+          "subgenero",
+          "punto_de_vista",
+          "tiempo_verbal"
+        ],
+        "title": "ParametrosObra"
+      },
+      "ParametrosSistema": {
+        "properties": {
+          "modelo_por_agente": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "opus",
+                "sonnet",
+                "haiku",
+                "inherit"
+              ]
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Agente"
+            },
+            "type": "object",
+            "title": "Modelo Por Agente"
+          },
+          "temperatura_por_agente": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Agente"
+            },
+            "type": "object",
+            "title": "Temperatura Por Agente",
+            "default": {}
+          },
+          "presupuesto": {
+            "$ref": "#/components/schemas/Presupuesto"
+          },
+          "politica_reintentos": {
+            "$ref": "#/components/schemas/PoliticaReintentos",
+            "default": {
+              "max_intentos": 3,
+              "entrada_del_reintento": "informe_qa"
+            }
+          },
+          "politica_checkpoint": {
+            "type": "string",
+            "const": "por_capitulo",
+            "title": "Politica Checkpoint",
+            "default": "por_capitulo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "modelo_por_agente",
+          "presupuesto"
+        ],
+        "title": "ParametrosSistema"
+      },
+      "PoliticaReintentos": {
+        "properties": {
+          "max_intentos": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Max Intentos",
+            "default": 3
+          },
+          "entrada_del_reintento": {
+            "type": "string",
+            "const": "informe_qa",
+            "title": "Entrada Del Reintento",
+            "default": "informe_qa"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PoliticaReintentos"
+      },
+      "Presupuesto": {
+        "properties": {
+          "requests_dia": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Requests Dia"
+          },
+          "tokens_por_llamada": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Tokens Por Llamada"
+          },
+          "tokens_contexto_por_agente": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Tokens Contexto Por Agente"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "requests_dia",
+          "tokens_por_llamada",
+          "tokens_contexto_por_agente"
+        ],
+        "title": "Presupuesto"
+      },
+      "PuntosDeGiro": {
+        "properties": {
+          "detonante": {
+            "type": "integer",
+            "maximum": 999.0,
+            "minimum": 1.0,
+            "title": "Detonante"
+          },
+          "punto_medio": {
+            "type": "integer",
+            "maximum": 999.0,
+            "minimum": 1.0,
+            "title": "Punto Medio"
+          },
+          "crisis": {
+            "type": "integer",
+            "maximum": 999.0,
+            "minimum": 1.0,
+            "title": "Crisis"
+          },
+          "climax": {
+            "type": "integer",
+            "maximum": 999.0,
+            "minimum": 1.0,
+            "title": "Climax"
+          },
+          "resolucion": {
+            "type": "integer",
+            "maximum": 999.0,
+            "minimum": 1.0,
+            "title": "Resolucion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "detonante",
+          "punto_medio",
+          "crisis",
+          "climax",
+          "resolucion"
+        ],
+        "title": "PuntosDeGiro",
+        "description": "Claves fijas, cada una anclada a un capítulo. No es una lista."
       },
       "Relacion": {
         "properties": {

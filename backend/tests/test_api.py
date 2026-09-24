@@ -2,6 +2,7 @@
 
 import builtins
 import io
+import json
 import os
 import sqlite3
 import stat
@@ -24,10 +25,29 @@ def test_app_arranca() -> None:
     assert cliente.get("/docs").status_code == 200
 
 
-def test_path_traversal(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "ruta",
+    [
+        "/novelas/..%2F..%2Fetc/estado",
+        # spec 0004, CA-32 a CA-37: los GET nuevos pasan por la misma dependencia.
+        "/novelas/..%2F..%2Fetc/config",
+        "/novelas/..%2F..%2Fetc/escaleta",
+        "/novelas/..%2F..%2Fetc/checkpoint",
+    ],
+)
+def test_path_traversal(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ruta: str) -> None:
     """CA-26: el slug se valida antes de construir ninguna ruta. «No toca el disco» se comprueba,
     no se supone: toda apertura, stat o conexión fuera del código durante la petición queda
     registrada. FastAPI lee el fuente del endpoint para el mensaje de error; eso no es disco."""
+    respuesta, fuera = _pedir_espiando(monkeypatch, tmp_path, ruta)
+    assert fuera == []
+    assert respuesta.status_code == 422
+
+
+def _pedir_espiando(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ruta: str
+) -> tuple[Any, list[Any]]:
+    """La respuesta y lo que la petición abrió, miró o conectó fuera de `backend/`."""
     monkeypatch.setenv("NOVELAS_DIR", str(tmp_path))
     tocado: list[Any] = []
 
@@ -46,10 +66,9 @@ def test_path_traversal(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None
         (sqlite3, "connect"),
     ):
         monkeypatch.setattr(modulo, nombre, espia(getattr(modulo, nombre)))
-    respuesta = cliente.get("/novelas/..%2F..%2Fetc/estado")
+    respuesta = cliente.get(ruta)
     monkeypatch.undo()
-    assert [p for p in tocado if not str(p).startswith(str(BACKEND))] == []
-    assert respuesta.status_code == 422
+    return respuesta, [p for p in tocado if not str(p).startswith(str(BACKEND))]
 
 
 @pytest.fixture
@@ -105,3 +124,76 @@ def test_cinco_get_en_solo_lectura(solo_lectura: WorkspaceRepository) -> None:
         "/novelas/demo-24/runs/r-20990101-0000",
     ):
         assert cliente.get(ruta).status_code == 404, ruta
+
+
+# --- spec 0004: los GET del panel -------------------------------------------------------------
+
+
+@pytest.fixture
+def recien_creada(novelas: Callable[[str], WorkspaceRepository], tmp_path: Path) -> Path:
+    """Solo `novela nueva`: sin plan, sin checkpoints y sin runs. `nueva` no abre run. Pide
+    `novelas` por su NOVELAS_DIR en tmp_path."""
+    resultado = fabrica.cli(
+        tmp_path, "nueva", "recien-creada", "--idea", "Un faro apagado.", run=fabrica.run_id(1)
+    )
+    assert resultado.exit_code == 0, resultado.output
+    return tmp_path / "recien-creada"
+
+
+def test_config(novelas: Callable[[str], WorkspaceRepository]) -> None:
+    """CA-32: el modelo validado, con sus valores por defecto, no el YAML literal (D53)."""
+    ws = novelas("demo-24")
+    respuesta = cliente.get("/novelas/demo-24/config")
+    assert respuesta.status_code == 200
+    assert respuesta.json() == ws.config().model_dump(mode="json")
+    assert cliente.get("/novelas/no-existe/config").status_code == 404
+
+
+def test_escaleta(novelas: Callable[[str], WorkspaceRepository], recien_creada: Path) -> None:
+    """CA-33 y VER-1: 200 con la curva de la obra, aunque la respuesta pase por la validación de
+    FastAPI, que no lleva el contexto de `num_capitulos`; sin plan, 404."""
+    novelas("demo-24")
+    respuesta = cliente.get("/novelas/demo-24/escaleta")
+    assert respuesta.status_code == 200, respuesta.text
+    assert len(respuesta.json()["curva_tension_objetivo"]) == 24
+    assert cliente.get("/novelas/recien-creada/escaleta").status_code == 404
+
+
+def test_checkpoint(novelas: Callable[[str], WorkspaceRepository], recien_creada: Path) -> None:
+    """CA-34: el `latest.json` tal cual, o `null` sin checkpoints."""
+    ws = novelas("demo-24")
+    respuesta = cliente.get("/novelas/demo-24/checkpoint")
+    assert respuesta.status_code == 200
+    assert respuesta.json()["capitulo"] == 7
+    assert respuesta.json() == json.loads((ws.raiz / "checkpoints" / "latest.json").read_bytes())
+    vacia = cliente.get("/novelas/recien-creada/checkpoint")
+    assert vacia.status_code == 200
+    assert vacia.json() is None
+
+
+@pytest.mark.parametrize(
+    ("fichero", "romper"),
+    [
+        # La curva de 23 valores no cuadra con num_capitulos 24.
+        (
+            "plan/escaleta.md",
+            lambda t: t.replace("curva_tension_objetivo:\n- 2\n", "curva_tension_objetivo:\n", 1),
+        ),
+        ("plan/escaleta.md", lambda t: t.replace("\n---\n", "\n", 1)),  # frontmatter sin cerrar
+        ("plan/escaleta.md", lambda t: t.replace("actos:", "actos: [", 1)),  # YAML roto
+        ("config.yaml", lambda t: t.replace("parametros_obra:", "parametros_obra: [", 1)),
+    ],
+)
+def test_ilegible_da_404(
+    novelas: Callable[[str], WorkspaceRepository], fichero: str, romper: Callable[[str], str]
+) -> None:
+    """VER-2: un fichero que falta o no valida sale como 404 con su `detail`, nunca como 500."""
+    ws = novelas("demo-24")
+    ruta = ws.raiz / fichero
+    texto = ruta.read_text(encoding="utf-8")
+    assert romper(texto) != texto
+    ruta.write_text(romper(texto), encoding="utf-8")
+    recurso = "config" if fichero == "config.yaml" else "escaleta"
+    respuesta = cliente.get(f"/novelas/demo-24/{recurso}")
+    assert respuesta.status_code == 404
+    assert respuesta.json()["detail"]

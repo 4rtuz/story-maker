@@ -822,7 +822,7 @@ El evaluador de sesión (LLM como juez) compara ejecuciones completas y devuelve
 Python 3.12. Dos caras sobre el mismo código:
 
 - **CLI `novela`** (Typer): lo que invoca el orquestador. Es quien escribe en el workspace.
-- **API FastAPI** (`backend/api/`): solo lectura, para el frontend. Sirve el estado, los capítulos y los manifiestos. Los capítulos y los manifiestos salen del disco tal cual; el estado se serializa desde `estado.db` con los mismos modelos Pydantic, abriendo la base en modo lectura.
+- **API FastAPI** (`backend/api/`): solo lectura, para el frontend. Sirve el estado, los capítulos, los manifiestos y lo que el panel necesita de la configuración, del plan y de los checkpoints. Los capítulos y los manifiestos salen del disco tal cual; el estado se serializa desde `estado.db` con los mismos modelos Pydantic, abriendo la base en modo lectura.
 
 La API **no lanza agentes ni escribe en el workspace**. No hay verbo de escritura: mutar una novela es trabajo del orquestador a través del CLI. Si un endpoint pareciera necesitar escribir, lo correcto es añadir un subcomando al CLI, no un `POST` a la API.
 
@@ -834,7 +834,12 @@ GET /novelas/{slug}/estado                estado serializado desde estado.db
 GET /novelas/{slug}/capitulos             índice con frontmatter
 GET /novelas/{slug}/capitulos/{n}         markdown del capítulo
 GET /novelas/{slug}/runs/{run_id}         manifest.json
+GET /novelas/{slug}/config                Config de config.yaml, validado
+GET /novelas/{slug}/escaleta              Escaleta de plan/escaleta.md; 404 si falta o no valida
+GET /novelas/{slug}/checkpoint            checkpoints/latest.json, o null
 ```
+
+`…/escaleta` se valida con el `num_capitulos` de `config.yaml` y se devuelve ya serializada: la validación de respuesta de FastAPI no lleva ese contexto y rechazaría el modelo.
 
 Se arranca desde `backend/` con `uv run uvicorn api.main:app --reload`.
 

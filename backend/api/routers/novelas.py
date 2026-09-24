@@ -2,11 +2,13 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Response
 
-from novela.dominio.artefactos import Manifest
+from novela.dominio.artefactos import Checkpoint, Manifest
+from novela.dominio.config import Config
 from novela.dominio.estado import CursorDeNovela, Estado
 from novela.dominio.ids import RUN_ID_PATRON, SLUG_PATRON
+from novela.dominio.plan import Escaleta
 from novela.plataforma import estado_db
 from novela.plataforma.workspace import SlugInvalido, WorkspaceRepository, raiz_de_novelas
 
@@ -50,6 +52,24 @@ def novelas() -> list[CursorDeNovela]:
 @router.get(SLUG + "/estado")
 def estado(ws: Workspace) -> Estado:
     return _leer(ws)
+
+
+# spec 0004: lo que el panel necesita y no está en el estado, servido con su modelo tal cual (D4).
+@router.get(SLUG + "/config")
+def config(ws: Workspace) -> Config:
+    return ws.config()
+
+
+@router.get(SLUG + "/escaleta", response_model=Escaleta)
+def escaleta(ws: Workspace) -> Response:
+    # Ya serializada: FastAPI revalidaría el modelo sin el contexto de num_capitulos y el
+    # validador de la obra lo rechazaría con un 500 (VER-1).
+    return Response(ws.escaleta().model_dump_json(), media_type="application/json")
+
+
+@router.get(SLUG + "/checkpoint")
+def checkpoint(ws: Workspace) -> Checkpoint | None:
+    return ws.ultimo_checkpoint()
 
 
 @router.get(SLUG + "/runs/{run_id}")

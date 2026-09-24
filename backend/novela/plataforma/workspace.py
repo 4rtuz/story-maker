@@ -21,6 +21,7 @@ from novela.dominio import frontmatter
 from novela.dominio.artefactos import Checkpoint
 from novela.dominio.config import Config
 from novela.dominio.ids import SLUG_PATRON, nn
+from novela.dominio.plan import Escaleta
 from novela.plataforma import atomic, lock
 
 # backend/config/: default.yaml y recipes.yaml, del harness y no del workspace.
@@ -102,6 +103,17 @@ class WorkspaceRepository:
     def ultimo_checkpoint(self) -> Checkpoint | None:
         ruta = self.raiz / "checkpoints" / "latest.json"
         return self.leer_json(ruta, Checkpoint) if ruta.exists() else None
+
+    def escaleta(self) -> Escaleta:
+        """`plan/escaleta.md`, validada con el num_capitulos de la obra: `modelo_de_md` no pasa
+        contexto y sin él el validador de `Escaleta` rechaza siempre."""
+        ruta = self.raiz / "plan" / "escaleta.md"
+        contexto = {"num_capitulos": self.config().parametros_obra.num_capitulos}
+        try:
+            meta = frontmatter.partir(ruta.read_text(encoding="utf-8"))[0]
+            return Escaleta.model_validate(meta, context=contexto)
+        except (OSError, yaml.YAMLError, ValueError) as exc:  # ValueError: ValidationError incluido
+            raise WorkspaceInvalido(f"{ruta}: {exc}") from exc
 
     def exigir(self) -> Self:
         if not self.existe():
