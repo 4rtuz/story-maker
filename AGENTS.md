@@ -81,6 +81,7 @@ novela pendiente <slug>               salida 0 si quedan capítulos
 novela auditar <slug>                 pistas huérfanas, hilos sin cerrar
 novela exportar <slug> --formato epub
 novela comprobar-entorno [--limpio]   hook, python, settings.local.json y .env antes de lanzar
+novela cambio <slug> --hecho <hec> --texto "..." [--simular]   versión nueva; --siguiente: qué toca
 ```
 
 Ejecuta `novela validar` antes de invocar a ningún agente de revisión: detecta gratis lo que no merece una llamada a un modelo.

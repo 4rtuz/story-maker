@@ -744,7 +744,11 @@ novela pendiente <slug>            # código de salida: 0 si quedan capítulos
 novela auditar <slug>              # pistas huérfanas, hilos sin cerrar, fair play
 novela exportar <slug> --formato epub
 novela comprobar-entorno [--limpio]   # hook, python, settings.local.json y .env antes de lanzar
+novela cambio <slug> --hecho <hec-id> --texto "..." [--motivo "..."] [--simular]
+novela cambio <slug> --siguiente   # NN reaplicar | NN regenerar | completo | sin cambio
 ```
+
+**Cambio de un hecho (spec 0007).** `novela cambio` exige la novela terminada, ningún cambio en curso y ninguna intervención sin `resuelto:` (1); valida `--hecho` y `--texto` (2) y que la base tenga `usos_de_hecho` y quede un id de hecho libre (4), todo antes de escribir. Regenera los capítulos de `capitulos_que_usan(H)` y reaplica el resto; reserva para el hecho nuevo el mayor id de `libro_de_hechos` más uno. `--simular` imprime ese plan sin escribir. Sin él, con el lock tomado, escribe `cambios/cam-NNN.json` en `preparando`, abre un run del capítulo 1 con la línea `cambio cam-NNN -> <código>`, copia a `versiones/vN.tmp/` `capitulos/`, `estado/deltas/`, `memoria/`, `qa/`, `checkpoints/` y la base (por la API de backup, en modo `DELETE`), la verifica por sha256, `quick_check` y `leer`, escribe `version.json`, la renombra a `versiones/vN/`, la añade a `versiones/versiones.json`, vacía esos directorios en la raíz, instala una base vacía con `meta.version = N+1` y `meta.cambio`, y pasa el cambio a `en_curso`. Repetir la misma petición tras un corte completa la preparación; un `versiones/vN/` que ningún cambio en `preparando` explica sale con 4. Con un cambio registrado, los runs anteriores a él son de la versión anterior: no se reutilizan y un `NOVELA_RUN_ID` que apunte a uno sale con 2. `--siguiente` excluye las demás opciones y lee `checkpoint + 1` contra el plan; «completo» se deriva del checkpoint del último capítulo.
 
 **Reanudación.** `/novela-continuar` empieza leyendo `checkpoints/latest.json` y repite el último paso no confirmado. Regla dura: el estado nunca se reconstruye desde una conversación previa, ni siquiera desde la sesión anterior de Claude Code.
 

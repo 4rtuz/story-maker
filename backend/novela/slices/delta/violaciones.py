@@ -4,20 +4,11 @@ Recibe el estado vigente, el delta, el cuerpo del capítulo sin frontmatter y el
 devuelve las causas de rechazo. Vacío: el delta se puede aplicar.
 """
 
-import re
-import unicodedata
 from collections import Counter
 
 from novela.dominio.artefactos import FrontmatterCapitulo
+from novela.dominio.base import normalizar
 from novela.dominio.estado import Delta, Estado
-
-_ESPACIOS = re.compile(r"\s+")
-
-
-def normalizar(texto: str) -> str:
-    """NFC y cada secuencia de espacios en blanco a un espacio. Nada más: ni comillas ni
-    mayúsculas, porque una cita que solo casa aflojando la comparación ya no es una cita."""
-    return _ESPACIOS.sub(" ", unicodedata.normalize("NFC", texto))
 
 
 def _ids(delta: Delta) -> list[str]:

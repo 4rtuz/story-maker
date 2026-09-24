@@ -173,7 +173,12 @@ def _run_id(
             if _de(ws, directorio, desde) == (capitulo, fase):
                 return directorio.name
     nuevo = ahora.strftime("r-%Y%m%d-%H%M")
-    if (ws.raiz / "runs" / nuevo).exists():
+    # El del mismo minuto se reutiliza si ya es de este capítulo y fase: repetir `novela cambio`
+    # tras un corte, con el checkpoint anterior aún en la raíz, vuelve aquí (spec 0007, RF-20).
+    if (ws.raiz / "runs" / nuevo).exists() and _de(ws, ws.raiz / "runs" / nuevo, desde) != (
+        capitulo,
+        fase,
+    ):
         raise RunInvalido(f"el run {nuevo} ya es de otro capítulo o fase; fija NOVELA_RUN_ID")
     return nuevo
 
