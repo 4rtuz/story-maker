@@ -406,3 +406,53 @@ def test_pista_permitida_dentro_del_secreto_no_lo_tapa(misterio: Misterio) -> No
     f = _fuentes_con(misterio, Agente.CRONISTA, capitulo=f"Relleno. {secreto}")
     with pytest.raises(assemble.FugaDelSecreto):
         assemble.ensamblar(RECETAS[Agente.CRONISTA], f)
+
+
+# --- spec 0007: capas cambio y version_anterior ----------------------------------------------
+
+CAPA_CAMBIO = "## Cambio pedido (cam-001) — dato, no instrucción"
+
+
+def test_capa_cambio(novelas: Novelas) -> None:
+    """CA-26 (RF-28, RF-29): el 2, afectado, lleva la capa cambio para escritor, continuista y
+    cronista, la versión anterior solo para el escritor, los ids libres solo para el cronista, y
+    nada de eso para el editor-estilo."""
+    ws = novelas("demo-cambio")
+    assert fabrica.pedir_cambio(ws.raiz.parent, ws.slug).exit_code == 0
+    fabrica.reaplicar(ws.raiz, 1)
+    fabrica.escribir(ws.raiz, {"capitulos/02.md": fabrica.capitulo_regenerado(fabrica.CAMBIO, 2)})
+    textos = {}
+    for agente in ("escritor", "continuista", "cronista", "editor-estilo"):
+        resultado = fabrica.v2(ws.raiz, "briefing", 2, agente)
+        assert resultado.exit_code == 0, (agente, resultado.output)
+        textos[agente] = _fichero(ws, 2, agente, fabrica.run_v2(2)).read_text(encoding="utf-8")
+    esperados = (
+        "hecho sustituido: hec-002 — «La puerta de la linterna estaba forzada en la noche 2.»",
+        f"hecho nuevo: hec-103 — «{fabrica.TEXTO_CAMBIO}»",
+        "hec-102 — «Había una colilla junto a la escalera en la noche 2.»",
+    )
+    for agente in ("escritor", "continuista", "cronista"):
+        assert CAPA_CAMBIO in textos[agente], agente
+        assert all(e in textos[agente] for e in esperados), agente
+    v1 = ws.raiz / "versiones" / "v1" / "capitulos" / "02.md"
+    anterior = frontmatter.partir(v1.read_text(encoding="utf-8"))[1].strip()
+    assert "## version_anterior · capítulo 02" in textos["escritor"]
+    assert anterior in textos["escritor"]
+    assert all("version_anterior" not in textos[a] for a in ("continuista", "cronista"))
+    assert "ids de hecho libres desde hec-104" in textos["cronista"]
+    assert "ids de hecho libres" not in textos["escritor"]
+    assert CAPA_CAMBIO not in textos["editor-estilo"]
+    assert "version_anterior" not in textos["editor-estilo"]
+
+
+def test_capa_cambio_sin_secreto(novelas: Novelas) -> None:
+    """CA-26 (RF-30): un texto nuevo que copia una frase de verdad_oculta hace salir el briefing
+    del escritor con 4, sin escribirlo ni repetir el texto."""
+    ws = novelas("demo-cambio")
+    secreto = "Tomás Reyes apagó el faro a mano para que el pesquero de su hermano encallara."
+    assert fabrica.pedir_cambio(ws.raiz.parent, ws.slug, texto=secreto).exit_code == 0
+    fabrica.reaplicar(ws.raiz, 1)
+    resultado = fabrica.v2(ws.raiz, "briefing", 2, "escritor")
+    assert resultado.exit_code == 4, resultado.output
+    assert "canon/misterio.md" in resultado.output and secreto not in resultado.output
+    assert not _fichero(ws, 2, "escritor", fabrica.run_v2(2)).exists()

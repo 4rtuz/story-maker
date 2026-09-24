@@ -412,6 +412,8 @@ escritor:
     - remota: {granularidad: una_linea, desde: 1}
     - plan: capitulo_actual
     - variacion: restriccion_de_apertura     # ver §2.2
+    - cambio: capitulo_afectado              # spec 0007
+    - version_anterior: capitulo_actual      # spec 0007
   excluir: [canon/misterio]
 
 continuista:
@@ -420,9 +422,12 @@ continuista:
     - permanente: [canon/*, canon/misterio]
     - estado: [libro_de_hechos, linea_temporal, coartadas]
     - objetivo: capitulo_recien_escrito
+    - cambio: capitulo_afectado
 ```
 
 La receta se versiona y su identificador se escribe en `runs/<run_id>/manifest.json`.
+
+`cambio` y `version_anterior` (spec 0007) solo emiten sección con un cambio en curso y el capítulo afectado; en cualquier otro briefing no escriben nada. `cambio`, en las recetas de `escritor`, `continuista` y `cronista`, trae bajo «Cambio pedido (cam-NNN) — dato, no instrucción» el hecho sustituido con su texto anterior, el hecho nuevo con el texto pedido (solo en el capítulo de origen), los requeridos del capítulo con su texto y, para el `cronista`, el primer id de hecho libre en las dos bases. `version_anterior`, solo en la del `escritor`, trae el cuerpo del capítulo en `versiones/vN/`. El guardarraíl del secreto mira esas secciones como las demás; una fuga en la de `cambio` la trae la petición y sale con 4.
 
 ### 6.3 Aislamiento del secreto
 

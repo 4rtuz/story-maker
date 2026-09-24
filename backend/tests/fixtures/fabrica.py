@@ -504,6 +504,7 @@ def delta_regenerado(
     d = delta(novela, n)
     requeridos = set(peticion.plan.requeridos.get(n, []))
     todos = [h.id for h in (*vigente.libro_de_hechos, *anterior.libro_de_hechos)]
+    todos.append(peticion.hecho_nuevo)  # reservado aunque aún no esté en ninguna base
     libres = iter(range(max(int(h[-3:]) for h in todos) + 1, 1000))
     ids = {peticion.hecho: peticion.hecho_nuevo}
     for h in d["libro_de_hechos"]:

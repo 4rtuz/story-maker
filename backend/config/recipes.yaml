@@ -31,6 +31,8 @@ escritor:
     - remota: {granularidad: una_linea, desde: 1}
     - plan: capitulo_actual
     - variacion: restriccion_de_apertura
+    - cambio: capitulo_afectado
+    - version_anterior: capitulo_actual
   excluir: [canon/misterio]
 
 continuista:
@@ -39,6 +41,7 @@ continuista:
     - permanente: [canon/*, canon/misterio]
     - estado: [libro_de_hechos, linea_temporal, coartadas]
     - objetivo: capitulo_recien_escrito
+    - cambio: capitulo_afectado
 
 editor-estilo:
   presupuesto_tokens: 68000
@@ -60,4 +63,5 @@ cronista:
   capas:
     - estado: [personajes, conocimiento, hilos_abiertos, objetos, relaciones, libro_de_hechos]
     - objetivo: capitulo_recien_escrito
+    - cambio: capitulo_afectado
   excluir: [canon/misterio]

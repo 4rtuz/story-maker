@@ -70,6 +70,19 @@ class Objetivo(Modelo):
     objetivo: Literal["capitulo_recien_escrito"]
 
 
+class Cambio(Modelo):
+    """Spec 0007 RF-28: solo emite sección con un cambio en curso y el capítulo afectado."""
+
+    cambio: Literal["capitulo_afectado"]
+
+
+class VersionAnterior(Modelo):
+    """Spec 0007 RF-29: el cuerpo del mismo capítulo en la versión anterior, en las mismas
+    condiciones que `cambio`."""
+
+    version_anterior: Literal["capitulo_actual"]
+
+
 Capa = (
     Permanente
     | Personajes
@@ -80,6 +93,8 @@ Capa = (
     | Plan
     | Variacion
     | Objetivo
+    | Cambio
+    | VersionAnterior
 )
 
 

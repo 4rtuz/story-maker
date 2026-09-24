@@ -1,18 +1,22 @@
 """`novela briefing <slug> <cap> <agente>`: la cáscara. Lee, llama a assemble y escribe."""
 
 from pathlib import Path
+from typing import Any
 
 import typer
 from pydantic import BaseModel
 
+from novela.dominio import frontmatter
 from novela.dominio.artefactos import Memoria
 from novela.dominio.canon import Estilo, Misterio, Mundo, Personaje, Premisa
+from novela.dominio.estado import Estado
 from novela.dominio.ids import Agente
 from novela.dominio.plan import FichaCapitulo
-from novela.plataforma import estado_db, run
+from novela.plataforma import estado_db, run, versiones
 from novela.plataforma.salida import USO_INCORRECTO, WORKSPACE_INVALIDO
 from novela.plataforma.workspace import WorkspaceInvalido, WorkspaceRepository, sha256
 from novela.slices.briefing import assemble, recipes
+from novela.slices.cambio import plan
 
 _CANON: dict[str, type[BaseModel]] = {
     "premisa": Premisa,
@@ -89,6 +93,7 @@ def cargar_fuentes(
             resumenes[c] = ws.modelo_de_md(ruta, resumen, Memoria)
     anterior = raiz / "capitulos" / f"{ws.nn(capitulo - 1)}.md" if capitulo > 1 else None
     actual = raiz / "capitulos" / f"{nn}.md"
+    regeneracion = _regeneracion(ws, capitulo, estado)
     return assemble.Fuentes(
         agente=agente,
         capitulo=capitulo,
@@ -105,7 +110,28 @@ def cargar_fuentes(
         sha_actual=sha256(actual) if actual.is_file() else None,
         resumenes=resumenes,
         digitos=len(nn),
+        **regeneracion,
     )
+
+
+def _regeneracion(ws: WorkspaceRepository, capitulo: int, vigente: Estado) -> dict[str, Any]:
+    """Los campos de `Fuentes` de spec 0007, con un cambio en curso y el capítulo afectado:
+    la petición, los requeridos con su texto de la versión anterior, el cuerpo del capítulo en
+    ella y el primer id de hecho libre en las dos bases y el reservado (P4)."""
+    cambio = versiones.cambio_en_curso(ws)
+    if cambio is None or capitulo not in cambio.plan.regenerar:
+        return {}
+    version = ws.raiz / "versiones" / f"v{cambio.version_base}"
+    with estado_db.abrir(version / ws.estado_db.relative_to(ws.raiz), solo_lectura=True) as conn:
+        hechos = {h.id: h.texto for h in estado_db.leer(conn).libro_de_hechos}
+    ids = [*hechos, *(h.id for h in vigente.libro_de_hechos), cambio.hecho_nuevo]
+    capitulo_anterior = _texto(version / "capitulos" / f"{ws.nn(capitulo)}.md")
+    return {
+        "cambio": cambio,
+        "requeridos": {r: hechos[r] for r in cambio.plan.requeridos.get(capitulo, [])},
+        "version_anterior": frontmatter.partir(capitulo_anterior)[1] if capitulo_anterior else None,
+        "libre_desde": plan.id_reservado(ids),
+    }
 
 
 def _promover(ws: WorkspaceRepository) -> None:
@@ -158,6 +184,9 @@ def briefing(slug: str, capitulo: int, agente: Agente) -> None:
             receta = recipes.cargar()[agente]
             try:
                 hecho = assemble.ensamblar(receta, cargar_fuentes(ws, capitulo, agente, abierto.id))
+            except assemble.FugaEnLaPeticion as exc:
+                parar(WORKSPACE_INVALIDO, str(exc))
+                raise
             except (assemble.FugaDelSecreto, assemble.PresupuestoExcedido) as exc:
                 parar(1, str(exc))
                 raise
