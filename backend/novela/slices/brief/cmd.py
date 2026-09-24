@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Annotated, NoReturn, cast, get_args
 
 import typer
+import yaml
 from pydantic import BaseModel, ValidationError
 
 from novela.dominio import frontmatter
@@ -20,7 +21,7 @@ from novela.dominio.brief import EntradaMeta, InicioBrief, Ocasion, TipoEntrada
 from novela.plataforma import run
 from novela.plataforma.salida import USO_INCORRECTO
 from novela.plataforma.workspace import WorkspaceInvalido, WorkspaceRepository
-from novela.slices.brief import entradas
+from novela.slices.brief import assemble, entradas
 
 MAX_ENTRADAS, MAX_CARACTERES = 20, 20000
 TIPOS: dict[str, TipoEntrada] = {"respuesta": "respuesta", "texto-libre": "texto_libre"}
@@ -126,3 +127,54 @@ def entrada(
         )
         ws.escribir(directorio / f"{id_}.md", frontmatter.unir(meta.model_dump(mode="json"), texto))
     typer.echo(id_)
+
+
+def _entradas(ws: WorkspaceRepository) -> list[assemble.Entrada]:
+    lista = []
+    for ruta in sorted((ws.raiz / "brief" / "entradas").glob("ent-[0-9][0-9].md")):
+        relativa = ruta.relative_to(ws.raiz).as_posix()
+        try:
+            meta, cuerpo = frontmatter.partir(ruta.read_text(encoding="utf-8"))
+            leida = EntradaMeta.model_validate(meta)
+        except (OSError, ValueError, yaml.YAMLError):  # ValidationError incluido, sin su valor
+            raise WorkspaceInvalido(f"{relativa}: frontmatter inválido") from None
+        if leida.id != ruta.stem:
+            raise WorkspaceInvalido(f"{relativa}: dice ser {leida.id}")
+        lista.append(assemble.Entrada(leida, cuerpo))
+    return lista
+
+
+def _texto(ruta: Path) -> str | None:
+    """Lo que escribió el agente, tal cual: si no es UTF-8, el briefing lo muestra igual."""
+    return ruta.read_bytes().decode("utf-8", errors="replace") if ruta.is_file() else None
+
+
+def preparar(slug: str) -> None:
+    """Escribe el briefing del entrevistador e imprime `<ruta> · <n> tokens`."""
+    ws = WorkspaceRepository.resolver(slug)
+    _brief_abierto(ws)
+    inicio = _inicio(ws)
+    brief = ws.raiz / "brief"
+    with ws.bloquear():
+        abierto = run.abrir(ws, 1, "arranque")
+        with abierto.registro("brief", "preparar") as causas:
+            parar = _parada(causas)
+            lista = _entradas(ws)
+            if not lista:
+                parar(1, "el brief no tiene entradas: añádelas con novela brief entrada")
+            borrador, informe = _texto(brief / "borrador.json"), _texto(brief / "informe.json")
+            try:
+                texto, tokens = assemble.ensamblar(
+                    inicio.ocasion, lista, borrador, informe, abierto.id
+                )
+            except (entradas.MarcaEnTexto, assemble.PresupuestoExcedido) as exc:
+                parar(1, str(exc))
+            # RR sube uno por briefing distinto del run; si nada cambió, vale el último (RF-13).
+            previos = sorted((abierto.dir / "briefings").glob("brief-[0-9][0-9]-entrevistador.md"))
+            if previos and previos[-1].read_bytes() == texto.encode("utf-8"):
+                ruta = previos[-1]
+            else:
+                rr = int(previos[-1].name[6:8]) + 1 if previos else 1
+                ruta = abierto.dir / "briefings" / f"brief-{rr:02d}-entrevistador.md"
+                ws.escribir(ruta, texto)
+    typer.echo(f"{ruta.relative_to(ws.raiz).as_posix()} · {tokens} tokens")

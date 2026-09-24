@@ -139,8 +139,8 @@ def test_brief_valida_contra_el_esquema() -> None:
 _CORREO = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
 _TELEFONO = re.compile(r"(?<!\w)\d{3}[ .-]?\d{3}[ .-]?\d{3}(?!\w)")
 _DNI_NIE = re.compile(r"(?<!\w)[XYZxyz]?\d{7,8}[A-Za-z](?!\w)")
-# Una palabra con mayúscula dentro de una línea, salvo a principio de frase o de respuesta.
-_NOMBRE = re.compile(r"(?<![.:?!…\-])[ \t]([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)")
+# Una palabra con mayúscula dentro de una línea, salvo tras fin de frase, dos puntos o título.
+_NOMBRE = re.compile(r"(?<![.:?!…#\-])[ \t]([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)")
 FICTICIOS = {"Aurora", "Ficticia", "Bruno", "Ficticio"}
 
 
