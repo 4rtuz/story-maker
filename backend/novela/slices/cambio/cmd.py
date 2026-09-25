@@ -133,6 +133,9 @@ def cambio(
         # RF-20: la misma petición completa la preparación cortada; otra espera a que termine.
         if (previo.hecho, previo.texto, previo.motivo) != (hecho, texto, motivo):
             _rechazar(f"cambio en curso: {previo.id} (en preparación)", 1)
+        if simular:  # simular no escribe nunca, tampoco para completar una preparación cortada
+            _simulacion(ws, previo)
+            return
         peticion = previo
     else:
         peticion = _nueva_peticion(ws, hecho, texto, motivo)

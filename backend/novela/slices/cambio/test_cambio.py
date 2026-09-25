@@ -235,3 +235,24 @@ def test_rendimiento(novelas: Novelas) -> None:
     resultado = _cambio(ws, *PETICION)
     assert resultado.exit_code == 0, resultado.output
     assert time.perf_counter() - inicio < 10
+
+
+def test_simular_no_completa_una_preparacion_cortada(novelas: Novelas) -> None:
+    """`--simular` no escribe nunca, tampoco con la misma petición en `preparando` (lo encontró
+    la tool MCP request_change, que siempre simula antes de pedir confirmación)."""
+    ws = novelas("demo-cambio")
+
+    def cortar(punto: str) -> None:
+        if punto == "capitulos_vaciados":
+            raise RuntimeError(punto)
+
+    real = versiones.preparar
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(versiones, "preparar", lambda ws_, p: real(ws_, p, cortar))
+        assert _cambio(ws, *PETICION).exit_code != 0
+    antes = _huella(ws)
+    resultado = _cambio(ws, *PETICION, "--simular")
+    assert resultado.exit_code == 0, resultado.output
+    assert _huella(ws) == antes
+    peticion = versiones.ultimo_cambio(ws)
+    assert peticion is not None and peticion.estado == "preparando"
