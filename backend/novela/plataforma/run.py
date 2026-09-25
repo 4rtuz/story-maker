@@ -12,7 +12,7 @@ import subprocess
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import cache
 from pathlib import Path
 from typing import Literal
@@ -172,15 +172,15 @@ def _run_id(
         for directorio in sorted((ws.raiz / "runs").glob("r-*"), reverse=True):
             if _de(ws, directorio, desde) == (capitulo, fase):
                 return directorio.name
-    nuevo = ahora.strftime("r-%Y%m%d-%H%M")
     # El del mismo minuto se reutiliza si ya es de este capítulo y fase: repetir `novela cambio`
     # tras un corte, con el checkpoint anterior aún en la raíz, vuelve aquí (spec 0007, RF-20).
-    if (ws.raiz / "runs" / nuevo).exists() and _de(ws, ws.raiz / "runs" / nuevo, desde) != (
-        capitulo,
-        fase,
-    ):
-        raise RunInvalido(f"el run {nuevo} ya es de otro capítulo o fase; fija NOVELA_RUN_ID")
-    return nuevo
+    # Si es de otro, el minuto siguiente libre: reaplicar cierra varios capítulos en un minuto.
+    for minuto in range(24 * 60):
+        nuevo = (ahora + timedelta(minutes=minuto)).strftime("r-%Y%m%d-%H%M")
+        dir_ = ws.raiz / "runs" / nuevo
+        if not dir_.exists() or _de(ws, dir_, desde) == (capitulo, fase):
+            return nuevo
+    raise RunInvalido("no queda un run libre en las próximas 24 h; fija NOVELA_RUN_ID")
 
 
 def abrir(

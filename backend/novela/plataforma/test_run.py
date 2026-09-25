@@ -75,8 +75,8 @@ def test_run_de_arranque(tmp_path: Path) -> None:
     manifiesto = Manifest.model_validate_json((arranque.dir / "manifest.json").read_bytes())
     assert manifiesto.fase == "arranque"
 
-    with pytest.raises(run.RunInvalido, match="de otro capítulo o fase"):
-        run.abrir(ws, 1, entorno={}, ahora=LAS_DIEZ)  # el minuto ya es del arranque
+    # El minuto ya es del arranque: el capítulo 1 toma el siguiente libre, nunca el mismo run.
+    assert run.abrir(ws, 1, entorno={}, ahora=LAS_DIEZ).id == "r-20260923-1001"
 
     capitulo = run.abrir(ws, 1, entorno={}, ahora=datetime(2026, 9, 23, 10, 5))
     assert capitulo.id != arranque.id
@@ -161,3 +161,19 @@ def test_version_nueva_no_reutiliza_runs(novelas: Novelas) -> None:
         run.abrir(ws, 1, entorno={"NOVELA_RUN_ID": "r-20260101-0900"}, ahora=LAS_DIEZ)
     fijado = run.abrir(ws, 1, entorno={"NOVELA_RUN_ID": nuevo.id}, ahora=LAS_DIEZ)
     assert fijado.id == nuevo.id
+
+
+def test_dos_capitulos_en_el_mismo_minuto(tmp_path: Path) -> None:
+    """ejemplo-carmen v2: `aplicar-delta --reaplicar` cierra capítulos en segundos, y el 05 caía
+    en el minuto del run del 04: salía con 2 y paraba la regeneración."""
+    orden = ["nueva", "nuevo", "--idea", "Un faro.", "--capitulos", "3", "--palabras", "900"]
+    assert CliRunner().invoke(app, orden, env={"NOVELAS_DIR": str(tmp_path)}).exit_code == 0
+    ws = WorkspaceRepository(tmp_path / "nuevo")
+    uno = run.abrir(ws, 1, entorno={}, ahora=LAS_DIEZ)
+    dos = run.abrir(ws, 2, entorno={}, ahora=LAS_DIEZ)
+    tres = run.abrir(ws, 3, entorno={}, ahora=LAS_DIEZ)
+    assert len({uno.id, dos.id, tres.id}) == 3 and sorted([uno.id, dos.id, tres.id]) == [
+        uno.id,
+        dos.id,
+        tres.id,
+    ]
