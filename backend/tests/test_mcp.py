@@ -15,11 +15,13 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 from fastmcp import Client
+from fastmcp.client.elicitation import ElicitResult
 from fastmcp.exceptions import ToolError
 from pypdf import PdfReader
 
 from api.main import app
 from api.mcp import langfuse as langfuse_mcp
+from api.mcp import servidor as servidor_mcp
 from api.mcp.servidor import servidor
 from novela.plataforma import langfuse
 from novela.plataforma.workspace import huella
@@ -159,7 +161,8 @@ def test_download_novel_es_el_pdf_de_los_capitulos_cerrados(base: Path) -> None:
     assert "La linterna, noche 2" in texto
 
 
-def test_ninguna_tool_escribe(base: Path, versionada: Path) -> None:
+def test_ninguna_tool_de_lectura_escribe(base: Path, versionada: Path) -> None:
+    """Todas menos `request_change`, la única de escritura, que tiene sus propios tests."""
     antes = {d.name: huella(d) for d in base.iterdir()}
     for slug in (SLUG, VERSIONADA):
         resultado("list_novels")
@@ -169,10 +172,9 @@ def test_ninguna_tool_escribe(base: Path, versionada: Path) -> None:
             resultado("query_story_bible", slug=slug, tipo=tipo)
         llamar("download_novel", slug=slug)
     assert {d.name: huella(d) for d in base.iterdir()} == antes
-    assert all(
-        tool.annotations and tool.annotations.read_only_hint
-        for tool in asyncio.run(servidor.list_tools())
-    )
+    lectura = [t for t in asyncio.run(servidor.list_tools()) if t.name != "request_change"]
+    assert len(lectura) == 5
+    assert all(tool.annotations and tool.annotations.read_only_hint for tool in lectura)
 
 
 def test_cada_llamada_se_registra_en_langfuse(base: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -227,3 +229,192 @@ def test_langfuse_caido_no_rompe_la_tool(monkeypatch: pytest.MonkeyPatch) -> Non
         langfuse_mcp, "_sink", lambda: langfuse.SinkLangfuse("http://127.0.0.1:9", "pk", "sk")
     )
     langfuse_mcp.emitir({"name": "mcp.list_novels", "input": {}, "error": None})
+
+
+# --- request_change: la única tool de escritura -----------------------------------------------
+
+CAMBIABLE = "demo-mcp-cambio"
+PEDIDO = {"slug": CAMBIABLE, "hecho": "hec-002", "texto": fabrica.TEXTO_CAMBIO}
+
+
+@pytest.fixture(scope="module")
+def plantilla(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    base = tmp_path_factory.mktemp("plantilla")
+    fabrica.construir(base, CAMBIABLE, fabrica.CAMBIO, cerrados=fabrica.CAMBIO.num_capitulos)
+    return base / CAMBIABLE
+
+
+@pytest.fixture
+def cambiable(plantilla: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    """Una novela terminada, copia fresca por test, con la escritura habilitada. El CLI corre de
+    verdad como subproceso del venv, contra este NOVELAS_DIR."""
+    raiz = tmp_path / CAMBIABLE
+    shutil.copytree(plantilla, raiz)
+    monkeypatch.setenv("NOVELAS_DIR", str(tmp_path))
+    monkeypatch.setenv(servidor_mcp.ESCRITURA, "1")
+    servidor.enable(names={"request_change"})
+    yield raiz
+    servidor.disable(names={"request_change"})
+
+
+def _listadas() -> set[str]:
+    return {t.name for t in asyncio.run(servidor.list_tools())}
+
+
+def llamar_con(handler: Any, tool: str, modo: str = "legacy", **args: Any) -> Any:
+    """Con elicitation; `legacy`, la era del handshake, que aún tiene canal de vuelta."""
+
+    async def _() -> Any:
+        async with Client(servidor, elicitation_handler=handler, mode=modo) as cliente:
+            return await cliente.call_tool(tool, args)
+
+    return asyncio.run(_())
+
+
+def test_request_change_deshabilitada_por_defecto(base: Path) -> None:
+    assert "request_change" not in _listadas()
+    with pytest.raises(ToolError):
+        llamar("request_change", slug=SLUG, hecho="hec-002", texto="otro")
+
+
+def test_request_change_sin_la_variable_no_escribe_aunque_este_listada(
+    cambiable: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(servidor_mcp.ESCRITURA)
+    with pytest.raises(ToolError, match="deshabilitada"):
+        llamar("request_change", **PEDIDO)
+
+
+def test_request_change_anotada_como_destructiva(cambiable: Path) -> None:
+    [tool] = [t for t in asyncio.run(servidor.list_tools()) if t.name == "request_change"]
+    assert tool.annotations
+    assert tool.annotations.read_only_hint is False and tool.annotations.destructive_hint
+
+
+@pytest.mark.parametrize(
+    "malo",
+    [
+        {"slug": "../etc"},
+        {"hecho": "hec-2"},
+        {"texto": ""},
+        {"texto": "x" * 501},
+        {"motivo": "m" * 501},
+    ],
+)
+def test_request_change_valida_parametros(cambiable: Path, malo: dict[str, str]) -> None:
+    antes = fabrica.huella(cambiable)
+    with pytest.raises(ToolError):
+        llamar("request_change", **(PEDIDO | malo))
+    assert fabrica.huella(cambiable) == antes
+
+
+def test_request_change_sin_confirmacion_simula_y_no_escribe(cambiable: Path) -> None:
+    antes = fabrica.huella(cambiable)
+    plan = resultado_de(llamar("request_change", **PEDIDO))
+    assert plan["aplicado"] is False and plan["confirmacion"]
+    assert "regenerar 02, 04, 06" in plan["plan"]
+    assert fabrica.huella(cambiable) == antes
+
+
+def test_request_change_con_token_incorrecto_no_aplica(cambiable: Path) -> None:
+    antes = fabrica.huella(cambiable)
+    with pytest.raises(ToolError, match="confirmación"):
+        llamar("request_change", **PEDIDO, confirmacion="0" * 16)
+    assert fabrica.huella(cambiable) == antes
+
+
+def test_request_change_el_token_ata_la_peticion(cambiable: Path) -> None:
+    """El token de una petición no confirma otra: cambia el texto, cambia el token."""
+    token = resultado_de(llamar("request_change", **PEDIDO))["confirmacion"]
+    otro = PEDIDO | {"texto": "La puerta de la linterna estaba forzada."}
+    with pytest.raises(ToolError, match="confirmación"):
+        llamar("request_change", **otro, confirmacion=token)
+    assert not (cambiable / "versiones").exists()
+
+
+def test_request_change_con_token_correcto_aplica(cambiable: Path) -> None:
+    token = resultado_de(llamar("request_change", **PEDIDO))["confirmacion"]
+    hecho = resultado_de(llamar("request_change", **PEDIDO, confirmacion=token))
+    assert hecho["aplicado"] is True
+    assert hecho["siguiente"] == f"novela producir {CAMBIABLE}"
+    assert (cambiable / "versiones" / "v1").is_dir()
+    assert (cambiable / "cambios" / "cam-001.json").is_file()
+
+
+def test_request_change_con_elicitation_aceptada_aplica(cambiable: Path) -> None:
+    vistos: list[str] = []
+
+    async def acepta(mensaje: str, *_: Any) -> dict[str, bool]:
+        vistos.append(mensaje)
+        return {"value": True}
+
+    assert resultado_de(llamar_con(acepta, "request_change", **PEDIDO))["aplicado"] is True
+    assert "regenerar 02, 04, 06" in vistos[0]
+    assert (cambiable / "cambios" / "cam-001.json").is_file()
+
+
+def test_request_change_con_elicitation_rechazada_no_aplica(cambiable: Path) -> None:
+    async def rechaza(*_: Any) -> ElicitResult[Any]:
+        return ElicitResult(action="decline")
+
+    antes = fabrica.huella(cambiable)
+    assert resultado_de(llamar_con(rechaza, "request_change", **PEDIDO))["aplicado"] is False
+    assert fabrica.huella(cambiable) == antes
+
+
+def test_request_change_en_la_era_sin_canal_de_vuelta_pide_el_token(cambiable: Path) -> None:
+    async def acepta(*_: Any) -> dict[str, bool]:
+        return {"value": True}
+
+    antes = fabrica.huella(cambiable)
+    plan = resultado_de(llamar_con(acepta, "request_change", modo="auto", **PEDIDO))
+    assert plan["aplicado"] is False and plan["confirmacion"]
+    assert fabrica.huella(cambiable) == antes
+
+
+def test_request_change_traza_sin_el_texto_largo(
+    cambiable: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    trazas: list[dict[str, Any]] = []
+    monkeypatch.setattr(langfuse_mcp, "emitir", trazas.append)
+    largo = "La puerta de la linterna estaba intacta. " * 10
+    llamar("request_change", **(PEDIDO | {"texto": largo}))
+    [traza] = trazas
+    assert traza["name"] == "mcp.request_change"
+    assert traza["input"]["hecho"] == "hec-002"
+    assert len(traza["input"]["texto"]) < 150 and str(len(largo)) in traza["input"]["texto"]
+
+
+def resultado_de(respuesta: Any) -> Any:
+    return respuesta.structured_content
+
+
+def test_request_change_por_http_solo_desde_loopback(cambiable: Path) -> None:
+    """La guarda de Host/Origin del montaje deja pasar un Host local desde otra máquina; la tool
+    comprueba además la IP del cliente (la de TestClient es `testclient`)."""
+    cabeceras = {"Accept": "application/json, text/event-stream"}
+    inicio = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "0"},
+        },
+    }
+    llamada = {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {"name": "request_change", "arguments": PEDIDO},
+    }
+    antes = fabrica.huella(cambiable)
+    with TestClient(app, base_url="http://127.0.0.1:8000") as cliente:
+        r = cliente.post("/mcp/", json=inicio, headers=cabeceras)
+        sesion = cabeceras | {"mcp-session-id": r.headers["mcp-session-id"]}
+        aviso = {"jsonrpc": "2.0", "method": "notifications/initialized"}
+        cliente.post("/mcp/", json=aviso, headers=sesion)
+        respuesta = cliente.post("/mcp/", json=llamada, headers=sesion)
+    assert "solo se admite desde este equipo" in respuesta.text, respuesta.text
+    assert fabrica.huella(cambiable) == antes

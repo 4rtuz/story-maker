@@ -131,8 +131,9 @@ novela versiones ejemplo-carmen              # la versión anterior queda intact
 
 ## Servidor MCP
 
-Solo lectura: `list_novels`, `get_chapter`, `list_versions`, `query_story_bible` y
-`download_novel`. Ya está en [`.mcp.json`](.mcp.json) junto al Playwright MCP. A mano:
+De lectura: `list_novels`, `get_chapter`, `list_versions`, `query_story_bible` y
+`download_novel`. De escritura, deshabilitada salvo con `STORY_MAKER_MCP_ESCRITURA=1`:
+`request_change`, que pide un cambio del lector con simulación y confirmación. Ya está en [`.mcp.json`](.mcp.json) junto al Playwright MCP. A mano:
 
 ```bash
 claude mcp add story-maker -- uv run --directory backend python -m api.mcp

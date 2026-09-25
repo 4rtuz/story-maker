@@ -44,6 +44,14 @@ def emitir(traza: dict[str, Any]) -> None:
         pass  # el trazado nunca es la razón por la que una consulta falla
 
 
+def _recortar(argumentos: dict[str, Any]) -> dict[str, Any]:
+    """Un texto largo (el de `request_change`) viaja recortado, con su longitud."""
+    return {
+        k: f"{v[:80]}… ({len(v)} caracteres)" if isinstance(v, str) and len(v) > 120 else v
+        for k, v in argumentos.items()
+    }
+
+
 class TrazaLangfuse(Middleware):
     async def on_call_tool(
         self,
@@ -59,7 +67,7 @@ class TrazaLangfuse(Middleware):
         finally:
             traza = {
                 "name": f"mcp.{context.message.name}",
-                "input": context.message.arguments or {},
+                "input": _recortar(context.message.arguments or {}),
                 "metadata": {"duracion_ms": round((time.perf_counter() - inicio) * 1000)},
                 "error": error,
             }

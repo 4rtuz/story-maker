@@ -1,28 +1,41 @@
-"""Servidor MCP de solo lectura: consultar y descargar novelas (docs/mcp.md).
+"""Servidor MCP: consultar y descargar novelas y, si se habilita, pedir un cambio (docs/mcp.md).
 
 Montado en la API en `/mcp` (streamable HTTP) y ejecutable por stdio con `python -m api.mcp`.
-Ninguna tool escribe: la base se abre con `mode=ro` y el PDF se construye en memoria.
+Las tools de lectura no escriben: la base se abre con `mode=ro` y el PDF se construye en memoria.
+La única de escritura, `request_change`, está deshabilitada salvo con `STORY_MAKER_MCP_ESCRITURA=1`
+y no toca el disco: lanza `novela cambio` como proceso, que es quien escribe.
 """
 
+import asyncio
+import hashlib
+import hmac
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
+from fastmcp.exceptions import ToolError
+from fastmcp.server.dependencies import get_http_request
 from fastmcp.utilities.types import File
+from mcp.types import ClientCapabilities, ElicitationCapability
 from pydantic import BaseModel, Field
 
 from api.mcp.langfuse import TrazaLangfuse
+from api.routers.lanzamientos import LOOPBACK
 from api.routers.novelas import novelas as _novelas
 from novela.dominio.canon import Mundo, Personaje
 from novela.dominio.estado import Cursor
 from novela.dominio.ids import SLUG_PATRON
 from novela.plataforma import estado_db
-from novela.plataforma.workspace import WorkspaceInvalido, WorkspaceRepository
+from novela.plataforma.lanzador import BACKEND
+from novela.plataforma.workspace import WorkspaceInvalido, WorkspaceRepository, raiz_de_novelas
 
 servidor = FastMCP(
     "story-maker",
-    instructions="Consulta y descarga de novelas, en solo lectura.",
+    instructions="Consulta y descarga de novelas; request_change, si está habilitada, las cambia.",
     middleware=[TrazaLangfuse()],
 )
 
@@ -30,6 +43,10 @@ Slug = Annotated[str, Field(pattern=SLUG_PATRON, description="slug de la novela"
 Capitulo = Annotated[int, Field(ge=1, le=999, description="número de capítulo")]
 NumVersion = Annotated[int, Field(ge=1, description="número de versión; por defecto la vigente")]
 SOLO_LECTURA = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True}
+ESCRITURA = "STORY_MAKER_MCP_ESCRITURA"
+MAX_TEXTO = 500  # el de `novela cambio`, que la API no importa (test_api_no_importa_slices)
+Hecho = Annotated[str, Field(pattern=r"^hec-[0-9]{3}$", description="id del hecho que cambia")]
+TextoDeCambio = Annotated[str, Field(min_length=1, max_length=MAX_TEXTO)]
 
 
 class Novela(BaseModel):
@@ -192,8 +209,8 @@ def query_story_bible(
 def download_novel(slug: Slug) -> File:
     """La novela en PDF (el libro de regalo de la spec 0006) con los capítulos cerrados, como
     recurso embebido en base64. Se construye en memoria: no escribe en el workspace."""
-    # Import diferido: la API no carga slices/ (test_api_no_importa_slices). De export solo se
-    # usan lectores y `pdf.construir`, que devuelve bytes; test_ninguna_tool_escribe lo cubre.
+    # Import diferido: la API no carga slices/ (test_api_no_importa_slices). De export solo
+    # usa lectores y `pdf.construir`, que devuelve bytes: test_ninguna_tool_de_lectura_escribe.
     from novela.plataforma import libro as libros
     from novela.slices.export import cmd as export
     from novela.slices.export import pdf
@@ -212,3 +229,98 @@ def download_novel(slug: Slug) -> File:
         creado=export._creado(ws, punto),
     )
     return File(data=pdf.construir(libro), format="pdf", name=f"{slug}.pdf")
+
+
+class PlanDeCambio(BaseModel):
+    plan: str  # la salida de `novela cambio --simular`: qué se regenera y qué se reaplica
+    confirmacion: str  # el token que aplica exactamente esta petición con este plan
+    aplicado: bool
+    salida: str | None = None  # la línea de `novela cambio`, si se aplicó
+    siguiente: str | None = None  # la orden que regenera, si se aplicó
+
+
+def _solo_loopback() -> None:
+    """Por HTTP, además de la guarda de Host/Origin del montaje, el cliente ha de ser local."""
+    try:
+        peticion = get_http_request()
+    except RuntimeError:
+        return  # stdio o en memoria: el cliente es quien arrancó el proceso
+    if peticion.client is None or peticion.client.host not in LOOPBACK:
+        raise ToolError("request_change solo se admite desde este equipo")
+
+
+async def _novela(*argumentos: str) -> subprocess.CompletedProcess[str]:
+    """El CLI del propio venv, sin shell y con los argumentos en lista, como `lanzador`."""
+    entorno = {**os.environ, "NOVELAS_DIR": str(raiz_de_novelas().resolve()), "PYTHONUTF8": "1"}
+    return await asyncio.to_thread(
+        subprocess.run,  # noqa: S603 — orden fija, argumentos validados por el esquema
+        [sys.executable, "-m", "novela", *argumentos],
+        cwd=BACKEND,
+        env=entorno,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=300,
+        check=False,
+    )
+
+
+def _exigir(r: subprocess.CompletedProcess[str]) -> str:
+    if r.returncode:
+        raise ToolError((r.stderr or r.stdout).strip() or f"novela salió con {r.returncode}")
+    return r.stdout.strip()
+
+
+@servidor.tool(
+    annotations={"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False}
+)
+async def request_change(
+    slug: Slug,
+    hecho: Hecho,
+    texto: TextoDeCambio,
+    ctx: Context,
+    motivo: Annotated[str | None, Field(max_length=MAX_TEXTO)] = None,
+    confirmacion: Annotated[
+        str | None, Field(max_length=64, description="el token de una llamada anterior")
+    ] = None,
+) -> PlanDeCambio:
+    """Pide que un hecho de una novela terminada sea otro (`novela cambio`, spec 0007). Primero
+    simula y devuelve el plan; solo aplica si el usuario lo confirma por elicitation o, si el
+    cliente no la soporta, repitiendo la llamada con `confirmacion` igual al token devuelto.
+    No regenera: devuelve la orden que lo hace."""
+    if os.environ.get(ESCRITURA) != "1":
+        raise ToolError(f"escritura deshabilitada: arranca el servidor con {ESCRITURA}=1")
+    _solo_loopback()
+    peticion = ["cambio", slug, "--hecho", hecho, "--texto", texto]
+    if motivo is not None:
+        peticion += ["--motivo", motivo]
+    plan = _exigir(await _novela(*peticion, "--simular"))
+    firmado = json.dumps([slug, hecho, texto, motivo, plan], ensure_ascii=False).encode()
+    token = hashlib.sha256(firmado).hexdigest()[:16]
+    simulado = PlanDeCambio(plan=plan, confirmacion=token, aplicado=False)
+    if confirmacion is not None:
+        if not hmac.compare_digest(confirmacion, token):
+            raise ToolError("confirmación incorrecta: no es el token de esta petición y este plan")
+    elif ctx.session.check_client_capability(
+        ClientCapabilities(elicitation=ElicitationCapability())
+    ):
+        try:
+            respuesta = await ctx.elicit(
+                f"¿Aplicar este cambio a {slug}? {hecho}: {texto}\n\n{plan}", response_type=bool
+            )
+        except ToolError:
+            # ponytail: la era 2026-07-28 no tiene canal de vuelta; ahí vale el token. Soportar
+            # su `InputRequiredResult` si algún cliente moderno no puede repetir la llamada.
+            return simulado
+        if respuesta.action != "accept" or not respuesta.data:
+            return simulado
+    else:
+        return simulado
+    salida = _exigir(await _novela(*peticion))
+    return simulado.model_copy(
+        update={"aplicado": True, "salida": salida, "siguiente": f"novela producir {slug}"}
+    )
+
+
+if os.environ.get(ESCRITURA) != "1":
+    servidor.disable(names={"request_change"})
