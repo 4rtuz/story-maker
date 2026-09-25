@@ -152,14 +152,34 @@ def _no_grito(token: str) -> bool:
     return token[0].isupper() and not token.isupper()
 
 
-def nombres(cuerpo: str, formas: Sequence[FormaCanonica]) -> list[Hallazgo]:
-    """vp_nombres (spec 0009 D4): una forma del cuerpo que pliega como un nombre canónico sin
-    serlo, empieza por mayúscula y no está gritada. Antes, el canon contra el brief (D5)."""
+@dataclass(frozen=True)  # pragma: no mutate
+class Errata:
+    token: str  # tal como aparece en el cuerpo
+    linea: int  # desde 1
+    columna: int  # desde 0
+    referencia: str
+    canonico: str
+
+
+def erratas(cuerpo: str, formas: Sequence[FormaCanonica]) -> list[Errata]:
+    """Cada aparición de una forma que pliega como un nombre canónico sin serlo, empieza por
+    mayúscula y no está gritada, con su posición: lo que agrupa `nombres` y señala el LSP."""
     exactos = {t for f in formas for t in _canonicos(f)}
     canon: dict[str, tuple[str, str]] = {}  # plegado → (token, referencia); gana la primera
     for forma in formas:
         for token in _canonicos(forma):
             canon.setdefault(plegar(token), (token, forma.referencia))
+    return [
+        Errata(m.group(), n, m.start(), canon[plegar(m.group())][1], canon[plegar(m.group())][0])
+        for n, linea in enumerate(unicodedata.normalize("NFC", cuerpo).splitlines(), 1)
+        for m in _LETRAS.finditer(linea)
+        if m.group() not in exactos and plegar(m.group()) in canon and _no_grito(m.group())
+    ]
+
+
+def nombres(cuerpo: str, formas: Sequence[FormaCanonica]) -> list[Hallazgo]:
+    """vp_nombres (spec 0009 D4): una forma del cuerpo que pliega como un nombre canónico sin
+    serlo, empieza por mayúscula y no está gritada. Antes, el canon contra el brief (D5)."""
     del_brief = {plegar(t): t for f in formas if f.origen == _BRIEF for t in _canonicos(f)}
     hallazgos = {
         (forma.referencia, token): Hallazgo(
@@ -174,21 +194,18 @@ def nombres(cuerpo: str, formas: Sequence[FormaCanonica]) -> list[Hallazgo]:
         for token in _canonicos(forma)
         if del_brief.get(plegar(token), token) != token and _no_grito(token)
     }
-    lineas: dict[str, list[int]] = {}
-    for n, linea in enumerate(unicodedata.normalize("NFC", cuerpo).splitlines(), 1):
-        for token in _LETRAS.findall(linea):
-            if token not in exactos and plegar(token) in canon and _no_grito(token):
-                lineas.setdefault(token, []).append(n)
+    lineas: dict[tuple[str, str, str], list[int]] = {}
+    for e in erratas(cuerpo, formas):
+        lineas.setdefault((e.token, e.referencia, e.canonico), []).append(e.linea)
     return list(hallazgos.values()) + [
         Hallazgo(
             tipo="nombre_mal_escrito",
             gravedad="alta",
-            referencia=canon[plegar(token)][1],
+            referencia=referencia,
             ubicacion="línea " + ", ".join(map(str, dict.fromkeys(ns))),
-            descripcion=f"«{token}» no es la grafía de {canon[plegar(token)][1]}: "
-            f"«{canon[plegar(token)][0]}»",
+            descripcion=f"«{token}» no es la grafía de {referencia}: «{canonico}»",
         )
-        for token, ns in lineas.items()
+        for (token, referencia, canonico), ns in lineas.items()
     ]
 
 

@@ -28,7 +28,9 @@ class Termino:
 class Coincidencia:
     termino: Termino
     forma: str  # tal como aparece en el texto
-    linea: int  # de su primera palabra
+    linea: int  # de su primera palabra, desde 1
+    columna: int  # de su primera palabra, desde 0
+    fin: tuple[int, int]  # (línea, columna) tras su última palabra
 
 
 def _plegar(palabra: str) -> str:
@@ -63,11 +65,11 @@ def clave(texto: str) -> tuple[str, ...]:
 def buscar(cuerpo: str, terminos: Iterable[Termino]) -> list[Coincidencia]:
     """Cada aparición de cada término, en orden de término y de texto."""
     palabras = [
-        (m.group(), n)
+        (m.group(), n, m.start())
         for n, linea in enumerate(unicodedata.normalize("NFC", cuerpo).splitlines(), 1)
         for m in _LETRAS.finditer(linea)
     ]
-    raices = [raiz(p) for p, _ in palabras]
+    raices = [raiz(p) for p, _, _ in palabras]
     coincidencias = []
     for termino in terminos:
         k = clave(termino.texto)
@@ -75,6 +77,8 @@ def buscar(cuerpo: str, terminos: Iterable[Termino]) -> list[Coincidencia]:
             continue
         for i in range(len(raices) - len(k) + 1):
             if tuple(raices[i : i + len(k)]) == k:
-                forma = " ".join(p for p, _ in palabras[i : i + len(k)])
-                coincidencias.append(Coincidencia(termino, forma, palabras[i][1]))
+                forma = " ".join(p for p, _, _ in palabras[i : i + len(k)])
+                primera, ultima = palabras[i], palabras[i + len(k) - 1]
+                fin = (ultima[1], ultima[2] + len(ultima[0]))
+                coincidencias.append(Coincidencia(termino, forma, primera[1], primera[2], fin))
     return coincidencias

@@ -917,9 +917,10 @@ El evaluador de sesión (LLM como juez) compara ejecuciones completas y devuelve
 
 ### 11.1 Backend (`backend/`)
 
-Python 3.12. Dos caras sobre el mismo código:
+Python 3.12. Tres caras sobre el mismo código:
 
 - **CLI `novela`** (Typer): lo que invoca el orquestador. Es quien escribe en el workspace.
+- **Servidor LSP** (`backend/novela/lsp/`, `python -m novela.lsp` por stdio, `pygls`): diagnósticos de solo lectura sobre un `capitulos/NN.md` editado a mano, con los mismos gates de `validar`, el guardrail, la regla de citas de `aplicar-delta` y `lint-prosa` (`docs/lsp.md`).
 - **API FastAPI** (`backend/api/`): lectura para el frontend, y el lanzamiento de novelas. Sirve el estado, los capítulos, los manifiestos y lo que el panel necesita de la configuración, del plan y de los checkpoints. Los capítulos y los manifiestos salen del disco tal cual; el estado se serializa desde `estado.db` con los mismos modelos Pydantic, abriendo la base en modo lectura.
 
 La API **no escribe en ningún workspace** ni sirve el libro de regalo: el PDF lo genera `novela exportar --formato pdf` y se entrega como fichero (ADR 0003). Lo único que hace fuera de leer es `/lanzamientos`: arranca `python -m novela producir` en segundo plano (grupo de procesos propio, sin ventana), y es ese subcomando del CLI el que escribe. `producir` repite el bucle desatendido de `AGENTS.md` § Proceso: ejecución —`comprobar-entorno`, `/novela-nueva`, un `/novela-continuar <slug> --capitulos 1` por capítulo mientras `novela pendiente` salga con 0, y `/novela-auditar`—, cada paso en su `claude -p` con `--setting-sources project,local --permission-mode dontAsk --model opus`, un `NOVELA_SESSION_ID` nuevo y el prompt como argumento de `claude.exe`, sin shell. Para con un código distinto de 0, con una sesión que no avanza `checkpoints/latest.json`, con un `intervencion.md` sin `resuelto:` o si la auditoría no exporta; nunca insiste.

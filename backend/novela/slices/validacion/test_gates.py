@@ -255,6 +255,38 @@ def test_nombres_property(
         ]
 
 
+@given(
+    estrategias.nombres_en_cuerpo(),
+    st.sampled_from(["tilde", "caja"]),
+    st.data(),
+)
+def test_erratas_property(
+    caso: tuple[list[tuple[str, str]], list[list[str]]], cambio: str, datos: st.DataObject
+) -> None:
+    """Para el LSP: cada variante sale con su línea y columna exactas, y `nombres` la agrupa."""
+    textos, lineas = caso
+    formas = [_personaje(r, t) for r, t in textos]
+    de = {token: r for r, t in textos for token in t.split()}
+    linea, j = datos.draw(
+        st.sampled_from(
+            [(n, j) for n, ws in enumerate(lineas) for j, w in enumerate(ws) if w in de]
+        )
+    )
+    original = lineas[linea][j]
+    lineas = [list(ws) for ws in lineas]
+    lineas[linea][j] = _variante(original, cambio, datos.draw(st.integers(0, 20)))
+    cuerpo = "\n".join(" ".join(ws) for ws in lineas)
+    columna = len(" ".join(lineas[linea][:j])) + (1 if j else 0)
+    [e] = gates.erratas(cuerpo, formas)
+    assert (e.token, e.linea, e.columna, e.referencia) == (
+        lineas[linea][j],
+        linea + 1,
+        columna,
+        de[original],
+    )
+    assert e.canonico == original
+
+
 def test_nombres_casos_fijos() -> None:
     """CA-07 (gate) y los límites de la regla, para la mutación."""
     formas = [_personaje("per-elena-vidal", "Elena Vidal"), _personaje("per-munoz", "Muñoz")]
