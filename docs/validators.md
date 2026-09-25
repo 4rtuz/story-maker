@@ -208,8 +208,24 @@ Cada gate determinista tiene un nombre estable, un punto donde corre, uno donde 
 | `vp_ids` | Los ids citados existen | `validar` | `validar` | `id_inexistente` | binario, ídem | `validacion/test_gates.py::test_ids_citados_existen` |
 | `vp_nombres` | Grafía exacta de nombres y alias de `canon/personajes/`: una forma que pliega igual (sin tildes ni caja), empieza por mayúscula y no está gritada es un hallazgo | `validar` | `validar` | `nombre_mal_escrito` | binario, ídem | `validacion/test_gates.py::test_nombres_property`, `validacion/test_validacion.py::test_validar_nombres` |
 | `vp_cobertura` | Elementos obligatorios del brief en `libro_de_hechos` | `checkpoint`, `auditar` | `auditar` | `elemento_sin_cubrir` | fracción cubiertos / total. Solo con `brief/brief.json` (spec 0005); sin brief no se evalúa ni se emite, y hoy ningún workspace lo tiene | `dominio/test_validadores.py::test_catalogo` |
+| `vp_prohibidas` | Ningún término de los tres niveles (global, cliente del brief, novela), en ninguna variante simple, en el cuerpo del capítulo (`docs/guardrails.md`) | `validar` | `validar` | `termino_prohibido` | binario en `checkpoint`; además `guardrail_prohibidas` = nº de coincidencias en `validar`, solo si las hay | `validacion/test_gates.py::test_prohibidas_property` |
 
 Los binarios de `validar` casi siempre valen 1 en `checkpoint`: la custodia de `aplicar-delta` exige que la última `validar` haya aprobado. Miden el artefacto final, no los intentos (spec 0009 D11). El hallazgo de `vp_schema` lleva la ruta del artefacto y las rutas de campo del error, nunca sus valores, porque acaba en stderr y en `harness.log`. Los scores se emiten en una sola llamada, agregados primero y después los `vp_*` en el orden del catálogo. Así, un Langfuse caído corta la emisión al primer intento.
+
+
+### 3.11 Validadores no programáticos y formales
+
+Fuera del catálogo: no son gates por capítulo o no los decide código de `validar`. Cada uno emite su score por el mismo `ScoreSink`.
+
+| Validador | Qué comprueba | Dónde corre | Bloquea | Score | Detalle |
+|---|---|---|---|---|---|
+| Juez (`juez`, LLM-as-judge) | Continuidad, tono, arco, personajes, ritmo y personalización con la rúbrica `rubrica-1` | `/novela-auditar`, tras `verificar-lean`; `novela juicio` valida `qa/juicio.json` | Sí: bajo el umbral, intervención sin exportar | `juez_<criterio>` | `docs/evaluacion/juez.md` |
+| Revisión humana | La misma rúbrica, rellenada por una persona | A mano; `novela comparar-juicios --humano` | No | `juez_acuerdo_humano` | `docs/evaluacion/revision-humana.md` |
+| Cronología en Lean 4 | Invariantes temporales de `cronologia` (o derivada de `linea_temporal`), por `decide +kernel` | `/novela-auditar`, `novela verificar-lean`, entre `auditar` y `exportar` | Sí: intervención sin exportar | `lean_cronologia`, `lean_<invariante>` | `docs/formal/lean.md` |
+| Modelo TLA+ del harness | Seguridad y terminación del procedimiento: reanudación, caídas, reintentos, `novela cambio` | En desarrollo: TLC dentro de `uv run pytest` si hay java | No (se salta sin java) | — | `docs/formal/tla.md` |
+| Lectura web visual | Portada, dedicatoria, índice navegable y ficha enlazada en un navegador real (Playwright MCP) | Skill `validar-visual` en sesión de desarrollo; `novela registrar-visual` | No | `visual_lectura` | `docs/validacion-visual.md` |
+| Linters de prosa | Repeticiones, legibilidad, léxico y estilo | `novela lint-prosa`, a mano; el LSP en edición manual | No: informativo | `prosa_repeticiones`, `prosa_legibilidad`, `prosa_lexico`, `prosa_estilo` | `docs/linters-prosa.md`, `docs/lsp.md` |
+| Plan del `trazador` | Escaleta y fichas contra sus modelos, y ficha de canon para cada personaje del plan | `/novela-nueva`, `novela validar-plan` | Sí: reintento del `trazador` | — | `.claude/commands/novela-nueva.md` |
 
 ---
 

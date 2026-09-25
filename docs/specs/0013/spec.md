@@ -1,7 +1,8 @@
 ---
 id: 0013
 titulo: Especificar el flujo del harness en TLA+ y comprobarlo con TLC en CI
-estado: Propuesta
+estado: descartada
+motivo: "implementada de otra forma sin seguirla: el modelo de formal/tla/ usa otras acciones, y TLC corre en desarrollo dentro de uv run pytest si hay java, no en un job de CI (docs/formal/tla.md)"
 version: 2
 fecha: 2026-09-24
 specs_relacionadas: [0001, 0002, 0003, 0004, 0007, 0008, 0009, 0012]

@@ -4,10 +4,6 @@ Cómo se razonó y se construyó el harness, no cómo funciona hoy. Para eso, la
 referencia: `AGENTS.md`, `docs/architecture.md`, `docs/definitions.md`,
 `docs/domain-knowledge.md` y `docs/validators.md`.
 
-Algunas rutas de esta tabla las escriben otras ramas (`feat/lean`, `feat/tla`,
-`feat/guardrails`, `feat/juez`, `feat/visual`, `feat/mcp`, `feat/prosa`, `feat/langfuse`) y
-existen después de integrarlas en `entrega`.
-
 ## Mapa contra la rúbrica
 
 | Apartado | Documento | Qué contiene |
@@ -21,8 +17,12 @@ existen después de integrarlas en `entrega`.
 | | [`docs/formal/lean.md`](../formal/lean.md), [`docs/formal/tla.md`](../formal/tla.md) | Métodos formales, en detalle |
 | | [`docs/guardrails.md`](../guardrails.md) | Guardrail de palabras prohibidas y su audit log |
 | | [`docs/evaluacion/juez.md`](../evaluacion/juez.md) | LLM-as-judge y revisión humana con la misma rúbrica |
+| | [`docs/evaluacion/tuning-cronista.md`](../evaluacion/tuning-cronista.md) | Iteración de tuning del cronista, antes y después |
+| | [`docs/evaluacion/resultados.md`](../evaluacion/resultados.md) | Resultados de la evaluación |
+| | [`docs/presupuesto.md`](../presupuesto.md) | Presupuesto y coste |
 | | [`docs/observabilidad.md`](../observabilidad.md) | Langfuse: sesión por novela, costes, prompts versionados |
 | | [`docs/mcp.md`](../mcp.md) | Servidor MCP propio (FastMCP) |
+| | [`docs/lsp.md`](../lsp.md) | Linter de edición manual como servidor LSP |
 | | [`docs/lectura-web.md`](../lectura-web.md), [`docs/validacion-visual.md`](../validacion-visual.md) | Lectura web y validación visual con Playwright MCP |
 | | [`docs/linters-prosa.md`](../linters-prosa.md), [`docs/security-report.md`](../security-report.md) | Linters de prosa y auditoría de seguridad |
 | Diagramas | [`diagramas.md`](diagramas.md) | Arquitectura, bucle por capítulo, esquema SQLite, máquina de estados y tabla de validadores |

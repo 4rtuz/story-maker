@@ -1,7 +1,8 @@
 ---
 id: 0009
 titulo: Completar los validadores programáticos del capítulo y emitir un score por validador
-estado: Propuesta
+estado: implementada
+sha: a414903
 version: 2
 fecha: 2026-09-24
 specs_relacionadas: [0001, 0002, 0005, 0006, 0007, 0008]

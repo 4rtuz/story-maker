@@ -1,13 +1,13 @@
 # Diagramas
 
-Cinco vistas del harness. Las piezas que añaden otras ramas llevan su rama al lado.
+Cinco vistas del harness.
 
 ## 1. Arquitectura
 
 ```mermaid
 flowchart LR
   OP["Operador"]
-  subgraph CC["Claude Code"]
+  subgraph CC["Claude Code · sesión del harness"]
     ORQ["Orquestador<br/>sesión principal<br/>.claude/commands/"]
     subgraph AG[".claude/agents/"]
     ENT["entrevistador"]
@@ -15,12 +15,15 @@ flowchart LR
     TRA["trazador"]
     ESC["escritor"]
     REV["continuista · editor-estilo<br/>lector-suspense"]
-    JUEZ["juez-narrativo<br/>feat/juez"]
-    VIS["revisor-visual<br/>feat/visual"]
     CRO["cronista"]
+    JUEZ["juez<br/>/novela-auditar"]
     end
-    PRE["PreToolUse<br/>denegar-escritura-estado.py"]
+    PRE["PreToolUse<br/>denegar-escritura-estado.py<br/>reglas 1–6 · policy.jsonl"]
     POST["PostToolUse<br/>validar-capitulo.py"]
+  end
+  subgraph DEV["Claude Code · sesión de desarrollo"]
+    VIS["skill validar-visual"]
+    PW["Playwright MCP"]
   end
   CLI["CLI novela<br/>determinista, sin modelo"]
   subgraph WS["novelas/&lt;slug&gt;/ · un lock por novela"]
@@ -31,16 +34,20 @@ flowchart LR
     RUNS["runs/ · briefings · harness.log"]
     EXP["export/novela.pdf"]
   end
-  FORM["formal/lean · formal/tla<br/>feat/lean · feat/tla"]
-  LF["Langfuse"]
-  API["API FastAPI<br/>solo lectura + /lanzamientos"]
+  FORM["formal/lean<br/>verificar-lean"]
+  TLA["formal/tla<br/>TLC en desarrollo"]
+  LF["Langfuse<br/>sesión por novela · scores · prompts"]
+  API["API FastAPI<br/>lectura, /libro, /lanzamientos"]
+  MCP["servidor MCP<br/>/mcp/ y stdio<br/>request_change opcional"]
+  LSP["servidor LSP<br/>edición manual"]
   PANEL["Panel<br/>frontend/"]
-  MCP["MCP: Playwright<br/>+ servidor propio<br/>feat/visual · feat/mcp"]
+  EDI["Editor"]
+  CMCP["Cliente MCP"]
 
   OP --> ORQ
   ORQ -- "Task" --> AG
   ORQ -- "Bash novela ..." --> CLI
-  AG -. "cada escritura" .-> PRE
+  AG -. "cada lectura y escritura" .-> PRE
   AG -. "capitulos/NN.md" .-> POST
   POST --> CLI
   CLI --> RUNS
@@ -50,12 +57,20 @@ flowchart LR
   CLI -- "aplicar-delta, única escritura" --> DB
   CLI --> EXP
   CLI --> FORM
-  CLI -- "scores" --> LF
+  CLI -- "scores, traza por paso" --> LF
   CC -- "trazas: plugin Stop/SessionEnd" --> LF
   API -. "lee" .-> WS
   PANEL --> API
   API -- "novela producir" --> CLI
-  VIS --> MCP
+  API --- MCP
+  CMCP --> MCP
+  MCP -. "lee" .-> WS
+  MCP -- "novela cambio" --> CLI
+  EDI --> LSP
+  LSP -. "lee" .-> WS
+  VIS --> PW
+  PW --> PANEL
+  VIS -- "novela registrar-visual" --> CLI
 ```
 
 ## 2. Bucle por capítulo
@@ -88,7 +103,7 @@ nunca de la conversación.
 
 ## 3. Esquema SQLite
 
-Tal como está en `entrega`, en `backend/novela/plataforma/esquema.sql`. No hay claves foráneas
+Tal como está en `backend/novela/plataforma/esquema.sql`. No hay claves foráneas
 declaradas: las relaciones son por id y las valida `aplicar-delta`. Las tablas marcadas
 «append-only» tienen triggers que abortan `UPDATE` y `DELETE`.
 
@@ -184,6 +199,35 @@ erDiagram
     INTEGER capitulo PK
     TEXT via PK
   }
+  cronologia {
+    TEXT evento PK "append-only, docs/formal/lean.md"
+    INTEGER capitulo
+    INTEGER momento
+    INTEGER duracion_min
+    TEXT lugar
+    TEXT tras "JSON, ids de evento"
+    TEXT cita
+  }
+  cronologia_personajes {
+    TEXT evento PK "append-only"
+    TEXT personaje PK
+    TEXT papel PK "presente | excluido"
+    INTEGER edad
+  }
+  prohibidas {
+    TEXT termino PK "docs/guardrails.md"
+    TEXT nivel PK "global | cliente | novela"
+  }
+  auditoria_policy {
+    INTEGER id PK "append-only"
+    TEXT momento
+    TEXT origen
+    TEXT decision
+    TEXT nivel
+    TEXT termino
+    INTEGER capitulo
+    TEXT detalle
+  }
 
   personajes ||--o{ conocimiento : "sabe"
   libro_de_hechos ||--o{ conocimiento : "hecho"
@@ -192,33 +236,13 @@ erDiagram
   personajes ||--o{ relaciones : "de / a"
   personajes ||--o{ objetos : "poseedor"
   personajes ||--o{ apariciones : "entidad"
+  cronologia ||--o{ cronologia_personajes : "evento"
+  personajes ||--o{ cronologia_personajes : "personaje"
+  prohibidas ||--o{ auditoria_policy : "termino y nivel"
 ```
 
-**Tras integrar `feat/lean` y `feat/guardrails`.** La integración añade tablas de cronología,
-de listas prohibidas y de auditoría. Se dibujan como previstas: los nombres y columnas exactos
-son los de [`docs/formal/lean.md`](../formal/lean.md) y [`docs/guardrails.md`](../guardrails.md).
-
-```mermaid
-erDiagram
-  cronologia {
-    TEXT evento "prevista · feat/lean"
-    TEXT momento
-    TEXT lugar
-    TEXT personajes
-    INTEGER capitulo
-  }
-  listas_prohibidas {
-    TEXT termino "prevista · feat/guardrails"
-    TEXT origen
-  }
-  auditoria_prohibidas {
-    TEXT capitulo "prevista · feat/guardrails, append-only"
-    TEXT termino
-    TEXT decision
-    TEXT momento
-  }
-  listas_prohibidas ||--o{ auditoria_prohibidas : "detectado"
-```
+`cronologia` la llena `aplicar-delta` desde `Delta.cronologia`; `prohibidas` y
+`auditoria_policy` las escribe `policy_db`, no `aplicar-delta`.
 
 ## 4. Máquina de estados del flujo
 
@@ -259,30 +283,31 @@ Dónde corre cada uno, dónde bloquea y qué score emite a Langfuse. Punto: **ho
 invocación del agente), **rol** (un agente revisor), **gate** (el CLI, antes de avanzar o de
 publicar).
 
-| Validador | Qué comprueba | Punto | Bloquea en | Score en Langfuse | Origen |
+| Validador | Qué comprueba | Punto | Bloquea en | Score en Langfuse | Detalle |
 |---|---|---|---|---|---|
-| `vp_schema` | Brief y salidas de cada rol contra su esquema | gate: `validar`, `checkpoint` | `checkpoint` | `vp_schema` | entrega |
-| `vp_longitud` | Palabras dentro del rango | hook `PostToolUse` + gate `validar` | `validar` | `vp_longitud` | entrega |
-| `vp_pistas` | Pistas de la ficha presentes | hook + gate `validar` | `validar` | `vp_pistas` | entrega |
-| `vp_hilos` | Ningún hilo se cierra sin abrirse | hook + gate `validar` | `validar` | `vp_hilos` | entrega |
-| `vp_ids` | Ids referenciados existen | hook + gate `validar` | `validar` | `vp_ids` | entrega |
-| `vp_nombres` | Nombres como en la story bible | hook + gate `validar` | `validar` | `vp_nombres` | entrega |
-| `vp_cobertura` | Cada elemento del brief aparece en algún capítulo | gate: `checkpoint`, `auditar` | `auditar` | `vp_cobertura` (fracción) | entrega |
-| Continuidad | Capítulo contra hechos, línea temporal y canon | rol `continuista` | gate de revisión | `continuidad` | entrega |
-| Estilo | Capítulo contra `canon/estilo.md` | rol `editor-estilo` | no bloquea, corrige | `estilo` | entrega |
-| Tensión y fair play | Curva, fair play, coherencia | rol `lector-suspense` | gate de revisión | `tension`, `fair_play`, `coherencia` | entrega |
-| Longitud relativa | `1 − \|palabras/objetivo − 1\|` | gate `checkpoint` | no bloquea | `longitud` | entrega |
-| Delta | Esquema, cita literal, custodia, invariantes narrativos | gate `aplicar-delta` | `aplicar-delta` | — | entrega |
-| Policy de escritura | Quién escribe dónde; misterio y base intocables | hook `PreToolUse` + `deny` | la herramienta | — | entrega |
-| Validación del brief | Esquema, faltantes, contradicciones, procedencia literal | gate `novela brief validar` | `/novela-nueva --brief` | — (sin trazado: datos personales) | entrega |
-| Auditoría | Pistas huérfanas, hilos sin cerrar, fair play | gate `novela auditar` | exportar | — | entrega |
-| `vp_prohibidas` | Palabras y temas vetados, con audit log | hook + gate antes de publicar | publicar | `vp_prohibidas` | `feat/guardrails` |
-| `lean_cronologia` | Ubicuidad, nacimiento y exclusión en Lean 4 | gate antes de cerrar y de publicar | publicar | `lean_cronologia` | `feat/lean` |
-| `juez_*` | Continuidad, tono, arco, personajes, ritmo, personalización | rol `juez-narrativo` | no bloquea, informa | `juez_<criterio>` | `feat/juez` |
-| `visual_lectura` | Índice, capítulos, ficha y portada en navegador | rol `revisor-visual` + gate `visual` | publicar | `visual_lectura` | `feat/visual` |
-| `prosa_*` | Linters de prosa | gate, según `docs/linters-prosa.md` | según la rama | `prosa_<regla>` | `feat/prosa` |
-| TLC | Nada se publica sin validar; reanudación sin pérdida; terminación | CI, job `tla` | el merge | — | `feat/tla` |
+| `vp_schema` | Brief y salidas de cada rol contra su esquema | gate: `validar`, `checkpoint` | `checkpoint` | `vp_schema` | `validators.md` §3.10 |
+| `vp_longitud` | Palabras dentro del rango | hook `PostToolUse` + gate `validar` | `validar` | `vp_longitud` | ídem |
+| `vp_pistas` | Pistas de la ficha presentes | hook + gate `validar` | `validar` | `vp_pistas` | ídem |
+| `vp_hilos` | Ningún hilo se cierra sin abrirse | hook + gate `validar` | `validar` | `vp_hilos` | ídem |
+| `vp_ids` | Ids referenciados existen | hook + gate `validar` | `validar` | `vp_ids` | ídem |
+| `vp_nombres` | Nombres como en la story bible | hook + gate `validar` | `validar` | `vp_nombres` | ídem |
+| `vp_prohibidas` | Términos vetados en tres niveles, con auditoría | hook + gate `validar`; `prohibidas comprobar` a mano | `validar` | `vp_prohibidas` en `checkpoint`; `guardrail_prohibidas` en `validar` | `guardrails.md` |
+| `vp_cobertura` | Cada elemento del brief aparece en algún capítulo | gate: `checkpoint`, `auditar` | `auditar` | `vp_cobertura` (fracción) | `validators.md` §3.10 |
+| Plan | Escaleta y fichas; ficha de canon por personaje del plan | gate `validar-plan` en `/novela-nueva` | reintento del `trazador` | — | `novela-nueva.md` |
+| Continuidad | Capítulo contra hechos, línea temporal y canon | rol `continuista` | gate de revisión | `continuidad` | `architecture.md` §2.1 |
+| Estilo | Capítulo contra `canon/estilo.md` | rol `editor-estilo` | no bloquea, corrige | `estilo` | ídem |
+| Tensión y fair play | Curva, fair play, coherencia | rol `lector-suspense` | gate de revisión | `tension`, `fair_play`, `coherencia` | ídem |
+| Longitud relativa | `1 − \|palabras/objetivo − 1\|` | gate `checkpoint` | no bloquea | `longitud` | `architecture.md` §10.5 |
+| Delta | Esquema, cita literal, custodia, invariantes narrativos | gate `aplicar-delta` | `aplicar-delta` | — | `architecture.md` §7.6 |
+| Policy de escritura y lectura | Quién escribe y lee dónde; misterio y base intocables | hook `PreToolUse` + `deny` | la herramienta | — (log `policy.jsonl`) | `architecture.md` §7.1 |
+| Validación del brief | Esquema, faltantes, contradicciones, procedencia literal | gate `novela brief validar` | `/novela-nueva --brief` | — (sin trazado: datos personales) | `architecture.md` §8 |
+| Auditoría | Pistas huérfanas, hilos sin cerrar, fair play | gate `novela auditar` | exportar | — | `architecture.md` §8 |
+| `lean_cronologia` | Orden, edad, ubicuidad y exclusión en Lean 4 | gate `verificar-lean` en `/novela-auditar` | exportar: intervención | `lean_cronologia`, `lean_<invariante>` | `formal/lean.md` |
+| `juez_*` | Continuidad, tono, arco, personajes, ritmo, personalización | rol `juez` + gate `novela juicio` en `/novela-auditar` | exportar: bajo el umbral, intervención | `juez_<criterio>` | `evaluacion/juez.md` |
+| Acuerdo humano | Revisión humana contra el juez, criterio a criterio | `novela comparar-juicios`, a mano | no bloquea | `juez_acuerdo_humano` | ídem |
+| `visual_lectura` | Portada, dedicatoria, índice, navegación y ficha en navegador | skill `validar-visual` (Playwright MCP) + `novela registrar-visual` | no bloquea | `visual_lectura` | `validacion-visual.md` |
+| `prosa_*` | Repeticiones, legibilidad, léxico y estilo | `novela lint-prosa` a mano; LSP al editar | no bloquea, informa | `prosa_repeticiones`, `prosa_legibilidad`, `prosa_lexico`, `prosa_estilo` | `linters-prosa.md` |
+| TLC | Nada se publica sin validar; reanudación sin pérdida; terminación | `test_tla.py` en `uv run pytest`, si hay java; no en CI | no bloquea | — | `formal/tla.md` |
 
 El catálogo de los `vp_*` está en `backend/novela/dominio/validadores.py`, y un test comprueba
-que coincide con `docs/validators.md` §3.10. Los puntos exactos de lo que añaden otras ramas son
-los de su documentación.
+que coincide con `docs/validators.md` §3.10. Los que no son del catálogo están en §3.11.

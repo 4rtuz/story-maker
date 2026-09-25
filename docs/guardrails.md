@@ -38,6 +38,6 @@ Verificación:
 - `validacion/test_gates.py::test_prohibidas_property`: cualquier nivel, en cualquier línea, deja un solo hallazgo con término, nivel y línea.
 - `prohibidas/test_prohibidas.py`: de punta a punta con el CLI, un caso por nivel (global, cliente desde el brief, novela añadida), auditoría append-only, score, capítulo limpio sin tocar la base, y `comprobar` sin reescribir.
 - `tests/test_hook.py`: el log del workspace, el del proyecto y un log que no se puede escribir.
-- `tests/test_contratos.py::test_tabla_de_validadores`: esta tabla y la de `docs/validators.md` §3.10 cubren juntas el catálogo.
+- `tests/test_contratos.py::test_tabla_de_validadores`: la tabla de `docs/validators.md` §3.10, que también lleva esta fila, coincide con el catálogo.
 
 ---

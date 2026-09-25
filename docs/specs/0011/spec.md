@@ -1,7 +1,8 @@
 ---
 id: 0011
 titulo: Juzgar cada capítulo con una rúbrica versionada y revisarla con la misma plantilla humana
-estado: Propuesta
+estado: descartada
+motivo: "implementada de otra forma sin seguirla: el rol es juez, puntúa la novela terminada en /novela-auditar y no cada capítulo, con qa/juicio.json y la rúbrica rubrica-1 (docs/evaluacion/juez.md)"
 version: 2
 fecha: 2026-09-24
 specs_relacionadas: [0001, 0002, 0003, 0005, 0006, 0007, 0009, 0010]

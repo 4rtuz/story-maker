@@ -1,7 +1,8 @@
 ---
 id: 0010
 titulo: Validar visualmente la novela con un navegador MCP y devolver el fallo al rol que lo causa
-estado: Propuesta
+estado: descartada
+motivo: "implementada de otra forma sin seguirla: sin rol revisor-visual ni gate en el bucle; una skill de desarrollo (validar-visual) con Playwright MCP y novela registrar-visual, sin bloquear (docs/validacion-visual.md)"
 version: 2
 fecha: 2026-09-24
 specs_relacionadas: [0001, 0002, 0003, 0004, 0005, 0006, 0007, 0008, 0009]

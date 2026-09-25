@@ -6,7 +6,7 @@ Documentación de referencia, solo cuando la necesites: `docs/architecture.md` (
 
 ## Qué es este proyecto
 
-Un sistema multiagente que escribe una novela de suspense completa a partir de una idea inicial. Los roles se reparten el trabajo: `arquitecto`, `trazador`, `escritor`, `continuista`, `editor-estilo`, `lector-suspense` y `cronista`, y en una novela de regalo, antes, el `entrevistador`. Un orquestador los invoca en un bucle por capítulo y aplica gates de calidad entre paso y paso.
+Un sistema multiagente que escribe una novela de suspense completa a partir de una idea inicial. Los roles se reparten el trabajo: `arquitecto`, `trazador`, `escritor`, `continuista`, `editor-estilo`, `lector-suspense` y `cronista`, y en una novela de regalo, antes, el `entrevistador`. Un orquestador los invoca en un bucle por capítulo y aplica gates de calidad entre paso y paso. Con la novela terminada, el `juez` la puntúa con una rúbrica antes de exportar.
 
 ## Monorepo
 
@@ -91,6 +91,15 @@ novela brief preparar <slug>                         briefing del entrevistador
 novela brief validar <slug>                          informe y, si valida, brief.json
 novela cambio <slug> --hecho <hec> --texto "..." [--simular]   versión nueva; --siguiente: qué toca
 novela versiones <slug> [--novedades | --verificar | --diff vA vB --capitulo N]   solo lectura
+novela verificar-lean <slug>          cronología en Lean 4: el gate formal de /novela-auditar
+novela juicio <slug>                  valida qa/juicio.json del juez; sale con 1 bajo el umbral
+novela comparar-juicios <slug> --humano <f>   revisión humana contra el juez
+novela prohibidas añadir|listar|comprobar <slug>   guardrail de palabras prohibidas
+novela lint-prosa <slug> [<cap>]      linters de prosa, informativos
+novela registrar-visual <slug> --fichero <f>   informe de la validación visual
+novela costes <slug>                  tokens, coste y latencia desde Langfuse
+novela traza <slug> <paso>            traza del paso en la sesión de la novela; imprime el traceparent
+novela prompts publicar               sube .claude/agents/*.md a Langfuse con el sha
 ```
 
 Ejecuta `novela validar` antes de invocar a ningún agente de revisión: detecta gratis lo que no merece una llamada a un modelo.
