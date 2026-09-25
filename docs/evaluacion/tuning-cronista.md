@@ -83,3 +83,10 @@ Lectura:
 cd backend
 uv run python ../docs/evaluacion/tuning-cronista/puntuar.py <delta.json> ../novelas/eval-b2-nino/capitulos/02.md
 ```
+
+## Coste del cambio (Langfuse, `ejemplo-carmen`)
+
+El cronista con sonnet cuesta más por capítulo: 0,16–0,30 USD en los capítulos 1–2 (haiku) frente a
+0,61–0,76 USD en los capítulos 3–10 (sonnet), unos +0,40 USD por capítulo, +4 USD por novela sobre
+24,52 USD. A cambio, los intentos de `aplicar-delta` por capítulo bajan de 2,5 a 1,125 y no hubo más
+intervenciones por citas. Detalle por rol en [costes-ejemplo-carmen.md](costes-ejemplo-carmen.md).
