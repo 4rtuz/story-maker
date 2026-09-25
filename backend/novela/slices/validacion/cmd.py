@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from novela.dominio import frontmatter
 from novela.dominio.artefactos import FrontmatterCapitulo
+from novela.dominio.brief import Brief
 from novela.dominio.canon import Misterio, Personaje
 from novela.dominio.plan import FichaCapitulo
 from novela.dominio.prohibidas import Coincidencia, buscar
@@ -23,14 +24,36 @@ from novela.plataforma.workspace import WorkspaceRepository, sha256
 from novela.slices.validacion import gates
 
 
+def formas(ws: WorkspaceRepository) -> tuple[gates.FormaCanonica, ...]:
+    """Nombre y alias de cada ficha de canon/personajes/ y, al final, el destinatario del brief
+    si lo hay: lo que compara vp_nombres. También lo lee el LSP (novela/lsp/)."""
+    # Enteros, no solo el nombre del fichero: vp_nombres necesita nombre y alias. Uno inválido
+    # sale con 4, como cualquier artefacto del canon.
+    fichas = sorted(ws.raiz.glob("canon/personajes/*.md"))
+    personajes = [(ruta.stem, ws.leer_md(ruta, Personaje)) for ruta in fichas]
+    brief = ws.raiz / "brief" / "brief.json"
+    destinatario = (
+        [
+            gates.FormaCanonica(
+                "destinatario",
+                ws.leer_json(brief, Brief).destinatario.nombre.valor,
+                "brief/brief.json",
+            )
+        ]
+        if brief.is_file()
+        else []
+    )
+    return tuple(
+        gates.FormaCanonica(p.identidad.id, texto, f"canon/personajes/{id_}.md")
+        for id_, p in personajes
+        for texto in (p.identidad.nombre, *p.identidad.alias)
+    ) + tuple(destinatario)
+
+
 def _contexto(ws: WorkspaceRepository, capitulo: int) -> gates.Contexto:
     raiz = ws.raiz
     ficha = ws.leer_md(raiz / "plan" / "capitulos" / f"{ws.nn(capitulo)}.md", FichaCapitulo)
     misterio = ws.leer_md(raiz / "canon" / "misterio.md", Misterio)
-    # Enteros, no solo el nombre del fichero: vp_nombres necesita nombre y alias. Uno inválido
-    # sale con 4, como cualquier artefacto del canon.
-    fichas = {p.stem: p for p in raiz.glob("canon/personajes/*.md")}
-    personajes = [ws.leer_md(fichas[id_], Personaje) for id_ in sorted(fichas)]
     with estado_db.abrir(ws.estado_db, solo_lectura=True) as conn:
         hilos = estado_db.leer(conn).hilos
     # Abiertos al empezar el capítulo, aunque su delta ya se haya aplicado.
@@ -43,14 +66,10 @@ def _contexto(ws: WorkspaceRepository, capitulo: int) -> gates.Contexto:
         capitulo=capitulo,
         palabras=ws.config().parametros_obra.palabras_por_capitulo,
         ficha=ficha,
-        personajes=frozenset(fichas),
+        personajes=frozenset(p.stem for p in raiz.glob("canon/personajes/*.md")),
         pistas=frozenset(p.id for p in misterio.pistas),
         hilos_abiertos=abiertos,
-        formas=tuple(
-            gates.FormaCanonica(p.identidad.id, texto, f"canon/personajes/{id_}.md")
-            for id_, p in zip(sorted(fichas), personajes, strict=True)
-            for texto in (p.identidad.nombre, *p.identidad.alias)
-        ),
+        formas=formas(ws),
     )
 
 

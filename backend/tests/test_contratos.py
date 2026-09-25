@@ -423,12 +423,7 @@ def _tabla_de_validadores(
 def test_tabla_de_validadores() -> None:
     """CA-19 (spec 0009, RF-19): la tabla de §3.10 nombra los validadores del catálogo con sus
     puntos; con una fila borrada o un punto cambiado, deja de coincidir."""
-    # vp_prohibidas se documenta aparte, con su tabla en el mismo formato (docs/guardrails.md).
-    guardrails = (RAIZ_REPO / "docs" / "guardrails.md").read_text(encoding="utf-8")
-    aparte = _tabla_de_validadores(guardrails, "## Validadores y verificadores")
-    assert [n for n, _ in aparte] == ["vp_prohibidas"]
-    catalogo = [(v.nombre, v.puntos) for v in VALIDADORES if (v.nombre, v.puntos) not in aparte]
-    assert len(catalogo) == len(VALIDADORES) - 1
+    catalogo = [(v.nombre, v.puntos) for v in VALIDADORES]
     texto = (RAIZ_REPO / "docs" / "validators.md").read_text(encoding="utf-8")
     assert _tabla_de_validadores(texto) == catalogo
     sin_fila = re.sub(r"\n\| `vp_hilos` [^\n]*", "", texto)

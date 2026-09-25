@@ -1,7 +1,8 @@
 ---
 id: 0014
 titulo: Evaluar el sistema con cinco briefs de prueba, una tabla por validador y una iteración de tuning documentada
-estado: Propuesta
+estado: descartada
+motivo: "la evaluación se hizo sin seguir la spec: docs/evaluacion/"
 version: 2
 fecha: 2026-09-24
 specs_relacionadas: [0002, 0003, 0005, 0009, 0011, 0012]

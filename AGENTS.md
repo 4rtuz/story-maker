@@ -6,7 +6,7 @@ Documentación de referencia, solo cuando la necesites: `docs/architecture.md` (
 
 ## Qué es este proyecto
 
-Un sistema multiagente que escribe una novela de suspense completa a partir de una idea inicial. Los roles se reparten el trabajo: `arquitecto`, `trazador`, `escritor`, `continuista`, `editor-estilo`, `lector-suspense` y `cronista`, y en una novela de regalo, antes, el `entrevistador`. Un orquestador los invoca en un bucle por capítulo y aplica gates de calidad entre paso y paso.
+Un sistema multiagente que escribe una novela de suspense completa a partir de una idea inicial. Los roles se reparten el trabajo: `arquitecto`, `trazador`, `escritor`, `continuista`, `editor-estilo`, `lector-suspense` y `cronista`, y en una novela de regalo, antes, el `entrevistador`. Un orquestador los invoca en un bucle por capítulo y aplica gates de calidad entre paso y paso. Con la novela terminada, el `juez` la puntúa con una rúbrica antes de exportar.
 
 ## Monorepo
 
@@ -20,7 +20,7 @@ Dos carpetas grandes. Todo lo demás en la raíz es compartido.
 Reglas:
 
 - El backend es lo único que toca `novelas/<slug>/`. El frontend nunca lee el disco: pasa por la API.
-- La API **no escribe en ningún workspace**. Sus únicos `POST` son los de `/lanzamientos`, que lanzan `novela producir` en segundo plano; mutar sigue siendo trabajo del CLI. Si hace falta escribir, se añade un subcomando al CLI y, si el panel debe dispararlo, un paso de `producir`, nunca una orden libre.
+- La API **no escribe en ningún workspace**. Sus únicos `POST` son los de `/lanzamientos`, que lanzan `novela producir` en segundo plano; mutar sigue siendo trabajo del CLI. La única otra orden es la tool MCP `request_change`, apagada salvo con `STORY_MAKER_MCP_ESCRITURA=1`, solo por loopback, que simula `novela cambio` y lo aplica tras confirmación (`docs/mcp.md`). Si hace falta escribir, se añade un subcomando al CLI y, si el panel debe dispararlo, un paso de `producir`, nunca una orden libre.
 - `/lanzamientos` ejecuta `claude` sin preguntar: solo admite loopback, `Host` local y `Origin` del panel, cuerpo JSON validado, y un lanzamiento a la vez. No relajes esas guardas; sus tests están en `backend/tests/test_lanzamientos.py`.
 - Los modelos Pydantic de `backend/novela/dominio/` son también los de respuesta de la API. Una sola ontología.
 - FastAPI no contradice el «nunca añadir un SDK de API»: esa regla es sobre proveedores de modelos, y la API no llama a ninguno.
@@ -91,6 +91,15 @@ novela brief preparar <slug>                         briefing del entrevistador
 novela brief validar <slug>                          informe y, si valida, brief.json
 novela cambio <slug> --hecho <hec> --texto "..." [--simular]   versión nueva; --siguiente: qué toca
 novela versiones <slug> [--novedades | --verificar | --diff vA vB --capitulo N]   solo lectura
+novela verificar-lean <slug>          cronología en Lean 4: el gate formal de /novela-auditar
+novela juicio <slug>                  valida qa/juicio.json del juez; sale con 1 bajo el umbral
+novela comparar-juicios <slug> --humano <f>   revisión humana contra el juez
+novela prohibidas añadir|listar|comprobar <slug>   guardrail de palabras prohibidas
+novela lint-prosa <slug> [<cap>]      linters de prosa, informativos
+novela registrar-visual <slug> --fichero <f>   informe de la validación visual
+novela costes <slug>                  tokens, coste y latencia desde Langfuse
+novela traza <slug> <paso>            traza del paso en la sesión de la novela; imprime el traceparent
+novela prompts publicar               sube .claude/agents/*.md a Langfuse con el sha
 ```
 
 Ejecuta `novela validar` antes de invocar a ningún agente de revisión: detecta gratis lo que no merece una llamada a un modelo.
@@ -105,6 +114,7 @@ esc-casa-del-faro escenario       pfa-003   pista falsa
 esc-01-3          escena          rev-002   revelación
 hil-004           hilo            hec-014   hecho
 obj-011           objeto o prueba cap-01    capítulo
+                                  evt-03-2  evento de la cronología
 cam-001           cambio
 ```
 
@@ -225,7 +235,7 @@ El CLI no accede a la red salvo para emitir scores a Langfuse.
 ## Nunca
 
 - Añadir un proveedor de modelos, un gateway o un SDK de API de modelos. Todo corre sobre la suscripción de Claude Code.
-- Dar al frontend acceso directo al workspace, o a la API capacidad de escribir en él o de ejecutar algo distinto de `novela producir`.
+- Dar al frontend acceso directo al workspace, o a la API capacidad de escribir en él o de ejecutar algo distinto de `novela producir` y, tras confirmación, `novela cambio`.
 - Escribir claves en ficheros versionados.
 - Dejar prosa dentro de un fichero que el contrato define como JSON.
 - Ampliar `CLAUDE.md` o este fichero sin necesidad: se cargan en cada sesión y en cada subagente, y cada línea se paga muchas veces.

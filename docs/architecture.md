@@ -39,6 +39,10 @@ Este documento describe **cómo se implementa** la ontología definida en `docs/
 | Backend | Python 3.12 + FastAPI | API de lectura sobre el workspace y lanzamiento de `novela producir`; reutiliza los modelos Pydantic del CLI |
 | Frontend | Vite + TypeScript + Three.js | Consume la API del backend; sin lógica de negocio |
 | Export | `markdown-it-py` + `ebooklib` + `fpdf2` | Salida a `.md` único, `.epub` y el libro de regalo en `.pdf` con DejaVu Serif embebida en subconjunto (ADR 0003). markdown-it convierte a XHTML para el epub y da los tokens que compone el PDF |
+| MCP | FastMCP, en la API (`/mcp/`) y por stdio | Consultar y descargar novelas desde un cliente MCP; `request_change` opcional (`docs/mcp.md`) |
+| LSP | `pygls`, por stdio | Diagnósticos al editar un capítulo a mano (`docs/lsp.md`) |
+| Verificación formal | Lean 4 (`formal/lean/`) y TLA+ con TLC (`formal/tla/`) | La cronología de cada novela en `verificar-lean`; el procedimiento del harness, en desarrollo (`docs/formal/`) |
+| Validación visual | Playwright MCP (`.mcp.json`) | La lectura web en un navegador real, desde una sesión de desarrollo (`docs/validacion-visual.md`) |
 
 Fuera del stack, explícitamente: API de Anthropic, OpenRouter, Claude Agent SDK, LiteLLM o cualquier gateway de modelos. Nada de eso hace falta. FastAPI no es una excepción a esa regla: no llama a ningún modelo, solo sirve ficheros del workspace al frontend.
 
@@ -86,6 +90,8 @@ El `cronista` queda fuera del abanico y se invoca **después** de evaluar los ga
 
 El primero descarta lo que no merece una llamada a un modelo: longitud fuera de rango, frontmatter inválido, pista planificada ausente, hilo que se cierra sin haberse abierto. Ejecutarlo antes de delegar en los revisores no es una optimización, es la regla.
 
+Fuera del bucle por capítulo hay más gates. En `/novela-nueva`, `novela validar-plan` tras el `trazador`. En `/novela-auditar`, `novela auditar`, `novela verificar-lean` y el `juez` con `novela juicio`: los dos últimos, si fallan, piden intervención y no exportan (`docs/validators.md` §3.11).
+
 Los hallazgos del `editor-estilo` no son gate: se aplican, no bloquean. Un capítulo con prosa mejorable avanza; uno que contradice un hecho establecido, no.
 
 **Reintentos.** Máximo dos por gate. El reintento vuelve al `escritor` con el informe de QA como única entrada nueva: nunca un «está mal» genérico y nunca el capítulo entero de vuelta por el canal de conversación, que el agente ya sabe leer su propio fichero. Al tercer fallo el bucle escribe `runs/<run_id>/intervencion.md` y para. Dos formas distintas de fallar agotan el presupuesto igual que la misma dos veces: si un capítulo necesita tres intentos, el problema no está en el capítulo.
@@ -99,13 +105,16 @@ Sin acceso a `temperature`, el único parámetro de control que queda es el mode
 | Agente | `model` | Motivo |
 |---|---|---|
 | `arquitecto` | opus | Una sola invocación, máximo impacto sobre todo lo demás |
-| `trazador` | opus | La distribución de pistas condiciona la novela entera |
+| `trazador` | haiku | Coste (`a414903`, sin medir); `validar-plan` es su gate |
 | `escritor` | opus | La prosa es el producto |
-| `continuista` | sonnet | Verificación contra hechos; el rigor lo da el prompt y el esquema de salida |
-| `editor-estilo` | sonnet | Corrige contra párrafos canónicos |
-| `lector-suspense` | sonnet | Puntuaciones estructuradas |
-| `cronista` | haiku | Extracción mecánica; el agente más barato del bucle |
+| `continuista` | haiku | Coste (`a414903`, sin medir); el rigor lo da el prompt y el esquema de salida |
+| `editor-estilo` | haiku | Coste (`a414903`, sin medir); corrige contra párrafos canónicos |
+| `lector-suspense` | haiku | Coste (`a414903`, sin medir); puntuaciones estructuradas |
+| `cronista` | sonnet | Con haiku, 16 de 46 citas no eran literales; con sonnet, ninguna (`docs/evaluacion/tuning-cronista.md`) |
 | `entrevistador` | sonnet | Fuera del bucle, en la fase de brief: estructura y cita; el CLI verifica cada cita |
+| `juez` | sonnet | Fuera del bucle, en `/novela-auditar`: puntúa la obra entera con la rúbrica (`docs/evaluacion/juez.md`) |
+
+El historial de cada cambio de modelo está en `docs/proceso/iteraciones.md`.
 
 La variación creativa que antes se buscaba con temperatura alta se compensa por prompt: el `escritor` recibe en su briefing una restricción de apertura distinta por capítulo (con qué tipo de frase empieza, qué registro domina la primera escena) para evitar que 24 capítulos abran igual. Es la mitigación disponible y conviene medir si basta.
 
@@ -116,17 +125,20 @@ El bucle puede correr sin supervisión invocando Claude Code en modo headless, e
 ```bash
 export MSYS_NO_PATHCONV=1                 # sin esto, "/novela-continuar" llega como ruta de Windows
 export CC_LANGFUSE_TRACE_TAGS=<slug>
+export NOVELA_SLUG=<slug>                 # regla 6 del hook: cada rol lee solo su novela
+export CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS=30000   # sin esto, -p pierde el último turno
 novela comprobar-entorno || exit 1
 while novela pendiente <slug>; do
   antes=$(cat novelas/<slug>/checkpoints/latest.json 2>/dev/null)
   export NOVELA_SESSION_ID=$(python -c "import uuid; print(uuid.uuid4())")
+  export CC_LANGFUSE_TRACEPARENT=$(novela traza <slug> /novela-continuar)   # docs/observabilidad.md
   claude -p "/novela-continuar <slug> --capitulos 1" --session-id "$NOVELA_SESSION_ID" \
     --setting-sources project,local --permission-mode dontAsk --model opus || break
   [ "$(cat novelas/<slug>/checkpoints/latest.json 2>/dev/null)" != "$antes" ] || break
 done
 ```
 
-Un capítulo por sesión mantiene el contexto del orquestador pequeño y acota el daño de un fallo. El `|| break` es deliberado: ante un error, el sistema para y deja el checkpoint, no insiste. `novela comprobar-entorno` para antes de la primera sesión, y la última línea para el bucle si una sesión termina sin avanzar el checkpoint: un permiso que falte o una confianza no aceptada no se convierten en sesiones sin fin que gastan cuota. `--setting-sources project,local` deja fuera los plugins y hooks del ámbito de usuario, y `--model opus` fija el modelo del orquestador. Las sesiones interactivas del harness se abren igual de aisladas y con `NOVELA_SESSION_ID`, para que la regla 5 del hook y la correlación del log valgan también en ellas.
+Un capítulo por sesión mantiene el contexto del orquestador pequeño y acota el daño de un fallo. El `|| break` es deliberado: ante un error, el sistema para y deja el checkpoint, no insiste. `novela comprobar-entorno` para antes de la primera sesión, y la última línea para el bucle si una sesión termina sin avanzar el checkpoint: un permiso que falte o una confianza no aceptada no se convierten en sesiones sin fin que gastan cuota. `--setting-sources project,local` deja fuera los plugins y hooks del ámbito de usuario, y `--model opus` fija el modelo del orquestador. `novela traza` cuelga cada sesión de una traza de la novela en Langfuse: una sesión de Claude Code por capítulo, una sesión de Langfuse por novela (§10.2). `novela producir` hace lo mismo desde el panel. Las sesiones interactivas del harness se abren igual de aisladas y con `NOVELA_SESSION_ID`, para que la regla 5 del hook y la correlación del log valgan también en ellas.
 
 ### 2.4 Higiene de contexto de la sesión orquestadora
 
@@ -188,8 +200,14 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   ├── validators.md             # metodos de verificacion y riesgos aceptados
 │   ├── specs/                    # un fichero por cambio concreto, antes de existir
 │   │   └── _plantilla.md
-│   └── adr/
-│       └── 0001-orquestador-en-claude-code.md
+│   ├── adr/
+│   │   └── 0001-orquestador-en-claude-code.md
+│   ├── evaluacion/               # juez, revisión humana, costes y tuning
+│   ├── formal/                   # lean.md y tla.md
+│   └── proceso/                  # índice de toda la documentación: proceso/README.md
+│
+├── formal/                       # lean/ (proyecto Lean 4 de la cronología) y tla/ (modelo del harness)
+├── .mcp.json                     # servidores MCP de desarrollo: story-maker y Playwright
 │
 ├── .claude/                      # compartido; vive en la raíz del monorepo
 │   ├── settings.json             # permisos y registro de los hooks; ni claves ni plugins, ver §7.1
@@ -202,12 +220,14 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   ├── editor-estilo.md
 │   │   ├── lector-suspense.md
 │   │   ├── cronista.md
-│   │   └── entrevistador.md      # fase de brief de una novela de regalo
+│   │   ├── entrevistador.md      # fase de brief de una novela de regalo
+│   │   └── juez.md               # rúbrica sobre la novela terminada, en novela-auditar
 │   ├── commands/                 # los procedimientos del orquestador
 │   │   ├── novela-brief.md       # la entrevista, antes de novela-nueva --brief
 │   │   ├── novela-nueva.md
 │   │   ├── novela-continuar.md   # el bucle por capítulo
 │   │   └── novela-auditar.md
+│   ├── skills/                   # de desarrollo: validar-visual, auditoria-seguridad, novela-regalo
 │   └── hooks/
 │       ├── denegar-escritura-estado.py   # PreToolUse sobre estado/, ver §7.1
 │       └── validar-capitulo.py   # PostToolUse sobre capitulos/NN.md, ver §7.1
@@ -218,9 +238,11 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │
 │   ├── api/                      # FastAPI; lectura y /lanzamientos, ver §11.1
 │   │   ├── main.py               # app + CORS para el dev server de Vite
-│   │   └── routers/
-│   │       ├── novelas.py
-│   │       └── capitulos.py
+│   │   ├── routers/
+│   │   │   ├── novelas.py
+│   │   │   ├── capitulos.py      # también /libro
+│   │   │   └── lanzamientos.py
+│   │   └── mcp/                  # servidor FastMCP, en /mcp/ y por stdio (docs/mcp.md)
 │   │
 │   ├── novela/                   # CLI determinista; cero llamadas a modelo
 │   │   ├── cli.py                # Typer: solo registra el cmd.py de cada slice
@@ -236,6 +258,13 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │   ├── auditoria/        # pistas huérfanas, hilos abiertos
 │   │   │   ├── entorno/          # comprobar-entorno: hooks, python, settings.local.json, .env
 │   │   │   ├── presupuesto/      # ventana de uso y degradación
+│   │   │   ├── plan/             # validar-plan
+│   │   │   ├── formal/           # verificar-lean (docs/formal/lean.md)
+│   │   │   ├── juicio/           # juicio y comparar-juicios (docs/evaluacion/juez.md)
+│   │   │   ├── prohibidas/       # guardrail de palabras prohibidas (docs/guardrails.md)
+│   │   │   ├── prosa/            # lint-prosa (docs/linters-prosa.md)
+│   │   │   ├── visual/           # registrar-visual (docs/validacion-visual.md)
+│   │   │   ├── observabilidad/   # costes, traza y prompts publicar (docs/observabilidad.md)
 │   │   │   └── export/           # cmd.py · markdown.py · epub.py · pdf.py · ficha.py · fuentes/
 │   │   │
 │   │   ├── dominio/              # la ontología como código; sin I/O, sin framework
@@ -248,6 +277,8 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │   ├── version.py        # PeticionDeCambio, Version, RegistroDeVersiones (spec 0007)
 │   │   │   └── qa.py
 │   │   │
+│   │   ├── lsp/                  # servidor LSP de edición manual (docs/lsp.md)
+│   │   │
 │   │   └── plataforma/           # los dos puertos y sus adaptadores
 │   │       ├── workspace.py      # WorkspaceRepository
 │   │       ├── esquema.sql       # DDL de estado.db: tablas y triggers append-only
@@ -259,7 +290,10 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │
 │   ├── config/
 │   │   ├── default.yaml          # valores por defecto de parametros_obra
-│   │   └── recipes.yaml          # qué entra en el briefing de cada agente
+│   │   ├── recipes.yaml          # qué entra en el briefing de cada agente
+│   │   ├── rubrica.yaml          # la rúbrica versionada del juez
+│   │   ├── prosa.yaml            # listas de lint-prosa
+│   │   └── prohibidas-globales.txt   # nivel global del guardrail
 │   │
 │   ├── schemas/                  # JSON Schema generados desde Pydantic, versionados
 │   │   ├── config.schema.json
@@ -349,8 +383,16 @@ novelas/<slug>/
 │   └── 02.md
 │
 ├── qa/
+│   ├── 01-validacion.json        # CLI: novela validar
 │   ├── 01-continuidad.json
-│   └── 01-suspense.json
+│   ├── 01-suspense.json
+│   ├── 01-prosa.json             # CLI: lint-prosa, informativo
+│   ├── lean.json                 # CLI: verificar-lean
+│   ├── juicio.json               # juez; lo valida novela juicio
+│   └── visual.json               # CLI: registrar-visual
+│
+├── auditoria/
+│   └── policy.jsonl              # hook: una línea por denegación (docs/guardrails.md)
 │
 ├── checkpoints/
 │   ├── 01.json                   # cursor, versiones, run_id y capitulos_sha256 (el sello)
@@ -607,13 +649,18 @@ Una tabla queda fuera de la vista serializada: `apariciones (entidad, tipo, capi
 
 Otra, con el mismo trato (spec 0007): `usos_de_hecho (hecho, capitulo, via)`, `STRICT`, con `via` en `origen | conocimiento | lector | cita`, clave `(hecho, capitulo, via)` —la consulta hecho→capítulos usa su índice—, índice por capítulo y triggers append-only. `aplicar-delta` la deriva del delta en la transacción de `guardar` (`libro_de_hechos`, `conocimiento`, `conocimiento_lector` y `hechos_usados`, §7.6) con `INSERT OR IGNORE`, y `asegurar_usos` la crea en una base anterior sin rellenar los capítulos ya aplicados. Se consulta con `estado_db.usos` y `estado_db.capitulos_que_usan`, que lanzan `EstadoIlegible` sin la tabla. `meta` guarda además `version` (la edición, 1 si falta) y `cambio` (el `cam-NNN` que la abrió), que escribe `novela cambio` al instalar la base vacía de la versión nueva.
 
-Refuerzo adicional, preventivo en lugar de detectivo: el hook `PreToolUse` de `.claude/hooks/denegar-escritura-estado.py`, registrado en `.claude/settings.json` para `Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Agent|Task`. Un agente que lo intente no llega a escribir, en vez de descubrirse después de haberlo hecho. Deniega con exit 2, también ante una entrada que no entiende, porque cualquier otro código deja pasar la acción:
+Dos bloques más, también aditivos (`IF NOT EXISTS`) y fuera de la vista serializada. `cronologia (evento, capitulo, momento, duracion_min, lugar, tras, cita)` y `cronologia_personajes (evento, personaje, papel, edad)`, append-only: los eventos datados que el `cronista` trae en `Delta.cronologia` y `aplicar-delta` registra, para `verificar-lean` (`docs/formal/lean.md`). Y el guardrail (`docs/guardrails.md`): `prohibidas (termino, nivel)`, con nivel `global | cliente | novela`, y `auditoria_policy`, append-only, una fila por decisión del guardrail. Estas dos no son estado de la trama: las escribe `policy_db`, no `aplicar-delta`.
+
+Refuerzo adicional, preventivo en lugar de detectivo: el hook `PreToolUse` de `.claude/hooks/denegar-escritura-estado.py`, registrado en `.claude/settings.json` para `Write|Edit|MultiEdit|NotebookEdit|Read|Bash|PowerShell|Agent|Task`. Un agente que lo intente no llega a escribir, en vez de descubrirse después de haberlo hecho. Deniega con exit 2, también ante una entrada que no entiende, porque cualquier otro código deja pasar la acción:
 
 1. Cualquier escritura bajo `novelas/*/estado/` salvo `estado/deltas/NN.json`, que es la salida del `cronista`. La ruta se normaliza antes de comparar —contra `cwd`, sin `..`, sin mayúsculas, sin el prefijo `\\?\` ni los puntos y espacios finales que Win32 quita al escribir— y lo que no sabe normalizar, como un flujo alternativo, se deniega.
-2. A cada rol de `.claude/agents/`, cualquier escritura fuera de sus salidas de §7.5.
+2. A cada rol de `.claude/agents/`, cualquier escritura fuera de sus salidas de §7.5 y, con `NOVELA_SLUG` definida, fuera de su novela.
 3. A la sesión principal, cualquier escritura en el workspace salvo `runs/*/intervencion.md`.
 4. Toda orden `Bash` o `PowerShell` que nombre `canon/…misterio` o `estado.db`.
 5. Con `NOVELA_SESSION_ID` definida, que solo exportan el bucle y las sesiones del harness, cualquier subagente que no sea uno de los roles o el `canario` de `validators.md` §4.9.
+6. A cada rol, cualquier `Read` fuera de `novelas/<slug>/` (con `NOVELA_SLUG`, solo la suya) y de `backend/schemas/`, salvo `backend/config/rubrica.yaml` para el `juez`; siempre `canon/misterio.md`; y al `escritor` y al `editor-estilo`, un `qa/*.json` que comparta ocho palabras seguidas con el misterio (`docs/security-report.md` S-02).
+
+El hook solo mira el campo de la ruta o de la orden, nunca el `tool_input` entero. Cada denegación deja una línea JSON en `novelas/<slug>/auditoria/policy.jsonl`, o en `.claude/logs/policy.jsonl` si la ruta no cae en un workspace (`docs/guardrails.md`).
 
 Debajo quedan los `deny` de `settings.json` sobre `estado.db*`, `state.lock` y `sqlite3`, y los triggers, que cubren lo que el hook no normaliza: nombres cortos 8.3, uniones y enlaces simbólicos.
 
@@ -692,7 +739,7 @@ model: opus
 
 | Agente | `tools` | Por qué |
 |---|---|---|
-| `arquitecto`, `trazador`, `escritor`, `continuista`, `lector-suspense`, `cronista`, `entrevistador` | `Read, Write` | Leen rutas que el briefing nombra y crean ficheros nuevos |
+| `arquitecto`, `trazador`, `escritor`, `continuista`, `lector-suspense`, `cronista`, `entrevistador`, `juez` | `Read, Write` | Leen rutas que el briefing nombra y crean ficheros nuevos |
 | `editor-estilo` | `Read, Edit, Write` | Único que modifica un fichero existente, `capitulos/NN.md` |
 
 Ninguno tiene `Glob`, `Grep`, `Bash`, `Task`, `Skill`, `WebFetch` ni `WebSearch`. Cada ausencia hace mecánica una regla que si no sería solo una petición en el prompt:
@@ -725,6 +772,7 @@ Qué recibe cada agente en su briefing y qué escribe. El briefing lo compone `n
 | `lector-suspense` | `capitulos/NN.md`, `canon/misterio.md`, `plan/escaleta.md`, estado (`pistas`, `conocimiento_lector`, `tension_real`); su esquema, `backend/schemas/qa-informe.schema.json` | `qa/NN-suspense.json` | Puntuaciones de tensión, fair play y previsibilidad |
 | `cronista` | `capitulos/NN.md` aprobado, estado vigente; su esquema, `backend/schemas/delta.schema.json` | `estado/deltas/NN.json` | Nº de hechos e hilos del delta (no lleva pistas, §7.6) |
 | `entrevistador` | El briefing de `novela brief preparar` (no el de `novela briefing`: no tiene receta ni está en `Agente`): ocasión, vocabularios, límites, reglas de procedencia, fragmentos marcados, borrador e informe anteriores y las entradas delimitadas; su esquema, `backend/schemas/brief-borrador.schema.json` | `brief/borrador.json` | Campos a `null` y preguntas, sin datos del destinatario |
+| `juez` | El briefing de `novela briefing <slug> <último> juez`: brief, canon sin el misterio, personajes y capítulos (o resúmenes y una muestra si no caben); `backend/config/rubrica.yaml`; su esquema, `backend/schemas/juicio.schema.json` | `qa/juicio.json` | La nota de cada criterio, sin datos del destinatario |
 
 `estado/deltas/NN.json` es la única entrada de `novela aplicar-delta`; ningún agente escribe `estado/estado.db`.
 
@@ -807,6 +855,17 @@ novela comprobar-entorno [--limpio]   # hooks, python, settings.local.json y .en
 novela cambio <slug> --hecho <hec-id> --texto "..." [--motivo "..."] [--simular]
 novela cambio <slug> --siguiente   # NN reaplicar | NN regenerar | completo | sin cambio
 novela versiones <slug> [--novedades [--desde vN]] [--verificar] [--diff vA vB|actual --capitulo N]
+novela producir <slug> [--idea "..."]   # la novela entera, una sesión de claude por paso; sin idea, reanuda
+novela validar-plan <slug>         # escaleta y fichas; cada personaje del plan con su ficha de canon
+novela verificar-lean <slug>       # cronología en Lean 4 → qa/lean.json (docs/formal/lean.md)
+novela juicio <slug>               # valida qa/juicio.json y emite juez_<criterio>; 1 bajo el umbral
+novela comparar-juicios <slug> --humano <fichero>   # juez_acuerdo_humano (docs/evaluacion/juez.md)
+novela prohibidas añadir|listar|comprobar <slug> …  # guardrail de palabras prohibidas (docs/guardrails.md)
+novela lint-prosa <slug> [<cap>] [--stdout]         # qa/NN-prosa.json, informativo (docs/linters-prosa.md)
+novela registrar-visual <slug> --fichero <json>     # qa/visual.json y visual_lectura (docs/validacion-visual.md)
+novela costes <slug> [--json] [--markdown]          # tokens, USD y latencia desde Langfuse (docs/observabilidad.md)
+novela traza <slug> <paso>         # abre la traza del paso e imprime su traceparent
+novela prompts publicar            # sube .claude/agents/*.md a Langfuse, marcados con el sha
 ```
 
 **Entrega.** `novela exportar <slug> --formato pdf` compone el libro de regalo en `export/novela.pdf` (ADR 0003): portada con el título (`--titulo`, o el slug) y, si hay `brief/brief.json`, la dedicatoria; índice con un enlace por capítulo; cada capítulo cerrado en página nueva, con el markdown compuesto desde los tokens y sin ningún enlace saliente; y la ficha de personajes y lugares, con un enlace «Capítulo N — título» por cada fila de `apariciones` (§7.1) hasta el checkpoint. De cada personaje salen el nombre y los alias, y de cada lugar el nombre y la descripción: nada más del canon, y `canon/misterio.md` no se abre. Lleva un marcador por sección, `/Lang` del `config.yaml` y como `CreationDate` el `creado` del manifiesto del último checkpoint, así que dos exportaciones del mismo workspace dan los mismos bytes. Sale con 1 si un carácter no está en la fuente (nombra la sección y el `U+XXXX`), con 2 si `--titulo` está vacío o pasa de 120 caracteres, y con 4 si falta la tabla, si un capítulo cerrado no tiene apariciones o si una entidad no tiene canon. Antes de entregarlo, el operador lee la ficha.
@@ -815,7 +874,7 @@ novela versiones <slug> [--novedades [--desde vN]] [--verificar] [--diff vA vB|a
 Fase de brief de una novela de regalo, antes de `novela nueva`. Cada subcomando toma el lock y deja una línea en el `harness.log` del run de arranque `(1, "arranque")`, sin valores del brief ni texto de las entradas; con `config.yaml` presente, salen con 1 y «brief cerrado: la novela ya existe»:
 
 ```
-novela brief iniciar <slug> --ocasion hijo|pareja|boda|aniversario|jubilacion
+novela brief iniciar <slug> --ocasion hijo|pareja|boda|aniversario|jubilacion [--ficticio]   # ficticio: destinatario inventado
 novela brief entrada <slug> --tipo respuesta|texto-libre --fichero <ruta>   # imprime ent-NN
 novela brief preparar <slug>       # runs/<run_id>/briefings/brief-RR-entrevistador.md · N tokens
 novela brief validar <slug>        # brief/informe.json y, sin hallazgos, brief/brief.json
@@ -895,6 +954,8 @@ Esto **no** coincide con el mapa ideal de la rama 9 de la ontología (`session` 
 
 El `session_id` se fija desde fuera: el bucle genera un UUID por sesión, lo pasa como `claude --session-id` y lo exporta como `NOVELA_SESSION_ID`, y `novela` lo escribe en cada línea de `harness.log` (`sesion=<uuid>`). Cada paso del log enlaza así con su traza.
 
+**Una sesión de Langfuse por novela.** Sigue habiendo una sesión de Claude Code por paso, pero cada una cuelga de una traza que abre `novela traza <slug> <paso>` en la sesión `novela-<slug>` y que el plugin recibe por `CC_LANGFUSE_TRACEPARENT`: sesión = novela, traza = paso, span = subagente o herramienta, que es el mapa de la rama 9. `novela producir` abre una por paso; el bucle a mano, antes de cada `claude -p`. Sin `TRACE_TO_LANGFUSE` o con Langfuse caído, la sesión se traza como arriba, con la etiqueta del slug. `novela costes` lee las dos formas y da tokens, coste y latencia por paso, por rol y por novela. Detalle y evidencia: `docs/observabilidad.md`.
+
 ### 10.3 Lo que el trazado no cubre
 
 Los ficheros de contexto de sesión no se capturan: lo que `CLAUDE.md`, las skills o el contexto autocargado aportaron al system prompt efectivo queda fuera. Se ve la conversación y las llamadas a herramientas, no el contexto ensamblado.
@@ -903,13 +964,17 @@ Por eso los briefings de §6.1 no son un lujo: son el registro de contexto que L
 
 ### 10.4 Versionado de prompts
 
-Los prompts de los agentes son `.claude/agents/*.md` y se versionan con git. El manifiesto de cada run registra el sha del commit; comparar dos ejecuciones es comparar dos shas. No hace falta Langfuse Prompt Management para esto, y añadirlo introduciría una segunda fuente de verdad sobre el mismo texto.
+Los prompts de los agentes son `.claude/agents/*.md` y se versionan con git. El manifiesto de cada run registra el sha del commit; comparar dos ejecuciones es comparar dos shas.
+
+`novela prompts publicar` sube además cada fichero a Langfuse Prompt Management como prompt de texto, con el sha corto de HEAD como etiqueta, y no crea versión si el texto no cambió. Git sigue siendo la fuente de verdad: nada ejecuta el prompt desde Langfuse. Cada traza de paso lleva `sha_commit` y `prompt_<rol>` (los 12 primeros hex del sha256 del fichero), así que cada score queda con la versión que lo produjo (`docs/observabilidad.md` §5).
 
 ### 10.5 Evaluación
 
-Los scores no los emite el hook: los escribe `novela` contra la API de Langfuse al cerrar cada capítulo, tomándolos de `qa/NN-suspense.json` y del resultado de los gates. Métricas por capítulo: `coherencia`, `continuidad`, `tension`, `longitud`, `fair_play`, `estilo`. `tension`, `fair_play` y `coherencia` son las `puntuaciones` del `lector-suspense`; `continuidad` y `estilo` salen del veredicto de `qa/NN-continuidad.json` y `qa/NN-estilo.json` (1, 0,5 o 0); `longitud` es `1 − |palabras/objetivo − 1|`. Además, un score binario por validador programático (`docs/validators.md` §3.10), en el orden del catálogo: `vp_schema` es 1 si todas las salidas del capítulo validan, y `vp_longitud`, `vp_pistas`, `vp_hilos`, `vp_ids` y `vp_nombres` valen 0 si `qa/NN-validacion.json` tiene algún hallazgo de sus tipos. Sin brief no hay `vp_cobertura`. Si `vp_schema` rechaza, `checkpoint` emite solo `vp_schema` a 0 y sale con 1 sin escribir el checkpoint. Todo en una sola emisión, que para al primer fallo. Los emite `novela checkpoint` después de escribir el checkpoint, con un id por capítulo y métrica para que reemitir sustituya (`langfuse.id_de_score`: `<slug>-<run_id>-<NN>-<métrica>`, más `-vN` cuando la versión vigente es mayor que 1, para no pisar los de la anterior; spec 0007, RF-43; también el `vp_schema` a 0 del rechazo), y un fallo de Langfuse queda en `harness.log` sin impedir el cierre. Las claves, del entorno o de `.env` (§10.1).
+Los scores no los emite el hook: los escribe `novela` contra la API de Langfuse al cerrar cada capítulo, tomándolos de `qa/NN-suspense.json` y del resultado de los gates. Métricas por capítulo: `coherencia`, `continuidad`, `tension`, `longitud`, `fair_play`, `estilo`. `tension`, `fair_play` y `coherencia` son las `puntuaciones` del `lector-suspense`; `continuidad` y `estilo` salen del veredicto de `qa/NN-continuidad.json` y `qa/NN-estilo.json` (1, 0,5 o 0); `longitud` es `1 − |palabras/objetivo − 1|`. Además, un score binario por validador programático (`docs/validators.md` §3.10), en el orden del catálogo: `vp_schema` es 1 si todas las salidas del capítulo validan, y `vp_longitud`, `vp_pistas`, `vp_hilos`, `vp_ids`, `vp_nombres` y `vp_prohibidas` valen 0 si `qa/NN-validacion.json` tiene algún hallazgo de sus tipos. Sin brief no hay `vp_cobertura`. Si `vp_schema` rechaza, `checkpoint` emite solo `vp_schema` a 0 y sale con 1 sin escribir el checkpoint. Todo en una sola emisión, que para al primer fallo. Los emite `novela checkpoint` después de escribir el checkpoint, con un id por capítulo y métrica para que reemitir sustituya (`langfuse.id_de_score`: `<slug>-<run_id>-<NN>-<métrica>`, más `-vN` cuando la versión vigente es mayor que 1, para no pisar los de la anterior; spec 0007, RF-43; también el `vp_schema` a 0 del rechazo), y un fallo de Langfuse queda en `harness.log` sin impedir el cierre. Las claves, del entorno o de `.env` (§10.1).
 
-El evaluador de sesión (LLM como juez) compara ejecuciones completas y devuelve puntos a mejorar y mejoras propuestas.
+Con traza de paso, los scores van con su `traceId`; sin ella, a la sesión `novela-<slug>`.
+
+Fuera de `checkpoint`, por el mismo `ScoreSink`: `guardrail_prohibidas` desde `validar`, `juez_<criterio>` y `juez_acuerdo_humano` desde `juicio` y `comparar-juicios`, `lean_cronologia` y `lean_<invariante>` desde `verificar-lean`, `prosa_*` desde `lint-prosa` y `visual_lectura` desde `registrar-visual`. Dónde corre cada uno: `docs/validators.md` §3.11. El `juez` puntúa la obra terminada, no compara ejecuciones.
 
 ---
 
@@ -917,12 +982,14 @@ El evaluador de sesión (LLM como juez) compara ejecuciones completas y devuelve
 
 ### 11.1 Backend (`backend/`)
 
-Python 3.12. Dos caras sobre el mismo código:
+Python 3.12. Cuatro caras sobre el mismo código:
 
 - **CLI `novela`** (Typer): lo que invoca el orquestador. Es quien escribe en el workspace.
+- **Servidor LSP** (`backend/novela/lsp/`, `python -m novela.lsp` por stdio, `pygls`): diagnósticos de solo lectura sobre un `capitulos/NN.md` editado a mano, con los mismos gates de `validar`, el guardrail, la regla de citas de `aplicar-delta` y `lint-prosa` (`docs/lsp.md`).
+- **Servidor MCP** (`backend/api/mcp/`, FastMCP): montado en la API en `/mcp/` y por stdio (`python -m api.mcp`). Tools de solo lectura para listar novelas, leer capítulos y versiones, consultar la biblia y descargar el PDF, construido en memoria; y `request_change`, deshabilitada salvo con `STORY_MAKER_MCP_ESCRITURA=1`, solo desde loopback y con confirmación, que lanza `novela cambio` como proceso (`docs/mcp.md`).
 - **API FastAPI** (`backend/api/`): lectura para el frontend, y el lanzamiento de novelas. Sirve el estado, los capítulos, los manifiestos y lo que el panel necesita de la configuración, del plan y de los checkpoints. Los capítulos y los manifiestos salen del disco tal cual; el estado se serializa desde `estado.db` con los mismos modelos Pydantic, abriendo la base en modo lectura.
 
-La API **no escribe en ningún workspace** ni sirve el libro de regalo: el PDF lo genera `novela exportar --formato pdf` y se entrega como fichero (ADR 0003). Lo único que hace fuera de leer es `/lanzamientos`: arranca `python -m novela producir` en segundo plano (grupo de procesos propio, sin ventana), y es ese subcomando del CLI el que escribe. `producir` repite el bucle desatendido de `AGENTS.md` § Proceso: ejecución —`comprobar-entorno`, `/novela-nueva`, un `/novela-continuar <slug> --capitulos 1` por capítulo mientras `novela pendiente` salga con 0, y `/novela-auditar`—, cada paso en su `claude -p` con `--setting-sources project,local --permission-mode dontAsk --model opus`, un `NOVELA_SESSION_ID` nuevo y el prompt como argumento de `claude.exe`, sin shell. Para con un código distinto de 0, con una sesión que no avanza `checkpoints/latest.json`, con un `intervencion.md` sin `resuelto:` o si la auditoría no exporta; nunca insiste.
+La API **no escribe en ningún workspace**. El PDF de regalo lo genera `novela exportar --formato pdf` y se entrega como fichero (ADR 0003); `GET …/libro` sirve lo mismo que su portada, índice y ficha como JSON para la lectura web (`docs/lectura-web.md`). Fuera de leer hace dos cosas, y en las dos escribe el CLI: `request_change` del MCP, descrita arriba, y `/lanzamientos`: arranca `python -m novela producir` en segundo plano (grupo de procesos propio, sin ventana), y es ese subcomando del CLI el que escribe. `producir` repite el bucle desatendido de `AGENTS.md` § Proceso: ejecución —`comprobar-entorno`, `/novela-nueva`, un `/novela-continuar <slug> --capitulos 1` por capítulo mientras `novela pendiente` salga con 0, y `/novela-auditar`—, cada paso en su `claude -p` con `--setting-sources project,local --permission-mode dontAsk --model opus`, un `NOVELA_SESSION_ID` nuevo y el prompt como argumento de `claude.exe`, sin shell. Para con un código distinto de 0, con una sesión que no avanza `checkpoints/latest.json`, con un `intervencion.md` sin `resuelto:` o si la auditoría no exporta; nunca insiste.
 
 Su estado vive en `novelas/.lanzador/`, fuera de todo workspace: `<slug>.json` (estado, paso, detalle), `<slug>.log` (la salida de las sesiones) y `<slug>.detener` (el panel pidió parar, y `producir` para antes del siguiente capítulo). `activo.lock` lo sostiene el proceso mientras vive: hay uno a la vez en la máquina, y un `en_marcha` sin cerrojo tomado se sirve como `interrumpido`. Como el directorio empieza por punto, ningún slug lo alcanza.
 
@@ -935,6 +1002,7 @@ GET /novelas                              slugs con su cursor
 GET /novelas/{slug}/estado                estado serializado desde estado.db
 GET /novelas/{slug}/capitulos             índice con frontmatter
 GET /novelas/{slug}/capitulos/{n}         markdown del capítulo
+GET /novelas/{slug}/libro                 Libro: portada, índice y ficha, lo mismo que el PDF
 GET /novelas/{slug}/runs/{run_id}         manifest.json
 GET /novelas/{slug}/config                Config de config.yaml, validado
 GET /novelas/{slug}/escaleta              Escaleta de plan/escaleta.md; 404 si falta o no valida
@@ -946,6 +1014,7 @@ POST /lanzamientos/{slug}/reanudar        producir sin idea; 404 si no existe
 POST /lanzamientos/{slug}/detener         para tras el capítulo en curso; 409 si no está en marcha
 GET /lanzamientos                         Lanzamiento de cada slug lanzado
 GET /lanzamientos/{slug}                  Lanzamiento con las últimas 40 líneas de su registro
+/mcp/                                     servidor MCP por streamable HTTP; Host local y Origin del panel
 ```
 
 `…/escaleta` se valida con el `num_capitulos` de `config.yaml` y se devuelve ya serializada: la validación de respuesta de FastAPI no lleva ese contexto y rechazaría el modelo. `…/log` salta a `desde` y lee como mucho 1 MiB: devuelve líneas completas desde el primer límite de línea igual o posterior, hasta 65 536 bytes salvo una línea sola mayor, y `hasta` es el siguiente `desde`. Responde 422 a un `desde` negativo o no entero, 416 si pasa del tamaño del log, 404 si el run no existe, y un tramo vacío con `modificado: null` si el run aún no tiene log.
@@ -971,7 +1040,7 @@ Vite + TypeScript + Three.js. No escribe en el workspace: lee de la API y lanza 
 
 - **Lanzar novela**: formulario con slug, idea, capítulos y palabras que, con un clic, hace `POST /lanzamientos`; no hay ninguna orden que copiar. Debajo, cada lanzamiento con su estado, su paso, su motivo y las últimas líneas de sus sesiones, refrescados cada 3 s, con «Detener» si está en marcha y «Reanudar» si está parado, fallido o interrumpido. El `config.yaml` lo sigue escribiendo `novela nueva` desde `config/default.yaml` y los flags.
 - **Progreso**: consulta la API por *polling*; muestra cursor, capítulos cerrados según el checkpoint, palabras, curva de tensión real contra objetivo con actos y puntos de giro —y su tabla—, hilos abiertos y runs.
-- **Lectura**: una estantería 3D con un volumen por capítulo —cerrado, en curso o pendiente según el checkpoint y el índice—, y su lista HTML equivalente, con el estado también como texto y el mismo teclado; sin WebGL queda solo la lista. Solo se leen los capítulos cerrados: el lector quita el frontmatter y muestra el markdown sin HTML, enlaces ni imágenes, que quedan como texto.
+- **Lectura**: una estantería 3D con un volumen por capítulo —cerrado, en curso o pendiente según el checkpoint y el índice—, y su lista HTML equivalente, con el estado también como texto y el mismo teclado; sin WebGL queda solo la lista. Encima, la tarjeta **Libro** con lo mismo que el PDF: portada y dedicatoria, índice navegable y ficha de personajes y lugares con enlace a cada capítulo (`docs/lectura-web.md`); la valida en un navegador la skill `validar-visual` (`docs/validacion-visual.md`). Solo se leen los capítulos cerrados: el lector quita el frontmatter y muestra el markdown sin HTML, enlaces ni imágenes, que quedan como texto.
 
 **Identidad visual** (spec 0004, D21 a D28). El panel lleva la marca de Qaracter con WCAG 2.1 AA. Todos los colores, familias tipográficas, radios, sombras y medidas son propiedades CSS de `frontend/src/shared/marca/tokens.css`, el único fichero con colores literales; los componentes solo usan roles semánticos, y la escena y la gráfica leen esos mismos roles de las propiedades computadas. Los tonos vivos de la marca quedan para lo decorativo y el texto usa tonos derivados que cumplen AA; `pares.ts` declara los pares en uso y un test recalcula su contraste desde `tokens.css`. El logo es el PNG oficial, sin retocar, y se muestra siempre dentro de un contenedor con las esquinas redondeadas al 22 % del lado: solo `logo.ts` puede importarlo, y el favicon se deriva de él con las esquinas ya recortadas. La fuente display y los iconos se sirven desde `frontend/`, con su licencia al lado. Sin modo oscuro ni selector de idioma.
 

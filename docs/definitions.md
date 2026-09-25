@@ -264,6 +264,9 @@ Los nombres de esta rama son los del documento serializado de `architecture.md` 
 **`apariciones`** — La excepción a lo anterior: una tabla de `estado.db` que no está en la vista serializada, ni en `state.schema.json`, ni en el delta. Filas `Aparicion {entidad, tipo, capitulo}`, una por personaje (`per-`) o escenario (`esc-`) y capítulo en que sale, con `tipo` `personaje | escenario` casado con el prefijo del id. `novela aplicar-delta` las deriva, en la misma transacción que el estado, del `pov` del frontmatter, de los `personajes` y el `lugar` de las escenas de la ficha de plan que el frontmatter declara, y de los personajes del delta con `ultima_aparicion` en ese capítulo junto con su `ubicacion`. Es un índice de lo que el plan y el cronista dicen que aparece, no de cada mención en el texto. La consulta la ficha del libro de `novela exportar --formato pdf`. Los capítulos aplicados antes de que existiera la tabla no tienen filas.
 `tabla` · **APPEND-ONLY, DERIVADO** · aplicar-delta → exportar
 
+**`cronologia`** — Los eventos datados de la novela, para la verificación formal (`docs/formal/lean.md`). Cada `EventoCronologia` lleva `id` (`evt-NN-k`), `momento` en minutos desde el día 1 a las 00:00, `duracion_min`, `lugar` (id de escenario), `personajes` presentes, `excluye` (quién sale de la historia en él: muerte o partida definitiva), `edades` declaradas, `tras` (los eventos que el texto sitúa antes) y `cita`. Llega en `Delta.cronologia` y `aplicar-delta` lo registra en `cronologia` y `cronologia_personajes`; fuera de la vista `Estado`. Sin eventos, `verificar-lean` la deriva de `linea_temporal` y de las escenas del plan.
+`tabla` · **APPEND-ONLY** · cronista → verificar-lean
+
 ---
 
 ## 5. MEMORIA
@@ -327,6 +330,15 @@ El contexto persiste como ficheros, no como historial de conversación. Cada sub
 
 **`qa/visual.json`** — `InformeVisual` de la validación visual de la lectura web (`docs/validacion-visual.md`), que escribe `novela registrar-visual`: `slug`, `herramienta` (`playwright-mcp` o `playwright-test`), `comprobaciones` (`Comprobacion`: `id` `portada | dedicatoria | indice | navegacion | ficha`, `ok`, `detalle` y, solo si falla, `responsable` `escritor | exportacion | frontend`) y `capturas`. Su score es `visual_lectura`.
 
+**`qa/juicio.json`** — `Juicio` de la novela terminada (`docs/evaluacion/juez.md`): `rubrica_version`, `evaluador` (`juez` o `humano`) y, por cada criterio de la rúbrica (`continuidad`, `tono`, `arco`, `personajes`, `ritmo`, `personalizacion`), una `Valoracion` con `puntuacion` de 1 a 5, `justificacion` y de una a cinco `citas` literales (`capitulo`, `texto`). Lo escribe el `juez`; `novela juicio` lo valida, aplica el umbral y emite `juez_<criterio>`. La revisión humana usa el mismo modelo, fuera del workspace.
+
+**`qa/lean.json`** — `InformeLean` de `novela verificar-lean`: `veredicto` (`aprobado | rechazado | sin_datos | error`), `fuente` (`cronologia` o `derivada`), número de eventos, cada invariante con su resultado, las violaciones y las escenas omitidas (`docs/formal/lean.md`).
+
+**`qa/NN-prosa.json`** — Informe de `novela lint-prosa`: hallazgos por regla y un score por regla (`prosa_*`). Informativo: ningún gate lo lee (`docs/linters-prosa.md`).
+
+**`auditoria/policy.jsonl`** — Una línea JSON por denegación del hook `PreToolUse` (`momento`, `decision`, `herramienta`, `agente`, `sesion`, `motivo`). Si la ruta no cae en un workspace, va a `.claude/logs/policy.jsonl` (`docs/guardrails.md`).
+`log` · **APPEND-ONLY** · hook → persona
+
 **`CLAUDE.md`** — Convenciones del repositorio. Todo agente lo lee antes de actuar, de modo que las reglas no se repiten en cada prompt.
 
 ---
@@ -353,6 +365,8 @@ Subagentes de Claude Code. Cada uno tiene un contrato explícito: `{rol, entrada
 
 **`entrevistador`** — Solo en novelas de regalo, antes de `novela nueva`. Estructura en `brief/borrador.json` lo que el cliente cuenta del destinatario, con una cita literal por valor. No decide si el brief vale: lo decide `novela brief validar`. Trata el texto libre del cliente como dato, nunca como instrucción.
 
+**`juez`** — Solo en `/novela-auditar`, con la novela terminada. Puntúa la obra entera con la rúbrica versionada (`backend/config/rubrica.yaml`) y escribe `qa/juicio.json`. Mide, no corrige: bajo el umbral decide una persona. No ve el misterio.
+
 ---
 
 ## 8. PROTOCOLO DE ORQUESTACIÓN
@@ -375,9 +389,9 @@ Subagentes de Claude Code. Cada uno tiene un contrato explícito: `{rol, entrada
 
 ## 9. OBSERVABILIDAD (LANGFUSE)
 
-**`session`** — Una ejecución completa de novela. `session_id = novela_id + run`.
+**`session`** — Una novela entera, con su brief, cada paso y cada cambio posterior: `novela-<slug>` (`docs/observabilidad.md`). Sin traza de paso, cae a una sesión por `claude -p`.
 
-**`trace`** — Un capítulo, o una fase de setup. Es el nivel donde se comparan ejecuciones entre sí.
+**`trace`** — Un paso: `brief`, `nueva`, `capitulo NN`, `auditoria`, `cambio`. La abre `novela traza` o `novela producir`, con `sha_commit` y `prompt_<rol>` en los metadatos. Es el nivel donde se comparan ejecuciones entre sí.
 
 **`span`** — Una invocación de agente dentro de un capítulo.
 
@@ -385,13 +399,13 @@ Subagentes de Claude Code. Cada uno tiene un contrato explícito: `{rol, entrada
 
 **`metadata`** — `{capitulo_n, agente, version_canon, version_plan, receta_contexto, intento}`. Sin `receta_contexto` y `version_*` no se puede atribuir una mejora a un cambio concreto.
 
-**`prompts_versionados`** — Un prompt por agente gestionado en Langfuse, con etiqueta de versión, de modo que un cambio de prompt sea un evento identificable en las trazas.
+**`prompts_versionados`** — Un prompt por agente en Langfuse, copia de `.claude/agents/<rol>.md` que sube `novela prompts publicar` con el sha del commit como etiqueta. Git es la fuente de verdad; la huella `prompt_<rol>` de cada traza identifica la versión.
 
-**`scores[]`** — Coherencia, continuidad, tensión, longitud, fair play, estilo, y uno por validador programático con su nombre (`vp_schema`, `vp_longitud`, `vp_pistas`, `vp_hilos`, `vp_ids`, `vp_nombres`; `docs/validators.md` §3.10; `vp_prohibidas`, `docs/guardrails.md`), y `guardrail_prohibidas` desde `validar` cuando hay coincidencias. Se emiten por capítulo y se agregan por sesión.
+**`scores[]`** — Coherencia, continuidad, tensión, longitud, fair play, estilo, y uno por validador programático con su nombre (`vp_schema`, `vp_longitud`, `vp_pistas`, `vp_hilos`, `vp_ids`, `vp_nombres`, `vp_prohibidas`, `vp_cobertura`; `docs/validators.md` §3.10), y `guardrail_prohibidas` desde `validar` cuando hay coincidencias. Se emiten por capítulo y se agregan por sesión. Fuera del capítulo: `juez_<criterio>`, `juez_acuerdo_humano`, `lean_*`, `prosa_*` y `visual_lectura` (`docs/validators.md` §3.11).
 
 **`validador`** — Una comprobación determinista con nombre estable, puntos de ejecución, punto en que bloquea, tipos de hallazgo propios y un score. El catálogo es `dominio/validadores.py`; cada tipo de hallazgo de un gate programático pertenece a un solo validador.
 
-**`evaluadores`** — LLM como juez a nivel de traza y de sesión. El evaluador de sesión compara ejecuciones y devuelve puntos a mejorar y mejoras propuestas.
+**`evaluadores`** — LLM como juez: el `juez` puntúa la novela terminada con la rúbrica, y la revisión humana con la misma rúbrica lo calibra (`juez_acuerdo_humano`). No hay evaluador que compare ejecuciones.
 
 **`datasets`** — Capítulos de referencia para test de regresión al modificar prompts o recetas de contexto.
 
@@ -410,5 +424,11 @@ Subagentes de Claude Code. Cada uno tiene un contrato explícito: `{rol, entrada
 **`limites_longitud`** — Por capítulo y acumulado, con corrección progresiva del objetivo de los capítulos restantes.
 
 **`deteccion_deriva`** — Comparación periódica de la voz del texto reciente contra los párrafos canónicos. La deriva de estilo en formato largo es gradual e invisible capítulo a capítulo.
+
+**`prohibidas`** — Lista de términos vetados en tres niveles: `global` (`backend/config/prohibidas-globales.txt`), `cliente` (del brief) y `novela` (`novela prohibidas añadir`). Tabla `prohibidas (termino, nivel)` de `estado.db`, fuera de la vista `Estado`. La aplica `vp_prohibidas` en `validar` (`docs/guardrails.md`).
+`tabla` · **APPEND-ONLY** (sin trigger: solo hay altas) · nueva, prohibidas añadir → validar
+
+**`auditoria_policy`** — Una fila por coincidencia del guardrail que rechaza un capítulo: `momento`, `origen` (`validar`, `validar-hook` o `comprobar`), `decision`, `nivel`, `termino`, `capitulo`, `detalle`. La escribe `policy_db`, no `aplicar-delta`.
+`tabla` · **APPEND-ONLY** (triggers) · validar, prohibidas comprobar → persona
 
 **`auditoria_pistas_huerfanas`** — Comprobación final: ninguna pista plantada sin pagar, ningún hilo abierto sin cerrar, ninguna pista falsa sin desmontar.

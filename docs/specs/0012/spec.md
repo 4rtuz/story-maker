@@ -1,7 +1,8 @@
 ---
 id: 0012
 titulo: Verificar en Lean 4 la coherencia temporal de la historia y bloquear la publicación si falla
-estado: Propuesta
+estado: descartada
+motivo: "implementada de otra forma sin seguirla: verificar-lean corre en /novela-auditar sobre la tabla cronologia que llena el cronista, sin proyectar cada delta ni momentos ISO (docs/formal/lean.md)"
 version: 2
 fecha: 2026-09-24
 specs_relacionadas: [0001, 0002, 0003, 0006, 0007, 0009, 0010]

@@ -26,7 +26,7 @@ class InformeProsa(Modelo):
     scores: dict[str, float]
 
 
-def _contexto(ws: WorkspaceRepository) -> Contexto:
+def contexto(ws: WorkspaceRepository) -> Contexto:
     obra = ws.config().parametros_obra
     ruta = ws.raiz / "brief" / "brief.json"
     brief = ws.leer_json(ruta, Brief) if ruta.is_file() else None
@@ -54,7 +54,7 @@ def lint_prosa(
         capitulos = [capitulo]
     else:
         raise typer.BadParameter(f"capítulo {capitulo} fuera de 1..{total}")
-    ctx = _contexto(ws)
+    ctx = contexto(ws)
     sink = langfuse.desde_entorno(langfuse.entorno_efectivo(run.RAIZ_REPO))
     with ws.bloquear():
         for c in capitulos:
