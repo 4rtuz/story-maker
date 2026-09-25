@@ -1,4 +1,5 @@
 import os
+import re
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
@@ -470,6 +471,9 @@ def test_capa_cambio(novelas: Novelas) -> None:
     assert anterior in textos["escritor"]
     assert all("version_anterior" not in textos[a] for a in ("continuista", "cronista"))
     assert "ids de hecho libres desde hec-104" in textos["cronista"]
+    # ejemplo-carmen v2: sin su primer id libre, el cronista reutilizaba los de la versión anterior
+    # y la regla de regeneración los rechazaba hasta agotar los reintentos.
+    assert re.search(r"ids de objeto libres desde obj-\d{3}", textos["cronista"])
     assert "ids de hecho libres" not in textos["escritor"]
     assert CAPA_CAMBIO not in textos["editor-estilo"]
     assert "version_anterior" not in textos["editor-estilo"]

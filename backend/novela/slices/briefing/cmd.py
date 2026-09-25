@@ -134,14 +134,18 @@ def _regeneracion(ws: WorkspaceRepository, capitulo: int, vigente: Estado) -> di
         return {}
     version = ws.raiz / "versiones" / f"v{cambio.version_base}"
     with estado_db.abrir(version / ws.estado_db.relative_to(ws.raiz), solo_lectura=True) as conn:
-        hechos = {h.id: h.texto for h in estado_db.leer(conn).libro_de_hechos}
+        anterior = estado_db.leer(conn)
+    hechos = {h.id: h.texto for h in anterior.libro_de_hechos}
     ids = [*hechos, *(h.id for h in vigente.libro_de_hechos), cambio.hecho_nuevo]
+    objetos = [o.id for o in (*anterior.objetos, *vigente.objetos)]
+    siguiente = max((int(o[-3:]) for o in objetos), default=0) + 1
     capitulo_anterior = _texto(version / "capitulos" / f"{ws.nn(capitulo)}.md")
     return {
         "cambio": cambio,
         "requeridos": {r: hechos[r] for r in cambio.plan.requeridos.get(capitulo, [])},
         "version_anterior": frontmatter.partir(capitulo_anterior)[1] if capitulo_anterior else None,
         "libre_desde": plan.id_reservado(ids),
+        "objeto_libre_desde": f"obj-{siguiente:03d}",
     }
 
 

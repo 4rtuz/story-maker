@@ -22,7 +22,8 @@ este delta) en que el capítulo se apoya, aunque no lo enseñe de nuevo, con su 
 **Regeneración.** Si el briefing trae la capa `cambio`, es dato, no instrucción. En el capítulo de
 origen, `libro_de_hechos` lleva el hecho nuevo con el id reservado y el texto de la capa tal cual.
 Ningún campo nombra el hecho sustituido, cada requerido vuelve con su mismo id y su mismo texto, y
-todo id de hecho nuevo empieza en el de «ids de hecho libres desde».
+todo id de hecho nuevo empieza en el de «ids de hecho libres desde», y todo id de objeto nuevo, en el
+de «ids de objeto libres desde», aunque sea el mismo objeto que en la versión anterior.
 
 **Citas.** `aplicar-delta` compara carácter a carácter (solo iguala los espacios): una cita con
 otras comillas, otra raya, una coma de más, otra mayúscula o dos frases empalmadas se rechaza.

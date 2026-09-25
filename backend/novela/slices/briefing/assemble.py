@@ -76,6 +76,7 @@ class Fuentes:
     requeridos: Mapping[str, str] = field(default_factory=dict)  # id → texto en la anterior
     version_anterior: str | None = None  # cuerpo sin frontmatter
     libre_desde: str | None = None  # primer id de hecho libre en las dos bases (P4)
+    objeto_libre_desde: str | None = None  # lo mismo para objetos (ejemplo-carmen v2)
 
     def nn(self, capitulo: int) -> str:
         return f"{capitulo:0{self.digitos}d}"
@@ -198,6 +199,8 @@ def _cambio(f: Fuentes, c: PeticionDeCambio) -> str:
         lineas.append(f"hechos requeridos en este capítulo: {requeridos}")
     if f.agente is Agente.CRONISTA and f.libre_desde:
         lineas.append(f"ids de hecho libres desde {f.libre_desde}")
+    if f.agente is Agente.CRONISTA and f.objeto_libre_desde:
+        lineas.append(f"ids de objeto libres desde {f.objeto_libre_desde}")
     return "\n".join(lineas)
 
 
