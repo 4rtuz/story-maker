@@ -127,6 +127,7 @@ novela versiones ejemplo-carmen              # la versión anterior queda intact
 | LLM-as-judge y revisión humana | `novela juicio <slug>`, `novela comparar-juicios` · [docs/evaluacion/juez.md](docs/evaluacion/juez.md) |
 | Validación visual (Playwright MCP) | skill `validar-visual`, `novela registrar-visual` · [docs/validacion-visual.md](docs/validacion-visual.md) |
 | Linters de prosa | `novela lint-prosa <slug>` · [docs/linters-prosa.md](docs/linters-prosa.md) |
+| Linter de edición manual (LSP) | `uv run --directory backend python -m novela.lsp` · [docs/lsp.md](docs/lsp.md) |
 | Coste por novela (Langfuse) | `novela costes <slug> --markdown` · [docs/observabilidad.md](docs/observabilidad.md) |
 
 ## Servidor MCP

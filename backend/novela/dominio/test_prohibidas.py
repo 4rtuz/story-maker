@@ -70,3 +70,22 @@ def test_las_variantes_de_una_raiz_casan_entre_si(raiz: str, uno: str, otro: str
 @given(st.text(alphabet="bcdfghjklmnpqrstvwxyz ", max_size=40))
 def test_sin_vocales_no_hay_falsos_positivos(texto: str) -> None:
     assert buscar(texto, [GLOBAL, Termino("tonto", "global")]) == []
+
+
+def test_rango_exacto_de_la_coincidencia() -> None:
+    """Para el LSP: inicio y fin (línea desde 1, columna desde 0), aunque la frase cruce línea."""
+    [simple] = buscar("Dijo: ¡cabrones!", [GLOBAL])
+    assert (simple.linea, simple.columna, simple.fin) == (1, 7, (1, 15))
+    [frase] = buscar("Vive en Villa\n  Rosa desde niña.", [Termino("Villa Rosa", "novela")])
+    assert (frase.linea, frase.columna, frase.fin) == (1, 8, (2, 6))
+
+
+@given(
+    st.lists(st.sampled_from(["cabrón", "Cabrones", "pan", "del", "CABRONA", "\n", "  ", ", "])),
+)
+def test_el_rango_de_una_palabra_contiene_su_forma(trozos: list[str]) -> None:
+    cuerpo = " ".join(trozos)
+    lineas = cuerpo.splitlines()
+    for c in buscar(cuerpo, [GLOBAL]):
+        assert c.fin[0] == c.linea
+        assert lineas[c.linea - 1][c.columna : c.fin[1]] == c.forma
