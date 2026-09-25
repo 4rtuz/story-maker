@@ -133,3 +133,52 @@ el comando de `.mcp.json` y llamó a las mismas herramientas que usa la skill (`
   Para una novela real, la skill con el navegador MCP contra la API en solo lectura.
 - Los puertos son fijos (API 8000, panel 5173): el build lleva esa URL y el CORS solo admite ese
   origen. Dos validaciones a la vez en la misma máquina chocan.
+
+## Novela de ejemplo (2026-09-25)
+
+`ejemplo-carmen` terminada (10 capítulos, versión 2 tras `cam-001`), rama `entrega` sobre
+`4976c35`. API en 8000 con `NOVELAS_DIR=../novelas` y panel con `npm run dev` en 5173. El navegador
+se condujo con Playwright por script (Chromium, 1440 × 900) con la misma lógica que
+`e2e/libro.spec.ts`, pero sin su `globalSetup`, que borraría `novelas/`; por eso el informe lleva
+`herramienta: playwright-test`. Los datos de la destinataria son ficticios.
+
+### Qué se inspeccionó
+
+- **Portada**: título `ejemplo-carmen` y la dedicatoria del brief («Para [nombre], por su
+  jubilación.»), igual que en `GET …/libro`.
+- **Índice**: 10 enlaces «N. título», uno por capítulo cerrado según `…/checkpoint`, con el texto
+  exacto del JSON. Los 10 abren su capítulo en el lector, con ese título y con texto.
+- **Ficha**: 6 personajes y 6 lugares, 59 enlaces a capítulos; el primero de cada entrada abre su
+  capítulo. Ningún `console.error` en toda la sesión.
+- **Registro**: `novela registrar-visual ejemplo-carmen` → «visual: 5/5 comprobaciones ok»,
+  salida 0; `qa/visual.json` guardado.
+
+![Portada de ejemplo-carmen](img/ejemplo-carmen-portada.png)
+![Libro entero: índice y ficha](img/ejemplo-carmen-libro.png)
+![Capítulo 7 abierto desde el índice](img/ejemplo-carmen-capitulo.png)
+
+Capturas: `img/ejemplo-carmen-portada.png`, `-libro.png`, `-ficha.png`, `-capitulo.png`.
+
+### Qué se detectó
+
+Ninguna de las cinco comprobaciones falla. Mirando las capturas salen cuatro cosas que ellas no
+cubren; ninguna se ha arreglado aquí:
+
+1. **Título distinto en web y PDF.** La portada web dice `ejemplo-carmen` (el slug) y la del PDF,
+   «Lo que guardan los libros», pasado con `exportar --titulo`. Es el límite ya anotado en
+   `lectura-web.md`: el título propio iría en `config.yaml`, leído por los dos. Toca el esquema del
+   workspace, así que va por spec, no como arreglo pequeño.
+2. **Lugares duplicados en la ficha.** «Biblioteca municipal» y «Casa carmen», solo en el
+   capítulo 2 y sin descripción, junto a «Biblioteca Municipal del Monte» y «Piso de Carmen». El
+   delta del capítulo 2 usó `esc-biblioteca-municipal` y `esc-casa-carmen`, que no están en el
+   canon, y la ficha los pinta con el nombre sacado del id (`dominio/ficha.py`). No es cosa del
+   panel ni del export. `aplicar-delta` ya rechaza hoy los lugares que no están en `mundo.md` (`slices/delta/cmd.py`), pero este
+   delta entró antes, y las apariciones son historia append-only: en esta versión no se corrigen.
+   Una novela nueva no debería repetirlo.
+3. **Título repetido en el lector.** La cabecera del diálogo («Capítulo 7 / Siempre por el buzón»)
+   y el `# 7. Siempre por el buzón` del cuerpo. Es deliberado: `lector.test.ts` exige que se pinte
+   el `h1` del cuerpo (CA-25). Se deja así.
+4. **Fuera de la lectura**: la cabecera de Progreso dice «Fase: registro · Último paso:
+   aplicar-delta» con la novela cerrada. Lee el cursor de la story bible, y el cierre
+   (`fase cerrado`, `checkpoint`) solo queda en `checkpoints/latest.json`. Queda anotado; no se ha
+   tocado.
