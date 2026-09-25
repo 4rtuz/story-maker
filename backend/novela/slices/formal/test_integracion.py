@@ -62,3 +62,12 @@ def test_caso_real_solo_lo_ve_lean(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         ("ubicuidad", "evt-03-2", TOMAS, "evt-01-1"),
         ("exclusion", "evt-03-1", TOMAS, "evt-02-1"),
     }
+
+
+def test_compila_con_ruta_relativa(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """ejemplo-carmen: `lean` corre con cwd en formal/lean/ y recibía la ruta relativa a la raíz
+    del repo, así que no encontraba el fichero (ENOENT 4058) y el gate de /novela-auditar paraba."""
+    eventos = [EventoCronologia.model_validate(e) for _, e in fabrica.PARTIDA_COHERENTE.cronologia]
+    (tmp_path / "Cronologia.lean").write_text(lean.generar("prueba", eventos, EDADES), "utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert lean.compilar(Path("Cronologia.lean")) == (0, "")

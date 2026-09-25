@@ -158,5 +158,5 @@ def compilar(fichero: Path) -> tuple[int, str]:
         r = _lean(binario, str(_INVARIANTES), "-o", str(_OLEAN))
         if r.returncode:
             return r.returncode, f"StoryMaker/Invariantes.lean no compila:\n{r.stdout}{r.stderr}"
-    r = _lean(binario, str(fichero))
+    r = _lean(binario, str(fichero.resolve()))  # absoluta: `lean` corre con cwd en PROYECTO
     return r.returncode, r.stdout + r.stderr
