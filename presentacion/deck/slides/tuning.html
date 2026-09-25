@@ -1,0 +1,21 @@
+<section id="tuning" data-transition="fade" style="background:#EEF1F5; color:#1F2937; font-family:'Public Sans', Arial, sans-serif; padding:128px 128px 160px; display:flex; flex-direction:column; gap:40px">
+  <div style="display:flex; flex-direction:column; gap:16px">
+    <p style="font-size:24px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#C2410C">Iteración de tuning</p>
+    <h2 style="font-family:'Outfit', Arial, sans-serif; font-size:72px; font-weight:800; color:#2D3748; line-height:1.1">El cronista dejó de inventar citas</h2>
+  </div>
+  <div style="display:flex; flex-direction:row; gap:32px; align-items:stretch">
+    <div style="flex:1; display:flex; flex-direction:column; gap:12px; background:#FFFFFF; padding:40px; border:1px solid #E5E7EB; border-radius:16px">
+      <p style="font-size:24px; font-weight:700; color:#6B7280">ANTES · prompt v1 · haiku</p>
+      <p style="font-family:'Outfit', Arial, sans-serif; font-size:96px; font-weight:800; color:#2D3748">35 %</p>
+      <p style="font-size:26px; line-height:1.4; color:#4A5568">de citas no literales · 0/3 deltas aceptables · 2,5 intentos por capítulo en la novela</p>
+    </div>
+    <div style="flex:1; display:flex; flex-direction:column; gap:12px; background:#FFEDD5; padding:40px; border:2px solid #C2410C; border-radius:16px">
+      <p style="font-size:24px; font-weight:700; color:#C2410C">DESPUÉS · prompt v2 · sonnet</p>
+      <p style="font-family:'Outfit', Arial, sans-serif; font-size:96px; font-weight:800; color:#C2410C">0 %</p>
+      <p style="font-size:26px; line-height:1.4; color:#4A5568">de citas no literales · 3/3 deltas aceptables · 1,1 intentos por capítulo en la novela</p>
+    </div>
+  </div>
+  <p style="font-size:28px; line-height:1.45; color:#2D3748">A/B sobre el mismo capítulo, 3 ejecuciones por variante. Una variante con más reglas empeoró (39 %) y se descartó. Coste: +0,40 USD por capítulo, a cambio de menos reintentos y ninguna intervención. Versiones v1 → v2 del prompt publicadas en Langfuse.</p>
+  <p style="position:absolute; left:128px; bottom:64px; width:1400px; font-size:24px; color:#6B7280">Qaracter · Story Maker · 10 · docs/evaluacion/tuning-cronista.md</p>
+  <aside>El gate que más reintentos gastaba era aplicar-delta: una sola cita no literal rechaza el delta. Medimos cuatro variantes con la misma comparación que usa el CLI. Solo el cambio de modelo lo resolvió; el prompt solo lo mejoró. Además descubrimos que el cronista no recibía los ids de los lugares, y eso dejaba a Lean sin datos.</aside>
+</section>

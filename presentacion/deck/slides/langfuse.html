@@ -1,0 +1,30 @@
+<section id="langfuse" data-transition="fade" style="background:#EEF1F5; color:#1F2937; font-family:'Public Sans', Arial, sans-serif; padding:128px 128px 160px; display:flex; flex-direction:column; gap:32px">
+  <div style="display:flex; flex-direction:column; gap:16px">
+    <p style="font-size:24px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#C2410C">Observabilidad</p>
+    <h2 style="font-family:'Outfit', Arial, sans-serif; font-size:72px; font-weight:800; color:#2D3748; line-height:1.1">Una sesión de Langfuse por novela</h2>
+  </div>
+  <div style="display:flex; flex-direction:row; gap:32px">
+    <div style="width:600px; display:flex; flex-direction:column; gap:20px">
+      <div style="display:flex; flex-direction:column; gap:6px; background:#2D3748; padding:32px; border-radius:16px">
+        <p style="font-size:24px; color:#FDE9CF">Sesión novela-ejemplo-carmen</p>
+        <p style="font-family:'Outfit', Arial, sans-serif; font-size:72px; font-weight:800; color:#FFFFFF">24,52 USD</p>
+        <p style="font-size:24px; color:#FDE9CF">511 llamadas · 2,5 h de modelo · 10 capítulos</p>
+      </div>
+      <p style="font-size:24px; line-height:1.4; color:#4A5568">Cada rol y cada tool son un span con nombre. Tokens, coste y latencia por llamada, capítulo y novela (novela costes). Todos los validadores emiten su score a la traza del paso. Los prompts están versionados en Langfuse.</p>
+    </div>
+    <table style="flex:1; font-size:24px; color:#1F2937; background:#FFFFFF">
+      <tr><th style="width:44%">Paso</th><th style="width:20%">Llamadas</th><th style="width:36%">Coste USD</th></tr>
+      <tr><td>nueva (canon y plan)</td><td>29</td><td>1,38</td></tr>
+      <tr><td>capítulo 01</td><td>54</td><td>1,71</td></tr>
+      <tr><td>capítulo 03</td><td>36</td><td>1,92</td></tr>
+      <tr style="background:#FFEDD5"><td>capítulo 05 (intervención)</td><td>58</td><td>2,83</td></tr>
+      <tr><td>capítulo 08</td><td>59</td><td>3,14</td></tr>
+      <tr><td>capítulo 10</td><td>44</td><td>2,20</td></tr>
+      <tr><td>auditoría, Lean y juez</td><td>20</td><td>0,98</td></tr>
+      <tr><td><b>novela (v1)</b></td><td><b>511</b></td><td><b>24,52</b></td></tr>
+      <tr><td>revisión v2 (cambio del lector)</td><td>252</td><td>11,71</td></tr>
+    </table>
+  </div>
+  <p style="position:absolute; left:128px; bottom:64px; width:1400px; font-size:24px; color:#6B7280">Qaracter · Story Maker · 11 · desglose por rol en el anexo A5 · docs/evaluacion/costes-ejemplo-carmen.md</p>
+  <aside>Estos números salen de Langfuse con novela costes, no de una estimación. El capítulo más caro es el que tuvo reintentos, y el orquestador supone el 28 % del coste de la novela, tanto como el escritor: es la palanca siguiente de optimización.</aside>
+</section>

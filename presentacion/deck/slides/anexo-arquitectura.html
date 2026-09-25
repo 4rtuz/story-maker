@@ -1,0 +1,33 @@
+<section id="anexo-arquitectura" data-transition="fade" style="background:#FFFFFF; color:#1F2937; font-family:'Public Sans', Arial, sans-serif; padding:128px 128px 160px; display:flex; flex-direction:column; gap:36px">
+  <div style="display:flex; flex-direction:column; gap:16px">
+    <p style="font-size:24px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#0369A1">Anexo A1 · Arquitectura</p>
+    <h2 style="font-family:'Outfit', Arial, sans-serif; font-size:64px; font-weight:800; color:#2D3748; line-height:1.1">Quién hace qué, y por dónde pasa</h2>
+  </div>
+  <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:24px">
+    <div style="display:flex; flex-direction:column; gap:10px; background:#FFEDD5; padding:28px; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:28px; font-weight:800; color:#2D3748">Claude Code</h3>
+      <p style="font-size:24px; line-height:1.45; color:#4A5568">Orquestador (slash commands), 9 subagentes en .claude/agents, skills del repo y memoria del proyecto.</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; background:#EEF1F5; padding:28px; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:28px; font-weight:800; color:#2D3748">Hooks</h3>
+      <p style="font-size:24px; line-height:1.45; color:#4A5568">PreToolUse de policy (6 reglas, audit log) y PostToolUse que valida el capítulo en cuanto se escribe.</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; background:#EEF1F5; padding:28px; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:28px; font-weight:800; color:#2D3748">CLI novela</h3>
+      <p style="font-size:24px; line-height:1.45; color:#4A5568">Python y Pydantic. Todo lo determinista: briefings, gates, story bible, Lean, guardrails, export y scores. Sin modelos.</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; background:#EEF1F5; padding:28px; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:28px; font-weight:800; color:#2D3748">Workspace</h3>
+      <p style="font-size:24px; line-height:1.45; color:#4A5568">canon/ (verdad), plan/ (lo que debería pasar), estado.db (lo que pasó), memoria/, versiones/, qa/, runs/.</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; background:#EEF1F5; padding:28px; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:28px; font-weight:800; color:#2D3748">Lectura</h3>
+      <p style="font-size:24px; line-height:1.45; color:#4A5568">API FastAPI de solo lectura, panel web y servidor MCP (5 tools de lectura y request_change con confirmación). LSP para la edición manual.</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; background:#EEF1F5; padding:28px; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:28px; font-weight:800; color:#2D3748">Observabilidad</h3>
+      <p style="font-size:24px; line-height:1.45; color:#4A5568">Plugin de Langfuse (trazas y spans), scores del CLI, prompts versionados y Playwright MCP para la validación visual.</p>
+    </div>
+  </div>
+  <p style="position:absolute; left:128px; bottom:64px; width:1400px; font-size:24px; color:#6B7280">docs/proceso/diagramas.md · docs/architecture.md · docs/proceso/trade-offs.md</p>
+</section>

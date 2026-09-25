@@ -1,0 +1,18 @@
+<section id="bucle" data-transition="fade" style="background:#EEF1F5; color:#1F2937; font-family:'Public Sans', Arial, sans-serif; padding:128px 128px 160px; display:flex; flex-direction:column; gap:40px">
+  <div style="display:flex; flex-direction:column; gap:16px">
+    <p style="font-size:24px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#C2410C">Arquitectura del harness</p>
+    <h2 style="font-family:'Outfit', Arial, sans-serif; font-size:72px; font-weight:800; color:#2D3748; line-height:1.1">El bucle por capítulo</h2>
+  </div>
+  <table style="font-size:26px; color:#1F2937; background:#FFFFFF; border-radius:16px">
+    <tr><th style="width:8%">Paso</th><th style="width:30%">Quién</th><th style="width:36%">Qué comprueba</th><th style="width:26%">Si falla</th></tr>
+    <tr><td>1</td><td>novela briefing → escritor</td><td>Contexto exacto de ese capítulo</td><td>—</td></tr>
+    <tr><td>2</td><td>Hook PostToolUse</td><td>Longitud, esquema, pistas, nombres, prohibidas</td><td>Vuelve al escritor</td></tr>
+    <tr style="background:#FFEDD5"><td>3</td><td>continuista · editor-estilo · lector-suspense</td><td>Continuidad, estilo, tensión y fair play</td><td>Reintento con el informe de qa/</td></tr>
+    <tr><td>4</td><td>novela validar</td><td>El gate otra vez, tras el editor</td><td>Vuelve al editor</td></tr>
+    <tr><td>5</td><td>cronista → aplicar-delta</td><td>Citas literales, ids, lugares del canon</td><td>Reintento con la causa</td></tr>
+    <tr><td>6</td><td>novela checkpoint</td><td>Cierra el capítulo y emite los scores</td><td>—</td></tr>
+  </table>
+  <p style="font-size:30px; line-height:1.4; color:#2D3748">Dos reintentos por gate. Al tercero, <b>intervencion.md</b> y la novela para. Se reanuda desde <b>checkpoints/latest.json</b>, sin duplicar ni perder capítulos.</p>
+  <p style="position:absolute; left:128px; bottom:64px; width:1400px; font-size:24px; color:#6B7280">Qaracter · Story Maker · 5</p>
+  <aside>La novela de ejemplo pasó 11 veces por el hook de longitud y el escritor se corrigió en todos los casos. Hubo tres intervenciones humanas en diez capítulos, y en todas el sistema paró donde debía: un personaje sin ficha, una ficha que contradecía el canon (lo vio el propio escritor) y un error de ruta en el gate de Lean.</aside>
+</section>

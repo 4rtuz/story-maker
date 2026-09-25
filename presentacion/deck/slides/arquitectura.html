@@ -1,0 +1,48 @@
+<section id="arquitectura" data-transition="fade" style="background:#EEF1F5; color:#1F2937; font-family:'Public Sans', Arial, sans-serif; padding:128px 128px 160px; display:flex; flex-direction:column; gap:40px">
+  <div style="display:flex; flex-direction:column; gap:16px">
+    <p style="font-size:24px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#C2410C">Arquitectura del harness</p>
+    <h2 style="font-family:'Outfit', Arial, sans-serif; font-size:72px; font-weight:800; color:#2D3748; line-height:1.1">Nueve roles, un orquestador y un CLI que decide</h2>
+  </div>
+  <div style="display:flex; flex-direction:row; align-items:center; gap:0px">
+    <div style="display:flex; flex-direction:column; gap:8px; background:#FFFFFF; padding:28px; border:1px solid #E5E7EB; border-radius:16px; width:250px">
+      <p style="font-size:24px; font-weight:700; color:#0369A1">CONFIGURA</p>
+      <p style="font-size:26px; font-weight:700; color:#2D3748">entrevistador</p>
+    </div>
+    <x-connector style="width:40px; color:#6B7280"></x-connector>
+    <div style="display:flex; flex-direction:column; gap:8px; background:#FFFFFF; padding:28px; border:1px solid #E5E7EB; border-radius:16px; width:250px">
+      <p style="font-size:24px; font-weight:700; color:#0369A1">PLANNER</p>
+      <p style="font-size:26px; font-weight:700; color:#2D3748">arquitecto · trazador</p>
+    </div>
+    <x-connector style="width:40px; color:#6B7280"></x-connector>
+    <div style="display:flex; flex-direction:column; gap:8px; background:#FFEDD5; padding:28px; border:2px solid #C2410C; border-radius:16px; width:250px">
+      <p style="font-size:24px; font-weight:700; color:#C2410C">WRITER</p>
+      <p style="font-size:26px; font-weight:700; color:#2D3748">escritor</p>
+    </div>
+    <x-connector style="width:40px; color:#6B7280"></x-connector>
+    <div style="display:flex; flex-direction:column; gap:8px; background:#FFFFFF; padding:28px; border:1px solid #E5E7EB; border-radius:16px; width:300px">
+      <p style="font-size:24px; font-weight:700; color:#0369A1">EDITOR / CRITIC</p>
+      <p style="font-size:26px; font-weight:700; color:#2D3748">continuista · editor-estilo · lector-suspense · juez</p>
+    </div>
+    <x-connector style="width:40px; color:#6B7280"></x-connector>
+    <div style="display:flex; flex-direction:column; gap:8px; background:#FFFFFF; padding:28px; border:1px solid #E5E7EB; border-radius:16px; width:250px">
+      <p style="font-size:24px; font-weight:700; color:#0369A1">MEMORIA</p>
+      <p style="font-size:26px; font-weight:700; color:#2D3748">cronista</p>
+    </div>
+  </div>
+  <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:24px">
+    <div style="display:flex; flex-direction:column; gap:10px; background:#2D3748; padding:32px; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:30px; font-weight:800; color:#FFFFFF">Contexto en disco</h3>
+      <p style="font-size:24px; line-height:1.4; color:#FDE9CF">Cada rol recibe un briefing a medida, de 100.000 tokens como máximo, y nada de la conversación.</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; background:#2D3748; padding:32px; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:30px; font-weight:800; color:#FFFFFF">Story bible SQLite</h3>
+      <p style="font-size:24px; line-height:1.4; color:#FDE9CF">Hechos append-only con los capítulos que usa cada uno, cronología, apariciones y checkpoint por capítulo.</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; background:#2D3748; padding:32px; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:30px; font-weight:800; color:#FFFFFF">Tools, hooks, retries</h3>
+      <p style="font-size:24px; line-height:1.4; color:#FDE9CF">CLI novela con schemas Pydantic. Hook de policy y hook de validación. Dos reintentos por gate; después, una persona.</p>
+    </div>
+  </div>
+  <p style="position:absolute; left:128px; bottom:64px; width:1400px; font-size:24px; color:#6B7280">Qaracter · Story Maker · 4 · diagrama completo en el anexo A1</p>
+  <aside>Multiagente porque cada rol ve solo lo que necesita: el escritor nunca lee el misterio, y el continuista sí. El orquestador no escribe prosa ni la lee: invoca roles y aplica gates. Todo lo determinista lo hace el CLI novela, sin modelos: validar, aplicar-delta, checkpoint, guardrails, Lean y export. Así un fallo de un modelo nunca decide solo si un capítulo se acepta.</aside>
+</section>

@@ -1,0 +1,22 @@
+<section id="anexo-sqlite" data-transition="fade" style="background:#FFFFFF; color:#1F2937; font-family:'Public Sans', Arial, sans-serif; padding:128px 128px 160px; display:flex; flex-direction:column; gap:40px">
+  <div style="display:flex; flex-direction:column; gap:16px">
+    <p style="font-size:24px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#0369A1">Anexo A4 · Story bible</p>
+    <h2 style="font-family:'Outfit', Arial, sans-serif; font-size:64px; font-weight:800; color:#2D3748; line-height:1.1">El esquema SQLite de estado.db</h2>
+  </div>
+  <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:24px">
+    <div style="display:flex; flex-direction:column; gap:10px; background:#EEF1F5; padding:32px; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:30px; font-weight:800; color:#2D3748">Lo que ya pasó</h3>
+      <p style="font-size:24px; line-height:1.5; color:#4A5568">libro_de_hechos (append-only) · usos_de_hecho: qué capítulos usan cada hecho · conocimiento (append-only) · relaciones · objetos · personajes</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; background:#EEF1F5; padding:32px; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:30px; font-weight:800; color:#2D3748">Tiempo y lugar</h3>
+      <p style="font-size:24px; line-height:1.5; color:#4A5568">cronologia: evento, momento, lugar · cronologia_personajes · linea_temporal · apariciones: la ficha del libro</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; background:#EEF1F5; padding:32px; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:30px; font-weight:800; color:#2D3748">Trama y policy</h3>
+      <p style="font-size:24px; line-height:1.5; color:#4A5568">hilos · pistas · conocimiento_lector · tension_real · metricas · prohibidas (3 niveles) · auditoria_policy (append-only) · cursor · meta</p>
+    </div>
+  </div>
+  <p style="font-size:28px; line-height:1.45; color:#2D3748">Solo escribe <b>novela aplicar-delta</b>, en una transacción. Los triggers abortan cualquier UPDATE o DELETE sobre las tablas append-only: reescribir un hecho es reescribir la historia.</p>
+  <p style="position:absolute; left:128px; bottom:64px; width:1400px; font-size:24px; color:#6B7280">backend/novela/plataforma/esquema.sql · erDiagram en docs/proceso/diagramas.md</p>
+</section>

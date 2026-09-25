@@ -1,0 +1,28 @@
+<section id="tlc" data-transition="fade" style="background:#EEF1F5; color:#1F2937; font-family:'Public Sans', Arial, sans-serif; padding:128px 128px 160px; display:flex; flex-direction:column; gap:40px">
+  <div style="display:flex; flex-direction:column; gap:16px">
+    <p style="font-size:24px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#C2410C">Validador formal del sistema</p>
+    <h2 style="font-family:'Outfit', Arial, sans-serif; font-size:72px; font-weight:800; color:#2D3748; line-height:1.1">TLC recorre 281.824 estados del harness</h2>
+  </div>
+  <div style="display:flex; flex-direction:row; gap:32px">
+    <div style="flex:1; display:flex; flex-direction:column; gap:14px; background:#FFFFFF; padding:40px; border:1px solid #E5E7EB; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:32px; font-weight:800; color:#2D3748">Propiedades verificadas</h3>
+      <ul style="font-size:26px; line-height:1.5; color:#4A5568">
+        <li>Nunca se cierra un capítulo sin pasar los validadores</li>
+        <li>Solo se publica un libro completo, auditado y exportado</li>
+        <li>Reanudar no duplica ni pierde capítulos</li>
+        <li>La versión anterior se conserva tras regenerar</li>
+        <li>Nunca más de 2 reintentos por gate</li>
+        <li>Liveness: toda generación publica o se detiene</li>
+      </ul>
+      <p style="font-size:24px; color:#0369A1; font-weight:700">5 capítulos · 2 reintentos · 2 caídas · 1 cambio · unos 40 s</p>
+    </div>
+    <div style="flex:1; display:flex; flex-direction:column; gap:14px; background:#FFFFFF; padding:40px; border:1px solid #E5E7EB; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:32px; font-weight:800; color:#2D3748">Contraejemplos</h3>
+      <p style="font-size:26px; line-height:1.45; color:#4A5568"><b>H-3, arreglado:</b> producir daba por publicada una novela si export/ tenía un fichero de una versión anterior, aunque la auditoría nueva fallara.</p>
+      <p style="font-size:26px; line-height:1.45; color:#4A5568"><b>H-2, documentado:</b> la cuenta de reintentos no mide igual en todos los gates.</p>
+      <p style="font-size:26px; line-height:1.45; color:#4A5568">Cinco mutantes que desactivan una guarda real: TLC encuentra el contraejemplo en 3–4 s.</p>
+    </div>
+  </div>
+  <p style="position:absolute; left:128px; bottom:64px; width:1400px; font-size:24px; color:#6B7280">Qaracter · Story Maker · 9 · máquina de estados en el anexo A2, formal/tla/</p>
+  <aside>La especificación corresponde al código: el README de formal/tla mapea cada acción a su paso del procedimiento o a su orden del CLI. Y encontró un bug real antes de que llegara a una novela: una exportación antigua hacía pasar por publicada una versión que no había superado la auditoría.</aside>
+</section>

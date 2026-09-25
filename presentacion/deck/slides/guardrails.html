@@ -1,0 +1,27 @@
+<section id="guardrails" data-transition="fade" style="background:#EEF1F5; color:#1F2937; font-family:'Public Sans', Arial, sans-serif; padding:128px 128px 160px; display:flex; flex-direction:column; gap:36px">
+  <div style="display:flex; flex-direction:column; gap:16px">
+    <p style="font-size:24px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#C2410C">Guardrails</p>
+    <h2 style="font-family:'Outfit', Arial, sans-serif; font-size:72px; font-weight:800; color:#2D3748; line-height:1.1">Lo que el cliente no quiere leer, no se publica</h2>
+  </div>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px">
+    <div style="display:flex; flex-direction:column; gap:12px; background:#FFFFFF; padding:36px; border:1px solid #E5E7EB; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:30px; font-weight:800; color:#2D3748">Palabras prohibidas, en tres niveles</h3>
+      <p style="font-size:24px; line-height:1.4; color:#4A5568">Global (insultos), del cliente (el brief: «que no salga el nombre de Julián») y de la novela. Se normalizan mayúsculas, acentos, plurales, género y diminutivos.</p>
+      <p style="font-size:24px; font-family:'JetBrains Mono', 'Courier New', monospace; color:#C2410C">«CABRONES» es el término prohibido «cabrón» (global), línea 5 → vuelve al escritor</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:12px; background:#FFFFFF; padding:36px; border:1px solid #E5E7EB; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:30px; font-weight:800; color:#2D3748">Inyección en el texto libre</h3>
+      <p style="font-size:24px; line-height:1.4; color:#4A5568">La carta se marca como no confiable y cada dato del brief cita su fuente literal. «IGNORA TODAS LAS INSTRUCCIONES…» no cambió ni la edad ni el tono (B3).</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:12px; background:#FFFFFF; padding:36px; border:1px solid #E5E7EB; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:30px; font-weight:800; color:#2D3748">Datos personales</h3>
+      <p style="font-size:24px; line-height:1.4; color:#4A5568">El brief guarda solo nombre, edad, rasgos y recuerdos. La entrevista no se traza, y cada rol lee solo su novela (regla 6 del hook).</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:12px; background:#FFFFFF; padding:36px; border:1px solid #E5E7EB; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:30px; font-weight:800; color:#2D3748">Audit log</h3>
+      <p style="font-size:24px; line-height:1.4; color:#4A5568">Cada coincidencia va a auditoria_policy (SQLite, append-only) y a Langfuse. Cada denegación del hook, a policy.jsonl.</p>
+    </div>
+  </div>
+  <p style="position:absolute; left:128px; bottom:64px; width:1400px; font-size:24px; color:#6B7280">Qaracter · Story Maker · 12 · el ejemplo de detección es de los tests; la novela de ejemplo dio 0 coincidencias</p>
+  <aside>El guardrail está en código y actúa sobre cada capítulo antes de aceptarlo: con una coincidencia, el capítulo vuelve al escritor con el término y la línea, con un límite de dos intentos. Si se agota, la generación para e informa. En la novela de ejemplo el escritor no usó ningún término vetado, así que el ejemplo de detección viene de la suite de tests.</aside>
+</section>

@@ -1,6 +1,7 @@
 # Presentación y demo
 
-Deck: [enlace a la presentación]
+Deck: https://claude.ai/artifact/YUSRXxjxLiPCuxg16xrDkz (privado hasta compartirlo desde su menú Share; se descarga como PDF o PPTX desde la propia página).
+Fuentes del deck: [`deck/`](deck/) (una slide por fichero en `deck/slides/`, índice en `deck/deck.json`, marca Qaracter del panel: `frontend/src/shared/marca/`). En la portada y la contraportada quedan dos campos por rellenar: `[Nombre del estudiante]` y `[correo de contacto]`.
 
 ## Vídeo: `demo.webm`
 

@@ -1,0 +1,30 @@
+<section id="validadores" data-transition="fade" style="background:#EEF1F5; color:#1F2937; font-family:'Public Sans', Arial, sans-serif; padding:128px 128px 160px; display:flex; flex-direction:column; gap:40px">
+  <div style="display:flex; flex-direction:column; gap:16px">
+    <p style="font-size:24px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#C2410C">Validación, evaluación y observabilidad</p>
+    <h2 style="font-family:'Outfit', Arial, sans-serif; font-size:72px; font-weight:800; color:#2D3748; line-height:1.1">Cuatro tipos de validador, cada uno en su punto</h2>
+  </div>
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px">
+    <div style="display:flex; flex-direction:column; gap:12px; background:#FFFFFF; padding:36px; border:1px solid #E5E7EB; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:32px; font-weight:800; color:#2D3748">Programáticos</h3>
+      <p style="font-size:24px; line-height:1.4; color:#4A5568">Schema del brief y de cada rol, longitud, nombres exactos, cobertura del brief contra SQLite, palabras prohibidas y visual con Playwright MCP.</p>
+      <p style="font-size:24px; font-weight:700; color:#0369A1">Hook · validar · checkpoint</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:12px; background:#FFFFFF; padding:36px; border:1px solid #E5E7EB; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:32px; font-weight:800; color:#2D3748">Semánticos</h3>
+      <p style="font-size:24px; line-height:1.4; color:#4A5568">Juez LLM con rúbrica versionada: continuidad, tono, arco, personajes, ritmo y personalización natural. Revisión humana con la misma rúbrica.</p>
+      <p style="font-size:24px; font-weight:700; color:#0369A1">Gate antes de publicar</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:12px; background:#FFFFFF; padding:36px; border:1px solid #E5E7EB; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:32px; font-weight:800; color:#2D3748">Formal de la historia · Lean 4</h3>
+      <p style="font-size:24px; line-height:1.4; color:#4A5568">SQLite → Cronologia.lean. Cuatro invariantes: orden, edad, ubicuidad y exclusión, con demostración general.</p>
+      <p style="font-size:24px; font-weight:700; color:#0369A1">Gate antes de publicar</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:12px; background:#FFFFFF; padding:36px; border:1px solid #E5E7EB; border-radius:16px">
+      <h3 style="font-family:'Outfit', Arial, sans-serif; font-size:32px; font-weight:800; color:#2D3748">Formal del sistema · TLA+</h3>
+      <p style="font-size:24px; line-height:1.4; color:#4A5568">El flujo como máquina de estados: reintentos, checkpoint, regeneración. Cinco invariantes de seguridad y una de liveness, comprobados con TLC.</p>
+      <p style="font-size:24px; font-weight:700; color:#0369A1">En desarrollo, no por novela</p>
+    </div>
+  </div>
+  <p style="position:absolute; left:128px; bottom:64px; width:1400px; font-size:24px; color:#6B7280">Qaracter · Story Maker · 6 · cada resultado llega a Langfuse como score</p>
+  <aside>Cada validador tiene nombre, punto de ejecución y score en Langfuse. Los programáticos son gratis y van primero: detectan lo que no merece una llamada a un modelo. Los semánticos y los formales son el gate antes de publicar. TLC verifica el propio harness en desarrollo.</aside>
+</section>

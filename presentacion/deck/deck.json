@@ -1,0 +1,22 @@
+{
+  "v": 4,
+  "createdOnFiles": {"v": 1, "at": "2026-09-25T05:10:00Z"},
+  "title": "Story Maker · Propuesta",
+  "order": ["portada", "problema", "configuracion", "arquitectura", "bucle", "validadores", "resultados", "lean", "tlc", "tuning", "langfuse", "guardrails", "presupuesto", "escenarios", "demo", "riesgos", "contraportada", "anexo-arquitectura", "anexo-maquina", "anexo-evals", "anexo-sqlite", "anexo-roles", "anexo-redteam"],
+  "sections": {
+    "s1": {"description": "Quiénes somos, para quién y por qué: el regalo que las alternativas no dan", "start": "portada"},
+    "s2": {"description": "Cómo se configura, se lee y se corrige una novela", "start": "configuracion"},
+    "s3": {"description": "El harness: roles, bucle, contexto, story bible, tools y hooks", "start": "arquitectura"},
+    "s4": {"description": "Validación, evaluación y observabilidad con números reales", "start": "validadores"},
+    "s5": {"description": "Guardrails, presupuesto y coste", "start": "guardrails"},
+    "s6": {"description": "Demo del cambio del lector, riesgos y contacto", "start": "demo"},
+    "s7": {"description": "Anexos técnicos", "start": "anexo-arquitectura"}
+  },
+  "cover": "portada",
+  "faces": {
+    "outfit": {"family": "Outfit", "href": "https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&display=swap"},
+    "public-sans": {"family": "Public Sans", "href": "https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700&display=swap"},
+    "jetbrains-mono": {"family": "JetBrains Mono", "href": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap"}
+  },
+  "designSystems": []
+}

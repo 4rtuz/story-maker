@@ -1,0 +1,24 @@
+<section id="lean" data-transition="fade" style="background:#2D3748; color:#FFFFFF; font-family:'Public Sans', Arial, sans-serif; padding:128px 128px 160px; display:flex; flex-direction:column; gap:40px">
+  <div style="display:flex; flex-direction:column; gap:16px">
+    <p style="font-size:24px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#F0A04B">Validador formal de la historia</p>
+    <h2 style="font-family:'Outfit', Arial, sans-serif; font-size:72px; font-weight:800; line-height:1.1">Lo que solo ve Lean</h2>
+  </div>
+  <div style="display:flex; flex-direction:row; gap:48px">
+    <div style="flex:1; display:flex; flex-direction:column; gap:20px">
+      <p style="font-size:30px; line-height:1.45; color:#FDE9CF">Capítulo 2: Tomás se marcha en el ferry para siempre. Capítulo 3: vuelve a estar en el faro, e Inés lo recuerda en el puerto la noche 1 a las 21:10, cuando el capítulo 1 lo tenía en el faro a esa hora.</p>
+      <div style="display:flex; flex-direction:column; gap:10px; background:#1F2937; padding:32px; border-radius:16px">
+        <p style="font-size:26px; font-family:'JetBrains Mono', 'Courier New', monospace">validar · aplicar-delta · checkpoint · auditar → 0</p>
+        <p style="font-size:26px; font-family:'JetBrains Mono', 'Courier New', monospace; color:#F0A04B">verificar-lean → 1 · ubicuidad (evt-03-2 / evt-01-1) · exclusion (evt-03-1 tras evt-02-1)</p>
+      </div>
+    </div>
+    <div style="width:520px; display:flex; flex-direction:column; gap:20px">
+      <div style="display:flex; flex-direction:column; gap:8px; background:#FFFFFF; padding:32px; border-radius:16px">
+        <p style="font-family:'Outfit', Arial, sans-serif; font-size:72px; font-weight:800; color:#C2410C">4 / 4</p>
+        <p style="font-size:26px; color:#1F2937">invariantes demostrados sobre los 32 eventos reales de la novela de ejemplo</p>
+      </div>
+      <p style="font-size:24px; line-height:1.4; color:#FDE9CF">Si falla, la versión no se publica y vuelve con qa/lean.json. Cada checker tiene una demostración general: implica su proposición para cualquier cronología.</p>
+    </div>
+  </div>
+  <p style="position:absolute; left:128px; bottom:64px; width:1400px; font-size:24px; color:#BFD8D5">Qaracter · Story Maker · 8 · fixture PARTIDA, docs/formal/lean.md</p>
+  <aside>El caso: un personaje que se va para siempre y vuelve, y otro en dos sitios a la vez en capítulos distintos. Ningún validador programático ni la auditoría lo ven, porque cada capítulo es coherente por separado. Lean sí. En la novela real, Lean no encontró nada: el escritor y el trazador ya habían corregido las incoherencias que había. Lo contamos tal cual.</aside>
+</section>
