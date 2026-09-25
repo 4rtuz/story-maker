@@ -35,14 +35,25 @@ class SinCanon(ValueError):
 def construir(
     apariciones: Iterable[Aparicion],
     personajes: Mapping[str, tuple[str, tuple[str, ...]]],  # id → (nombre, alias)
-    escenarios: Mapping[str, tuple[str, str]],  # id → (nombre, descripcion)
+    escenarios: Mapping[str, tuple[str, str | None]],  # id → (nombre, descripcion)
 ) -> Ficha:
     capitulos: dict[str, set[int]] = {}
     for a in apariciones:
         capitulos.setdefault(a.entidad, set()).add(a.capitulo)
-    ausentes = tuple(sorted(e for e in capitulos if e not in personajes and e not in escenarios))
+    ausentes = tuple(sorted(e for e in capitulos if e.startswith("per-") and e not in personajes))
     if ausentes:
         raise SinCanon(ausentes)
+    # Un lugar sin ficha (un id que el cronista inventó y la story bible, append-only, ya guarda)
+    # sale con el nombre de su id y sin descripción: el nombre de un personaje ha de ser exacto,
+    # el de un lugar no. `aplicar-delta` rechaza hoy esos ids (violaciones.py).
+    escenarios = {
+        **{
+            e: (e.removeprefix("esc-").replace("-", " ").capitalize(), None)
+            for e in capitulos
+            if not e.startswith("per-")
+        },
+        **escenarios,
+    }
     orden = sorted(capitulos, key=lambda e: (min(capitulos[e]), e))
     return Ficha(
         personajes=tuple(

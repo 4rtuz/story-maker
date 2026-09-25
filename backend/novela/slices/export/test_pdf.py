@@ -607,7 +607,8 @@ def test_sin_secreto(novelas: Novelas) -> None:
 
 
 def test_entidad_sin_canon(novelas: Novelas) -> None:
-    """CA-29 (RF-29), VER-14, VAL-21: nombra todos los ids sin canon, personajes o lugares."""
+    """CA-29 (RF-29), VER-14, VAL-21: nombra todos los personajes sin canon. Un lugar sin ficha ya
+    no para el export (docs/proceso/iteraciones.md, ejemplo-carmen): sale con el nombre de su id."""
     ws = novelas("demo-regalo")
     for id_ in (fabrica.INES, fabrica.TOMAS):
         (ws.raiz / "canon" / "personajes" / f"{id_}.md").unlink()
@@ -620,8 +621,8 @@ def test_entidad_sin_canon(novelas: Novelas) -> None:
     texto = mundo.read_text(encoding="utf-8")
     mundo.write_text(texto.replace(f"id: {fabrica.PUERTO}", "id: esc-otro-puerto"), "utf-8")
     resultado = exportar(otro)
-    assert resultado.exit_code == 4 and fabrica.PUERTO in resultado.output
-    assert sin_pdf(otro)
+    assert resultado.exit_code == 0, resultado.output
+    assert not sin_pdf(otro)
 
 
 def test_pagina_de_novedades(novelas: Novelas, regenerada: str) -> None:

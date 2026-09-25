@@ -18,8 +18,8 @@ from novela.dominio.artefactos import (
     Memoria,
     contar_palabras,
 )
-from novela.dominio.canon import Misterio
-from novela.dominio.estado import Delta, Estado
+from novela.dominio.canon import Misterio, Mundo
+from novela.dominio.estado import Aparicion, Delta, Estado
 from novela.dominio.plan import FichaCapitulo
 from novela.dominio.qa import InformeQA
 from novela.dominio.version import PeticionDeCambio, Version
@@ -118,6 +118,17 @@ def _base_anterior(ws: WorkspaceRepository, version: int) -> Estado:
         return estado_db.leer(conn)
 
 
+def _lugares_sin_canon(
+    ws: WorkspaceRepository, delta: Delta, aparecen: tuple[Aparicion, ...]
+) -> list[str]:
+    conocidos = {e.id for e in ws.leer_md(ws.raiz / "canon" / "mundo.md", Mundo).escenarios}
+    lugares = {p.ubicacion for p in delta.personajes.values() if p.ubicacion}
+    lugares |= {o.ubicacion for o in delta.objetos if o.ubicacion}
+    lugares |= {e.lugar for e in delta.cronologia}
+    lugares |= {a.entidad for a in aparecen if a.tipo == "escenario"}
+    return sorted(lugares - conocidos)
+
+
 def aplicar_delta(
     slug: str,
     capitulo: int,
@@ -174,6 +185,10 @@ def aplicar_delta(
             # Antes de abrir la base: sin ficha válida, salida 4 sin tocar nada (spec 0006, RF-21).
             ficha = ws.leer_md(ws.raiz / "plan" / "capitulos" / f"{nn}.md", FichaCapitulo)
             aparecen = apply.apariciones(capitulo, fm, ficha, delta)
+            # Un lugar inventado deja al libro sin su ficha (ejemplo-carmen). Reaplicado, el
+            # capítulo ya pasó este gate en su versión.
+            if not reaplicar and (sin := _lugares_sin_canon(ws, delta, aparecen)):
+                rechazar([f"lugar sin ficha en canon/mundo.md: {', '.join(sin)}"])
 
             with estado_db.abrir(ws.estado_db) as conn:
                 vigente = estado_db.leer(conn)

@@ -389,3 +389,19 @@ def test_aplicar_registra_apariciones(novelas: Novelas) -> None:
         (e, c) for c, entidades in esperadas.items() for e in entidades
     }
     assert len(filas) == 15
+
+
+# Parametrizado y no property-based: el fixture `novelas` crea el workspace una vez por test.
+@pytest.mark.parametrize("lugar", ["esc-casa-carmen", "esc-zz", "esc-biblioteca-municipal"])
+def test_lugar_sin_ficha_en_el_canon(novelas: Novelas, lugar: str) -> None:
+    """ejemplo-carmen: el cronista registró lugares con ids inventados y el export no encontraba
+    su ficha. Un lugar que no está en canon/mundo.md sale con 1 y la base intacta."""
+    ws, antes = _preparado(novelas)
+    ruta = ws.raiz / "estado" / "deltas" / "08.json"
+    delta = json.loads(ruta.read_text(encoding="utf-8"))
+    delta["personajes"][fabrica.TOMAS]["ubicacion"] = lugar
+    ruta.write_text(json.dumps(delta), encoding="utf-8")
+    resultado = _aplicar(ws)
+    assert resultado.exit_code == 1
+    assert lugar in resultado.output and "canon/mundo.md" in resultado.output
+    assert ws.estado_db.read_bytes() == antes

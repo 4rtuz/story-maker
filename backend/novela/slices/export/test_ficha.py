@@ -81,3 +81,15 @@ def test_ids_sin_canon() -> None:
         ficha.construir(filas, {}, {"esc-x": ("X", "x")})
     assert exc.value.ids == ("per-ines-mar", "per-tomas-reyes")
     assert "per-ines-mar" in str(exc.value) and "per-tomas-reyes" in str(exc.value)
+
+
+def test_lugar_sin_canon_sale_con_nombre_del_id() -> None:
+    """ejemplo-carmen: el cronista antiguo registró lugares con ids inventados, y la story bible
+    es append-only. Un lugar sin ficha sale con un nombre derivado del id y sin descripción; un
+    personaje sin ficha sigue siendo SinCanon, porque su nombre tiene que ser exacto."""
+    filas = [_aparicion("esc-casa-carmen", 1), _aparicion("esc-x", 2)]
+    f = ficha.construir(filas, {}, {"esc-x": ("X", "x")})
+    assert [(e.id, e.nombre, e.detalle, e.capitulos) for e in f.lugares] == [
+        ("esc-casa-carmen", "Casa carmen", None, (1,)),
+        ("esc-x", "X", "x", (2,)),
+    ]
