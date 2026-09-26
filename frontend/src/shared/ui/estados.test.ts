@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { boton, campo } from './componentes';
+import { boton } from './componentes';
 
 const CSS = ['estilos.css', '../../app/app.css']
   .map((f) => fs.readFileSync(path.join(import.meta.dirname, f), 'utf8'))
@@ -61,10 +61,16 @@ const INTERACTIVOS: Interactivo[] = [
     foco: '.q-plegar:focus-visible',
   },
   {
-    nombre: 'entrada de novela',
-    reposo: '.q-entrada__slug',
-    hover: '.q-entrada__slug:hover',
-    foco: '.q-entrada__slug:focus-visible',
+    nombre: 'enlace de una novela de la biblioteca',
+    reposo: '.q-obra__enlace',
+    hover: '.q-obra__enlace:hover',
+    foco: '.q-obra__enlace:focus-visible',
+  },
+  {
+    nombre: 'tarjeta de novela nueva',
+    reposo: '.q-obra--nueva',
+    hover: '.q-obra--nueva:hover',
+    foco: '.q-obra--nueva:focus-visible',
   },
   {
     nombre: 'desplegable de datos de la gráfica',
@@ -73,11 +79,34 @@ const INTERACTIVOS: Interactivo[] = [
     foco: '.q-detalles__resumen:focus-visible',
   },
   {
-    nombre: 'campo de formulario',
-    reposo: '.q-campo__control',
-    hover: '.q-campo__control:hover',
-    foco: '.q-campo__control:focus-visible',
-    deshabilitado: '.q-campo__control:disabled',
+    nombre: 'opción del chat',
+    reposo: '.q-chip-opcion',
+    hover: '.q-chip-opcion:hover',
+    foco: '.q-chip-opcion:focus-visible',
+  },
+  {
+    nombre: 'entrada del chat',
+    reposo: '.q-chat__texto',
+    hover: '.q-chat__texto:hover',
+    foco: '.q-chat__texto:focus-visible',
+  },
+  {
+    nombre: 'botón de enviar del chat',
+    reposo: '.q-chat__enviar',
+    hover: '.q-chat__enviar:hover',
+    foco: '.q-chat__enviar:focus-visible',
+  },
+  {
+    nombre: 'enlace de un lanzamiento',
+    reposo: '.q-tarea__ver',
+    hover: '.q-tarea__ver:hover',
+    foco: '.q-tarea__ver:focus-visible',
+  },
+  {
+    nombre: 'selector de medida de las métricas',
+    reposo: '.q-selector__opcion',
+    hover: '.q-selector__opcion:hover',
+    foco: '.q-selector__opcion:focus-visible',
   },
 ];
 
@@ -124,23 +153,5 @@ describe('construcción', () => {
     const b = boton('Ver progreso', { variante: 'secundario', flecha: true });
     expect(b.textContent).toBe('Ver progreso→');
     expect(b.lastElementChild?.getAttribute('aria-hidden')).toBe('true');
-  });
-
-  it('el campo lleva la etiqueta encima y el error debajo, enlazado', () => {
-    const c = campo({ id: 'slug', etiqueta: 'Slug' });
-    c.mostrarError('no casa ^[a-z0-9-]+$');
-    const [etiqueta, control, error] = [...c.raiz.children];
-    expect(etiqueta?.tagName).toBe('LABEL');
-    expect(control).toBe(c.control);
-    expect(c.control.getAttribute('aria-invalid')).toBe('true');
-    expect(c.control.getAttribute('aria-describedby')).toBe(error?.id);
-    expect(error?.textContent).toBe('no casa ^[a-z0-9-]+$');
-    c.mostrarError(null);
-    expect(c.control.hasAttribute('aria-invalid')).toBe(false);
-  });
-
-  it('nada se inserta como HTML', () => {
-    const c = campo({ id: 'x', etiqueta: '<img src=x onerror=alert(1)>' });
-    expect(c.raiz.querySelector('img')).toBeNull();
   });
 });

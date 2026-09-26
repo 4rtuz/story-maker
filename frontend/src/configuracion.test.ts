@@ -15,8 +15,8 @@ const paquete = JSON.parse(fs.readFileSync(path.join(FRONTEND, 'package.json'), 
 const PROHIBIDO = /^(@anthropic-ai\/.*|openai|@google\/generative-ai|langchain|@langchain\/.*|ai)$/;
 
 describe('dependencias (CA-44)', () => {
-  it('las de ejecución son exactamente three y markdown-it', () => {
-    expect(Object.keys(paquete.dependencies ?? {}).sort()).toEqual(['markdown-it', 'three']);
+  it('la de ejecución es solo markdown-it (spec 0015 retiró three)', () => {
+    expect(Object.keys(paquete.dependencies ?? {}).sort()).toEqual(['markdown-it']);
   });
 
   it('ninguna es un SDK o cliente de un proveedor de modelos', () => {

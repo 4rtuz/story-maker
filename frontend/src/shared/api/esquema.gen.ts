@@ -145,6 +145,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/novelas/{slug}/portada": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Portada */
+        get: operations["portada_novelas__slug__portada_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/novelas/{slug}/metricas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Metricas */
+        get: operations["metricas_novelas__slug__metricas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/novelas/{slug}/capitulos": {
         parameters: {
             query?: never;
@@ -191,6 +225,27 @@ export interface paths {
          * @description Portada, índice y ficha de la lectura web; lo mismo que el PDF (docs/lectura-web.md).
          */
         get: operations["libro_novelas__slug__libro_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/novelas/{slug}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pdf
+         * @description El libro de regalo en PDF con los capítulos cerrados, para descargar (spec 0015). El título
+         *     es el que muestra el panel: el slug con espacios, mientras la novela no tenga uno propio.
+         */
+        get: operations["pdf_novelas__slug__pdf_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -327,6 +382,44 @@ export interface components {
             idea_semilla: string;
             parametros_obra: components["schemas"]["ParametrosObra"];
             parametros_sistema: components["schemas"]["ParametrosSistema"];
+        };
+        /** Consumo */
+        Consumo: {
+            /** Llamadas */
+            llamadas: number;
+            /** Tokens Entrada */
+            tokens_entrada: number;
+            /** Tokens Salida */
+            tokens_salida: number;
+            /** Tokens Cache Lectura */
+            tokens_cache_lectura: number;
+            /** Coste Usd */
+            coste_usd: number;
+            /** Latencia Media Llamada S */
+            latencia_media_llamada_s: number;
+        };
+        /** ConsumoDePaso */
+        ConsumoDePaso: {
+            /** Llamadas */
+            llamadas: number;
+            /** Tokens Entrada */
+            tokens_entrada: number;
+            /** Tokens Salida */
+            tokens_salida: number;
+            /** Tokens Cache Lectura */
+            tokens_cache_lectura: number;
+            /** Coste Usd */
+            coste_usd: number;
+            /** Latencia Media Llamada S */
+            latencia_media_llamada_s: number;
+            /** Paso */
+            paso: string;
+            /** Latencia S */
+            latencia_s: number;
+            /** Roles */
+            roles: {
+                [key: string]: components["schemas"]["Consumo"];
+            };
         };
         /** Cursor */
         Cursor: {
@@ -595,6 +688,21 @@ export interface components {
             /** Descripcion */
             descripcion: string;
         };
+        /** InformeDeCostes */
+        InformeDeCostes: {
+            /** Slug */
+            slug: string;
+            /** Sesion */
+            sesion: string;
+            /**
+             * Generado
+             * Format: date-time
+             */
+            generado: string;
+            /** Pasos */
+            pasos: components["schemas"]["ConsumoDePaso"][];
+            total: components["schemas"]["TotalDeCostes"];
+        };
         /** Lanzamiento */
         Lanzamiento: {
             /** Slug */
@@ -844,6 +952,23 @@ export interface components {
             intensidad: number;
             /** Desde */
             desde: number;
+        };
+        /** TotalDeCostes */
+        TotalDeCostes: {
+            /** Llamadas */
+            llamadas: number;
+            /** Tokens Entrada */
+            tokens_entrada: number;
+            /** Tokens Salida */
+            tokens_salida: number;
+            /** Tokens Cache Lectura */
+            tokens_cache_lectura: number;
+            /** Coste Usd */
+            coste_usd: number;
+            /** Latencia Media Llamada S */
+            latencia_media_llamada_s: number;
+            /** Latencia S */
+            latencia_s: number;
         };
         /**
          * TramoDeLog
@@ -1126,6 +1251,68 @@ export interface operations {
             };
         };
     };
+    portada_novelas__slug__portada_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description La portada, sin texto */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    metricas_novelas__slug__metricas_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InformeDeCostes"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     indice_novelas__slug__capitulos_get: {
         parameters: {
             query?: never;
@@ -1207,6 +1394,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Libro"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pdf_novelas__slug__pdf_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
                 };
             };
             /** @description Validation Error */

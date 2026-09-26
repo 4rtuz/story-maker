@@ -1,9 +1,12 @@
 # Lectura web de la novela
 
-La vista **Lectura** del panel (`#/novelas/<slug>/lectura`) lleva, encima de la estantería y la
-lista de capítulos, una tarjeta **Libro** con lo mismo que el PDF de regalo: portada con título y
-dedicatoria, índice de capítulos navegable y ficha de personajes y lugares con un enlace a cada
-capítulo en que aparece cada uno. Pulsar un enlace abre el capítulo en el lector del panel.
+La vista **Lectura** del panel (`#/novelas/<slug>/lectura`) es el libro, con lo mismo que el PDF de
+regalo: portada con la ilustración de `novela portada`, título y dedicatoria, índice de capítulos
+navegable y ficha de personajes y lugares con un enlace a cada capítulo en que aparece cada uno.
+Pulsar un enlace abre el capítulo en el lector del panel. Junto a «Empezar a leer», «Descargar PDF»
+baja ese mismo PDF, que la API compone en memoria (`GET /novelas/<slug>/pdf`, spec 0015). El lector
+es un libro abierto sobre papel con textura: el capítulo 1 empieza por la portada, y el fondo
+(papel, sepia o noche) y el tamaño de la letra se cambian desde su cabecera.
 
 ![Tarjeta Libro de regalo-24](img/lectura-libro.png)
 
@@ -20,7 +23,7 @@ la API sigue en `localhost`, solo lee y no sirve el PDF.
 
 Lo que cambia respecto a la spec 0006: su RF-32 decía «ninguna ruta nueva». Ahora hay exactamente
 una, `GET /novelas/{slug}/libro`, en JSON y **sin el cuerpo** de los capítulos (el cuerpo ya lo
-sirve `…/capitulos/{n}`). `test_api.py::test_sin_rutas_de_libro` fija esa única excepción; de paso
+sirve `…/capitulos/{n}`). `test_api.py::test_sin_rutas_de_libro` fija esa única excepción, más la ilustración de cubierta `…/portada` de la spec 0015, que no es la portada del PDF; de paso
 se arregló que el test fuera vacuo (ver `docs/validacion-visual.md`, hallazgo 1).
 
 ## `GET /novelas/{slug}/libro`

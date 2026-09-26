@@ -15,7 +15,7 @@ Dos carpetas grandes. Todo lo demás en la raíz es compartido.
 | Carpeta | Stack | Qué hace |
 |---|---|---|
 | `backend/` | Python 3.12, FastAPI, Typer, Pydantic v2, `uv` | CLI `novela` (escribe) y API REST (`backend/api/`: lee, y lanza el CLI) |
-| `frontend/` | Vite + TypeScript + Three.js | Panel: consulta la API y lanza novelas a través de ella |
+| `frontend/` | Vite + TypeScript | Panel: consulta la API y lanza novelas a través de ella |
 
 Reglas:
 
@@ -97,7 +97,8 @@ novela comparar-juicios <slug> --humano <f>   revisión humana contra el juez
 novela prohibidas añadir|listar|comprobar <slug>   guardrail de palabras prohibidas
 novela lint-prosa <slug> [<cap>]      linters de prosa, informativos
 novela registrar-visual <slug> --fichero <f>   informe de la validación visual
-novela costes <slug>                  tokens, coste y latencia desde Langfuse
+novela costes <slug> [--guardar]      tokens, coste y latencia desde Langfuse; --guardar: metricas.json
+novela portada <slug> [--forzar]      ilustración de cubierta de Pollinations en portada.jpg
 novela traza <slug> <paso>            traza del paso en la sesión de la novela; imprime el traceparent
 novela prompts publicar               sube .claude/agents/*.md a Langfuse con el sha
 ```
@@ -230,7 +231,7 @@ El `|| break` es deliberado: ante un error el sistema para y deja el checkpoint,
 
 Si el bucle escribe `runs/<run_id>/intervencion.md`, ha agotado los intentos de un gate y necesita una decisión humana. Léelo antes de relanzar nada.
 
-El CLI no accede a la red salvo para emitir scores a Langfuse.
+El CLI no accede a la red salvo para Langfuse (scores y `costes`) y para pedir la portada a Pollinations.
 
 ## Nunca
 

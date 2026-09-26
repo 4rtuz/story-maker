@@ -85,6 +85,18 @@ export const checkpoint = (slug: string, s?: AbortSignal) =>
 export const libro = (slug: string, s?: AbortSignal) => json<E['Libro']>(`${novela(slug)}/libro`, s);
 export const runs = (slug: string, s?: AbortSignal) => json<E['Manifest'][]>(`${novela(slug)}/runs`, s);
 
+/** Las métricas de Langfuse que guardó `novela costes --guardar`, o null si no hay (spec 0015). */
+export const metricas = (slug: string, s?: AbortSignal) =>
+  jsonONull<E['InformeDeCostes']>(`${novela(slug)}/metricas`, 404, s);
+
+/** La portada de `novela portada`, para un `<img>`: sin ella, la API responde 404 y la vista
+ * pone la cubierta tipográfica (spec 0015). */
+export const urlDePortada = (slug: string): string => `${urlBase()}${novela(slug)}/portada`;
+
+/** El libro de regalo en PDF, para un enlace de descarga: la API lo construye con los capítulos
+ * cerrados y lo sirve como adjunto (spec 0015, D8). */
+export const urlDePdf = (slug: string): string => `${urlBase()}${novela(slug)}/pdf`;
+
 /** null si la novela todavía no tiene escaleta: el 404 que RF-19 trata sin aviso. */
 export const escaleta = (slug: string, s?: AbortSignal) =>
   jsonONull<E['Escaleta']>(`${novela(slug)}/escaleta`, 404, s);
@@ -113,6 +125,3 @@ export const lanzar = (peticion: E['PeticionDeLanzamiento']) => enviar('/lanzami
 export const reanudar = (slug: string) => enviar(`${lanzamientoDe(slug)}/reanudar`);
 export const detener = (slug: string) => enviar(`${lanzamientoDe(slug)}/detener`);
 export const lanzamientos = (s?: AbortSignal) => json<E['Lanzamiento'][]>('/lanzamientos', s);
-/** null si la novela no se lanzó desde el panel. */
-export const lanzamiento = (slug: string, s?: AbortSignal) =>
-  jsonONull<E['Lanzamiento']>(lanzamientoDe(slug), 404, s);

@@ -1,176 +1,72 @@
-// Lectura (RF-24 a RF-31, RF-58): la estantería con un volumen por capítulo, su lista HTML
-// equivalente y el lector en un diálogo modal. La selección vive aquí y la ruta lleva el capítulo
-// abierto (RF-10). Un capítulo solo se pide si está cerrado, y no antes de conocer el checkpoint
-// (RF-27, D8, VAL-7).
+// Lectura (RF-24 a RF-31, spec 0015): la portada con su ilustración, el índice y la ficha de
+// personajes y lugares, y el lector en un diálogo modal. La ruta lleva el capítulo abierto (RF-10):
+// se abre desde el índice, la ficha o «Empezar a leer». Un capítulo solo se pide si está cerrado, y
+// no antes de conocer el checkpoint (RF-27, D8, VAL-7).
 import type { Ruta, Vista } from '../../app/rutas';
 import * as api from '../../shared/api/cliente';
 import { ErrorDeApi } from '../../shared/api/errores';
-import { lectorDelNavegador } from '../../shared/marca/lector-de-tokens';
+import { SUBGENEROS } from '../../shared/obra';
 import { CADA_DATOS, type Recurso } from '../../shared/sondeo';
-import { banner, datosDeBanner } from '../../shared/ui/banner';
-import { aviso, boton, el, esqueleto, estadoVacio, etiqueta, tarjeta, vacio } from '../../shared/ui/componentes';
-import { disposicion } from './disposicion';
-import type { Escena, FabricaDeRenderer } from './escena';
-import { estadosDeVolumen, TEXTO_DE_ESTADO, type EstadoDeVolumen } from './estados';
+import { aviso, boton, el, esqueleto, vacio } from '../../shared/ui/componentes';
+import { portada, tituloDe } from '../../shared/ui/portada';
+import { estadosDeVolumen, type EstadoDeVolumen } from './estados';
 import { libro } from './libro';
-import { tecla } from './navegacion';
 
 type E = api.Esquemas;
 
 interface Datos {
   config?: E['Config'];
-  escaleta?: E['Escaleta'] | null;
   checkpoint?: E['Checkpoint'] | null;
   capitulos?: E['FrontmatterCapitulo'][];
   libro?: E['Libro'];
 }
 
-const FOCUSABLES = 'button, [href], [tabindex]:not([tabindex="-1"])';
+const FOCUSABLES = 'button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])';
 
-const reducirMovimiento = (): boolean =>
-  typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+type Tema = 'papel' | 'sepia' | 'noche';
+const TEMAS: readonly Tema[] = ['papel', 'sepia', 'noche'];
+const LETRA = { minima: 14, maxima: 26, paso: 2 } as const;
+/** Fondo y tamaño de letra del lector: duran lo que la pestaña, sin guardarse en el navegador
+ * (spec 0015, D9; RNF-09 de la spec 0004). */
+const preferencias: { tema: Tema; tamano: number } = { tema: 'papel', tamano: 18 };
 
-export function lectura(
-  { slug, capitulo }: { slug: string; capitulo?: number },
-  navegar: (ruta: Ruta) => void,
-  opciones: { crearRenderer?: FabricaDeRenderer } = {},
-): Vista {
+export function lectura({ slug, capitulo }: { slug: string; capitulo?: number }, navegar: (ruta: Ruta) => void): Vista {
   const datos: Datos = {};
-  let seleccion = capitulo ?? 1;
   let abierto: number | null = capitulo ?? null;
   let texto: { n: number; nodo: HTMLElement } | { n: number; error: string } | null = null;
   let peticion: { n: number; control: AbortController } | null = null;
-  let escena3d: Escena | null = null;
-  let estadoEscena: 'sin-empezar' | 'cargando' | 'lista' | 'no-disponible' = 'sin-empezar';
-  let montada = true;
+  /** El enlace que abrió el lector, para devolverle el foco al cerrarlo. */
+  let origen: HTMLElement | null = null;
 
-  const cabecera = el('div', 'q-progreso__banner', banner(datosDeBanner(slug, undefined, undefined)));
-  const tarjetaEscena = tarjeta({ titulo: 'Estantería', icono: 'library', tono: 'naranja', clase: 'q-lectura__estanteria' });
-  const escena = el('div', 'q-escena', esqueleto('q-esqueleto--escena'));
-  tarjetaEscena.cuerpo.append(escena);
-  const tarjetaLista = tarjeta({ titulo: 'Capítulos', icono: 'book-open', tono: 'cian', clase: 'q-lectura__lista' });
-  tarjetaLista.cuerpo.append(esqueleto('q-esqueleto--lista'));
+  const cubierta = portada({ slug, tamano: 'grande', decorativa: true });
   // Portada, índice y ficha (docs/lectura-web.md): se rehace solo si cambia el libro.
-  const tarjetaLibro = tarjeta({ titulo: 'Libro', icono: 'book-open', tono: 'naranja', clase: 'q-lectura__libro' });
-  tarjetaLibro.cuerpo.append(esqueleto('q-esqueleto--lista'));
+  const contenido = el('div', 'q-lectura', esqueleto('q-esqueleto--portada'), esqueleto('q-esqueleto--lista'));
   let libroPintado = '';
-  const lista = el('ol', 'q-volumenes');
-  lista.setAttribute('aria-label', 'Capítulos de la novela');
   const capa = el('div', 'q-lector-capa');
   capa.hidden = true;
 
-  const total = (): number => datos.config?.parametros_obra.num_capitulos ?? 0;
   const estados = (): EstadoDeVolumen[] =>
-    estadosDeVolumen(total(), datos.checkpoint ?? null, (datos.capitulos ?? []).map((c) => c.capitulo));
+    estadosDeVolumen(datos.config?.parametros_obra.num_capitulos ?? 0, datos.checkpoint ?? null, (datos.capitulos ?? []).map((c) => c.capitulo));
   const titulo = (n: number): string => datos.capitulos?.find((c) => c.capitulo === n)?.titulo ?? `Capítulo ${n}`;
-  const botonDe = (n: number): HTMLButtonElement | null => lista.querySelector(`[data-capitulo="${n}"]`);
   const abrir = (n: number): void => navegar({ vista: 'lectura', slug, capitulo: n });
   const cerrar = (): void => navegar({ vista: 'lectura', slug });
 
-  function seleccionar(n: number, enfocar = false): void {
-    if (n !== seleccion) escena3d?.seleccionar(n);
-    seleccion = n;
-    escena.dataset.seleccion = String(n);
-    for (const b of lista.querySelectorAll<HTMLButtonElement>('[data-capitulo]')) {
-      const actual = b.dataset.capitulo === String(n);
-      b.tabIndex = actual ? 0 : -1;
-      if (actual) b.setAttribute('aria-current', 'true');
-      else b.removeAttribute('aria-current');
-    }
-    if (enfocar) botonDe(n)?.focus();
-  }
-
-  lista.addEventListener('keydown', (evento) => {
-    const pulsacion = tecla(evento.key, seleccion, total());
-    if (!pulsacion || pulsacion.accion === 'cerrar') return;
-    evento.preventDefault();
-    if (pulsacion.accion === 'abrir') abrir(pulsacion.seleccion);
-    else seleccionar(pulsacion.seleccion, true);
+  contenido.addEventListener('click', (evento) => {
+    const enlace = (evento.target as Element).closest('a');
+    if (enlace) origen = enlace;
   });
 
-  /** Construye la lista si cambia el número de capítulos; si no, actualiza cada elemento sin
-   * rehacerlo, para no perder el foco en cada ronda. */
-  function pintarLista(): void {
-    const n = total();
-    if (lista.children.length !== n) {
-      lista.replaceChildren(
-        ...Array.from({ length: n }, (_, i) => {
-          const b = el('button', 'q-volumen');
-          b.type = 'button';
-          b.dataset.capitulo = String(i + 1);
-          b.addEventListener('focus', () => seleccionar(i + 1));
-          b.addEventListener('click', () => {
-            seleccionar(i + 1);
-            abrir(i + 1);
-          });
-          return el('li', '', b);
-        }),
-      );
-      seleccion = Math.min(Math.max(1, seleccion), Math.max(1, n));
-    }
-    estados().forEach((estado, i) => {
-      const b = botonDe(i + 1);
-      b?.replaceChildren(
-        el('span', 'q-volumen__numero', String(i + 1)),
-        el('span', 'q-volumen__titulo', titulo(i + 1)),
-        etiqueta(TEXTO_DE_ESTADO[estado]),
-      );
-      if (b) b.dataset.estado = estado;
-    });
-    seleccionar(seleccion);
-  }
-
-  /** Three.js y la escena llegan en su propio chunk al entrar en Lectura (RNF-02). */
-  async function iniciarEscena(): Promise<void> {
-    estadoEscena = 'cargando';
-    const modulo = await import('./escena');
-    if (!montada) return;
-    escena.replaceChildren();
-    escena3d = modulo.crearEscena({
-      contenedor: escena,
-      lector: lectorDelNavegador(),
-      crearRenderer: opciones.crearRenderer ?? modulo.rendererWebGL,
-      reducirMovimiento,
-      alSeleccionar: (n) => seleccionar(n),
-      alAbrir: abrir,
-      alFallar: sinEscena,
-    });
-    if (!escena3d) return sinEscena();
-    estadoEscena = 'lista';
-    pintarEscena();
-  }
-
-  /** Sin WebGL, o con el contexto perdido: queda la lista, que tiene lo mismo (RF-29). */
-  function sinEscena(): void {
-    escena3d = null;
-    estadoEscena = 'no-disponible';
-    escena.replaceChildren(
-      estadoVacio({
-        icono: 'library',
-        texto: 'vista 3D no disponible',
-        pista: 'La lista de capítulos tiene los mismos volúmenes y abre el lector.',
-      }),
-    );
-  }
-
-  function pintarEscena(): void {
-    escena3d?.actualizar(estados(), disposicion(total(), datos.escaleta?.actos ?? null), seleccion);
-  }
-
   function pintar(): void {
-    cabecera.replaceChildren(banner(datosDeBanner(slug, datos.config, undefined)));
-    if (!datos.config) return;
-    escena.dataset.volumenes = String(total());
-    pintarLista();
-    if (datos.libro && JSON.stringify(datos.libro) !== libroPintado) {
-      libroPintado = JSON.stringify(datos.libro);
-      tarjetaLibro.cuerpo.replaceChildren(libro(datos.libro, slug));
+    const obra = datos.config?.parametros_obra;
+    const firmaDelLibro = JSON.stringify([datos.libro, obra?.subgenero, obra?.num_capitulos]);
+    if (datos.libro && firmaDelLibro !== libroPintado) {
+      libroPintado = firmaDelLibro;
+      const subtitulo = obra ? `${SUBGENEROS[obra.subgenero]} · ${obra.num_capitulos} capítulos` : '';
+      const conTitulo = { ...datos.libro, titulo: tituloDe(datos.libro, slug) };
+      cubierta.poner(conTitulo.titulo, obra ? SUBGENEROS[obra.subgenero] : '');
+      contenido.replaceChildren(libro(conTitulo, slug, cubierta.raiz, subtitulo));
     }
-    if (estadoEscena === 'sin-empezar') void iniciarEscena();
-    pintarEscena();
-    if (datos.checkpoint === undefined || datos.capitulos === undefined) return;
-    const sinCerrados = !estados().includes('cerrado');
-    tarjetaLista.cuerpo.replaceChildren(...(sinCerrados ? [vacio('ningún capítulo cerrado todavía')] : []), lista);
+    if (datos.checkpoint === undefined || datos.capitulos === undefined || !datos.config) return;
     pintarLector();
   }
 
@@ -178,7 +74,7 @@ export function lectura(
     const control = new AbortController();
     peticion = { n, control };
     try {
-      // markdown-it y el lector llegan en el chunk de Lectura, con la escena (RNF-02).
+      // markdown-it y el lector llegan en el chunk de Lectura (RNF-02).
       const [markdown, { cuerpoDeCapitulo }] = await Promise.all([api.capitulo(slug, n, control.signal), import('./lector')]);
       texto = { n, nodo: cuerpoDeCapitulo(markdown) };
     } catch (error) {
@@ -197,7 +93,7 @@ export function lectura(
       if (!capa.hidden) {
         capa.hidden = true;
         capa.replaceChildren();
-        botonDe(seleccion)?.focus();
+        if (origen?.isConnected) origen.focus();
       }
       return;
     }
@@ -215,36 +111,191 @@ export function lectura(
     if (fase === 'no-disponible') cuerpo = vacio('capítulo no disponible todavía');
     else if (fase === 'texto' && texto) cuerpo = 'error' in texto ? aviso(texto.error) : texto.nodo;
     else cuerpo = esqueleto('q-esqueleto--lector');
-    mostrarDialogo(n, cuerpo);
+    mostrarDialogo(n, cuerpo, fase);
+  }
+
+  /** La portada del libro abierto: la ilustración en la página izquierda y el título con la
+   * dedicatoria en la derecha; el capítulo 1 empieza al pasar la página (spec 0015). */
+  function portadaDelLibro(): HTMLElement {
+    const obra = datos.config?.parametros_obra;
+    const nombre = tituloDe(datos.libro, slug);
+    const genero = obra ? SUBGENEROS[obra.subgenero] : '';
+    const cubierta = portada({ slug, tamano: 'grande', decorativa: true });
+    cubierta.poner(nombre, genero);
+    const dedicatoria = datos.libro?.dedicatoria;
+    const seccion = el(
+      'section',
+      'q-lector__portada',
+      el('div', 'q-lector__hoja q-lector__hoja--cubierta', cubierta.raiz),
+      el(
+        'div',
+        'q-lector__hoja q-lector__hoja--titulo',
+        ...(genero ? [el('p', 'q-lector__portada-genero', genero)] : []),
+        el('p', 'q-lector__portada-titulo', nombre),
+        ...(dedicatoria ? [el('p', 'q-lector__portada-dedicatoria', dedicatoria)] : []),
+        el('p', 'q-lector__portada-pie', 'Pasa la página para empezar'),
+      ),
+    );
+    seccion.setAttribute('aria-label', 'Portada');
+    return seccion;
   }
 
   let firma = '';
+  /** Las teclas del lector abierto: ← → cambian de capítulo, AvPág y RePág pasan página. */
+  let teclas: Record<string, () => void> = {};
+  /** Al retroceder desde el primer pliego, el anterior se abre por su último pliego. */
+  let volverAlFinal = false;
+  const irA = (n: number, alFinal = false): void => {
+    volverAlFinal = alFinal;
+    abrir(n);
+  };
 
-  function mostrarDialogo(n: number, cuerpo: HTMLElement): void {
+  function mostrarDialogo(n: number, cuerpo: HTMLElement, fase: string): void {
     const encabezado = el('h2', 'q-lector__titulo');
     encabezado.id = 'q-lector-titulo';
     encabezado.dataset.testid = 'lector-titulo';
     encabezado.textContent = titulo(n); // el título lo escribe un agente: siempre como texto (D56)
     const cerrarBoton = boton('Cerrar', { variante: 'secundario' });
     cerrarBoton.addEventListener('click', cerrar);
-    const desplazable = el('div', 'q-lector__cuerpo', cuerpo);
-    desplazable.tabIndex = 0; // se desplaza con teclado
+    const anterior = n > 1 ? n - 1 : null;
+    const siguiente = estados()[n] === 'cerrado' ? n + 1 : null;
+    const flecha = (destino: number | null, nombre: string, simbolo: string): HTMLElement[] => {
+      if (destino === null) return [];
+      const b = boton(simbolo, { variante: 'secundario' });
+      b.setAttribute('aria-label', nombre);
+      b.title = `${nombre}: ${titulo(destino)}`;
+      b.addEventListener('click', () => irA(destino));
+      return [b];
+    };
+
+    // Libro abierto: el texto va en columnas de una página y cada pliego (dos páginas, una en
+    // pantalla estrecha) se muestra desplazándolo su propio ancho más el hueco (app.css).
+    if (n === 1 && fase === 'texto' && !cuerpo.querySelector('.q-lector__portada') && cuerpo.classList.contains('q-lector__texto')) {
+      cuerpo.prepend(portadaDelLibro());
+    }
+    const hojas = el('div', 'q-lector__cuerpo', cuerpo);
+    let pliego = 0;
+    const pliegos = (): number => {
+      if (!cuerpo.clientWidth) return 1;
+      const hueco = parseFloat(getComputedStyle(cuerpo).columnGap) || 0;
+      return Math.max(1, Math.ceil((cuerpo.scrollWidth + hueco) / (cuerpo.clientWidth + hueco) - 0.01));
+    };
+    const irAPliego = (p: number): void => {
+      pliego = p;
+      cuerpo.style.setProperty('--pliego', String(p));
+      hojas.dataset.pliego = String(p);
+    };
+    const pasar = (delta: 1 | -1): void => {
+      const cuantos = pliegos();
+      const p = Math.min(pliego, cuantos - 1) + delta;
+      if (p >= cuantos) {
+        if (siguiente !== null) irA(siguiente);
+      } else if (p < 0) {
+        if (anterior !== null) irA(anterior, true);
+      } else irAPliego(p);
+    };
+    const pasador = (lado: 'anterior' | 'siguiente', delta: 1 | -1): HTMLButtonElement => {
+      const b = el('button', `q-lector__pasar q-lector__pasar--${lado}`);
+      b.type = 'button';
+      b.setAttribute('aria-label', `Página ${lado}`);
+      b.addEventListener('click', () => pasar(delta));
+      return b;
+    };
+    hojas.append(pasador('anterior', -1), pasador('siguiente', 1));
+    irAPliego(0);
+    teclas = {
+      ArrowLeft: () => anterior !== null && irA(anterior),
+      ArrowRight: () => siguiente !== null && irA(siguiente),
+      PageUp: () => pasar(-1),
+      PageDown: () => pasar(1),
+    };
+
+    // Fondo y letra: se aplican al diálogo y, si cambia la letra, se recoloca el pliego.
+    const temas = el(
+      'div',
+      'q-lector__temas',
+      ...TEMAS.map((t) => {
+        const b = el('button', `q-lector__tema q-lector__tema--${t}`);
+        b.type = 'button';
+        b.dataset.tema = t;
+        b.setAttribute('aria-label', `Fondo ${t}`);
+        b.title = `Fondo ${t}`;
+        b.addEventListener('click', () => {
+          preferencias.tema = t;
+          aplicar();
+        });
+        return b;
+      }),
+    );
+    temas.setAttribute('role', 'group');
+    temas.setAttribute('aria-label', 'Color del fondo');
+    const letra = (texto: string, nombre: string, delta: number): HTMLButtonElement => {
+      const b = boton(texto, { variante: 'secundario' });
+      b.classList.add('q-lector__letra');
+      b.setAttribute('aria-label', nombre);
+      b.title = nombre;
+      b.addEventListener('click', () => {
+        preferencias.tamano = Math.min(LETRA.maxima, Math.max(LETRA.minima, preferencias.tamano + delta));
+        aplicar();
+      });
+      return b;
+    };
+    const menos = letra('A−', 'Reducir letra', -LETRA.paso);
+    const mas = letra('A+', 'Aumentar letra', LETRA.paso);
+
     const dialogo = el(
       'div',
       'q-lector',
-      el('header', 'q-lector__cabecera', el('div', '', el('p', 'q-lector__capitulo', `Capítulo ${n}`), encabezado), cerrarBoton),
-      desplazable,
+      el(
+        'header',
+        'q-lector__cabecera',
+        el('div', '', el('p', 'q-lector__capitulo', `Capítulo ${n}`), encabezado),
+        el(
+          'div',
+          'q-lector__acciones',
+          temas,
+          el('div', 'q-lector__grupo', menos, mas),
+          el('div', 'q-lector__grupo', ...flecha(anterior, 'Capítulo anterior', '←'), ...flecha(siguiente, 'Capítulo siguiente', '→')),
+          cerrarBoton,
+        ),
+      ),
+      hojas,
     );
+    function aplicar(): void {
+      // Una hoja de la portada ocupa una página: en columnas, su altura en % no se resuelve.
+      if (cuerpo.clientHeight) cuerpo.style.setProperty('--alto-pagina', `${cuerpo.clientHeight}px`);
+      dialogo.dataset.tema = preferencias.tema;
+      dialogo.style.setProperty('--tamano-lectura', `${preferencias.tamano}px`);
+      for (const b of temas.querySelectorAll<HTMLButtonElement>('button')) b.setAttribute('aria-pressed', String(b.dataset.tema === preferencias.tema));
+      menos.disabled = preferencias.tamano <= LETRA.minima;
+      mas.disabled = preferencias.tamano >= LETRA.maxima;
+      irAPliego(Math.min(pliego, pliegos() - 1));
+    }
+    aplicar();
     dialogo.dataset.testid = 'lector';
     dialogo.setAttribute('role', 'dialog');
     dialogo.setAttribute('aria-modal', 'true');
     dialogo.setAttribute('aria-labelledby', encabezado.id);
     capa.replaceChildren(dialogo);
     capa.hidden = false;
+    aplicar(); // ya en el documento, con medidas
     cerrarBoton.focus();
+    if (volverAlFinal && fase === 'texto') {
+      volverAlFinal = false;
+      cuerpo.style.transition = 'none'; // sin recorrer el capítulo entero hasta su último pliego
+      irAPliego(pliegos() - 1);
+      void cuerpo.offsetWidth;
+      cuerpo.style.transition = '';
+    }
   }
 
   capa.addEventListener('keydown', (evento) => {
+    const accion = teclas[evento.key];
+    if (accion) {
+      evento.preventDefault();
+      accion();
+      return;
+    }
     if (evento.key === 'Escape') {
       evento.preventDefault();
       cerrar();
@@ -279,17 +330,9 @@ export function lectura(
 
   return {
     titulo: 'Lectura',
-    nodo: el(
-      'div',
-      'q-vista q-vista--lectura',
-      cabecera,
-      tarjetaLibro.raiz,
-      el('div', 'q-lectura', tarjetaEscena.raiz, tarjetaLista.raiz),
-      capa,
-    ),
+    nodo: el('div', 'q-vista q-vista--lectura', contenido, capa),
     recursos: [
       recurso('config', async (s) => void (datos.config = await api.config(slug, s))),
-      recurso('escaleta', async (s) => void (datos.escaleta = await api.escaleta(slug, s))),
       recurso('checkpoint', async (s) => void (datos.checkpoint = await api.checkpoint(slug, s))),
       recurso('capitulos', async (s) => void (datos.capitulos = await api.capitulos(slug, s))),
       recurso('libro', async (s) => void (datos.libro = await api.libro(slug, s))),
@@ -297,14 +340,11 @@ export function lectura(
     actualizar(ruta) {
       if (ruta.vista !== 'lectura') return false;
       abierto = ruta.capitulo ?? null;
-      if (abierto !== null) seleccionar(abierto);
       pintarLector();
       return true;
     },
     desmontar() {
-      montada = false;
       peticion?.control.abort();
-      escena3d?.liberar();
     },
   };
 }

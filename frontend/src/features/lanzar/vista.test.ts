@@ -1,5 +1,6 @@
-// Lanzar: el formulario lanza la novela en el backend, sin órdenes que copiar, y la lista de
-// lanzamientos permite detener y reanudar (CA-11 a CA-13, CA-58 en su parte unitaria).
+// Lanzar como conversación (spec 0015, RF-09, RF-10): el chat pregunta, el resumen lanza la novela
+// en el backend con un clic, y el tablero reparte los lanzamientos por fase sin enseñar registros
+// (CA-11 a CA-13 en su parte unitaria).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { arrancar } from '../../app/rutas';
 import { lanzar } from './vista';
@@ -36,7 +37,6 @@ const lanz = (slug: string, estado: string, extra: object = {}) => ({
 });
 const respuesta = (cuerpo: unknown, status = 200) => new Response(JSON.stringify(cuerpo), { status });
 
-/** Una API falsa por ruta y método; devuelve las peticiones que recibió. */
 function api(rutas: Record<string, () => Response | Promise<Response>>) {
   fetchEspia.mockImplementation((url, opciones) => {
     const clave = `${opciones?.method ?? 'GET'} ${String(url).replace('http://127.0.0.1:8000', '')}`;
@@ -45,115 +45,135 @@ function api(rutas: Record<string, () => Response | Promise<Response>>) {
   });
 }
 
-const pedidas = () =>
-  fetchEspia.mock.calls.map(([url, o]) => `${o?.method} ${String(url).replace('http://127.0.0.1:8000', '')}`);
+const pedidas = () => fetchEspia.mock.calls.map(([url, o]) => `${o?.method} ${String(url).replace('http://127.0.0.1:8000', '')}`);
 
 async function montar(): Promise<void> {
   parar = arrancar(raiz, () => lanzar()).detener;
-  await vi.advanceTimersByTimeAsync(0);
-}
-
-function rellenar(campos: Record<string, string>): void {
-  for (const [id, valor] of Object.entries(campos)) {
-    const control = raiz.querySelector<HTMLInputElement | HTMLTextAreaElement>(`#${id}`);
-    if (!control) throw new Error(`falta el campo ${id}`);
-    control.value = valor;
-    control.dispatchEvent(new Event('input', { bubbles: true }));
-  }
+  await vi.advanceTimersByTimeAsync(1000);
 }
 
 const boton = (texto: string) =>
-  [...raiz.querySelectorAll('button')].find((b) => b.textContent?.startsWith(texto)) as HTMLButtonElement;
+  [...raiz.querySelectorAll('button')].find((b) => b.textContent?.trim().startsWith(texto)) as HTMLButtonElement;
 
+async function pulsar(texto: string): Promise<void> {
+  const b = boton(texto);
+  if (!b) throw new Error(`no hay botón «${texto}»`);
+  b.click();
+  await vi.advanceTimersByTimeAsync(1000);
+}
+
+async function escribir(texto: string): Promise<void> {
+  const entrada = raiz.querySelector<HTMLTextAreaElement>('.q-chat__texto');
+  if (!entrada) throw new Error('no hay entrada de texto');
+  entrada.value = texto;
+  raiz.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }));
+  await vi.advanceTimersByTimeAsync(1000);
+}
+
+const ultimaDelBot = () => [...raiz.querySelectorAll('.q-burbuja--bot')].at(-1)?.textContent ?? '';
 const BASE = { 'GET /novelas': () => respuesta([{ slug: 'demo-24', cursor }]), 'GET /lanzamientos': () => respuesta([]) };
 
 describe('Lanzar', () => {
-  it('lanza en el backend con un clic, sin nada que copiar', async () => {
-    api({ ...BASE, 'POST /lanzamientos': () => respuesta(lanz('nueva-prueba', 'en_marcha', { paso: 'entorno' }), 202) });
+  it('la conversación termina en un resumen que lanza con un clic, sin preguntar la extensión', async () => {
+    const lanzada = lanz('faro-apagado', 'en_marcha', { paso: 'entorno' });
+    let lanzadas: unknown[] = [];
+    api({
+      ...BASE,
+      'GET /lanzamientos': () => respuesta(lanzadas),
+      'POST /lanzamientos': () => ((lanzadas = [lanzada]), respuesta(lanzada, 202)),
+    });
     await montar();
-    rellenar({ 'lanzar-slug': 'nueva-prueba', 'lanzar-idea': 'Un faro apagado.', 'lanzar-capitulos': '3', 'lanzar-palabras': '9000' });
-    boton('Lanzar novela').click();
-    await vi.advanceTimersByTimeAsync(0);
+    expect(ultimaDelBot()).toContain('¿Es un regalo');
+    await pulsar('No, es para mí');
+    await escribir('Un faro apagado.');
+    await pulsar('Noir');
+    await pulsar('Omitir');
+    expect(ultimaDelBot()).toContain('capítulos');
+    await pulsar('10');
+    expect(ultimaDelBot()).toContain('palabras');
+    await escribir('30.000');
+    await escribir('faro-apagado');
+    expect(raiz.textContent).not.toMatch(/extensi[oó]n/i);
+    expect(raiz.querySelector('.q-resumen')?.textContent).toContain('30.000');
+    await pulsar('Lanzar novela');
     const post = fetchEspia.mock.calls.find(([, o]) => o?.method === 'POST');
-    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ slug: 'nueva-prueba', idea: 'Un faro apagado.', capitulos: 3, palabras: 9000 });
-    expect(raiz.querySelector('.q-lanzamiento')?.textContent).toContain('nueva-prueba');
-    expect(raiz.querySelector('.q-lanzamiento')?.textContent).toContain('en marcha');
-    expect(boton('Copiar')).toBeUndefined();
-    expect(raiz.textContent).not.toContain('/novela-nueva');
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({
+      slug: 'faro-apagado',
+      idea: 'Género: noir.\n\nUn faro apagado.',
+      capitulos: 10,
+      palabras: 30000,
+    });
+    expect(ultimaDelBot()).toContain('En marcha');
+    expect(raiz.querySelector('[data-columna="proceso"]')?.textContent).toContain('Faro apagado');
   });
 
-  it('sin capítulos ni palabras, el cuerpo no los lleva', async () => {
-    api({ ...BASE, 'POST /lanzamientos': () => respuesta(lanz('nueva-prueba', 'en_marcha'), 202) });
-    await montar();
-    rellenar({ 'lanzar-slug': 'nueva-prueba', 'lanzar-idea': 'Un faro apagado.' });
-    boton('Lanzar novela').click();
-    await vi.advanceTimersByTimeAsync(0);
-    const post = fetchEspia.mock.calls.find(([, o]) => o?.method === 'POST');
-    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ slug: 'nueva-prueba', idea: 'Un faro apagado.' });
-  });
-
-  it('un campo inválido da su motivo y no lanza nada (CA-12)', async () => {
+  it('una respuesta inválida la explica el bot y no avanza (CA-12)', async () => {
     api(BASE);
     await montar();
-    rellenar({ 'lanzar-slug': 'Nueva_Prueba', 'lanzar-idea': '   ' });
-    boton('Lanzar novela').click();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(raiz.querySelectorAll('[aria-invalid="true"]')).toHaveLength(2);
+    await pulsar('No, es para mí');
+    await escribir('Un faro apagado.');
+    await pulsar('Omitir');
+    await pulsar('Omitir');
+    await escribir('muchos');
+    expect(raiz.querySelector('.q-burbuja--error')?.textContent).toContain('entero');
+    expect(ultimaDelBot()).toContain('capítulos');
+  });
+
+  it('un nombre corto existente no se acepta (CA-13)', async () => {
+    api(BASE);
+    await montar();
+    for (const paso of ['No, es para mí']) await pulsar(paso);
+    await escribir('Un faro apagado.');
+    await pulsar('Omitir');
+    await pulsar('Omitir');
+    await pulsar('10');
+    await pulsar('30.000');
+    await escribir('demo-24');
+    expect(raiz.querySelector('.q-burbuja--error')?.textContent).toContain('ya existe una novela llamada demo-24');
     expect(pedidas().some((p) => p.startsWith('POST'))).toBe(false);
   });
 
-  it('un slug existente no lanza (CA-13)', async () => {
-    api(BASE);
-    await montar();
-    rellenar({ 'lanzar-slug': 'demo-24', 'lanzar-idea': 'Un faro apagado.' });
-    boton('Lanzar novela').click();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(raiz.textContent).toContain('ya existe una novela demo-24');
-    expect(pedidas().some((p) => p.startsWith('POST'))).toBe(false);
-  });
-
-  it('si el backend lo rechaza, se ve su motivo', async () => {
+  it('si el backend lo rechaza, el bot da su motivo y se puede reintentar', async () => {
     api({ ...BASE, 'POST /lanzamientos': () => respuesta({ detail: 'ya hay un lanzamiento en marcha: espera o detenlo' }, 409) });
     await montar();
-    rellenar({ 'lanzar-slug': 'nueva-prueba', 'lanzar-idea': 'Un faro apagado.' });
-    boton('Lanzar novela').click();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(raiz.querySelector('.q-lanzar__resultado-envio')?.textContent).toContain('ya hay un lanzamiento en marcha');
+    await pulsar('No, es para mí');
+    await escribir('Un faro apagado.');
+    await pulsar('Omitir');
+    await pulsar('Omitir');
+    await pulsar('10');
+    await pulsar('30.000');
+    await escribir('faro');
+    await pulsar('Lanzar novela');
+    expect(ultimaDelBot()).toContain('ya hay un lanzamiento en marcha');
     expect(boton('Lanzar novela').disabled).toBe(false);
   });
 
-  it('en marcha se detiene; parado, fallido o interrumpido se reanuda', async () => {
+  it('el tablero reparte por fase, sin registro, y deja detener y reanudar (RF-10)', async () => {
     api({
       ...BASE,
-      'GET /lanzamientos': () => respuesta([lanz('uno', 'en_marcha'), lanz('dos', 'fallido', { detalle: 'necesita una decisión humana' })]),
+      'GET /lanzamientos': () =>
+        respuesta([lanz('uno', 'en_marcha'), lanz('dos', 'fallido'), lanz('tres', 'detenido'), lanz('cuatro', 'terminado', { paso: 'auditoria' })]),
       'POST /lanzamientos/uno/detener': () => respuesta(lanz('uno', 'en_marcha', { detener_pedido: true }), 202),
       'POST /lanzamientos/dos/reanudar': () => respuesta(lanz('dos', 'en_marcha', { paso: 'entorno' }), 202),
     });
     await montar();
-    const [uno, dos] = [...raiz.querySelectorAll('.q-lanzamiento')];
-    expect(uno?.textContent).toContain('capitulo 02');
-    expect(dos?.textContent).toContain('necesita una decisión humana');
-    expect(dos?.querySelector('.q-lanzamiento__registro')?.textContent).toContain('/novela-continuar');
+    const columna = (clave: string) => raiz.querySelector(`[data-columna="${clave}"]`)?.textContent ?? '';
+    expect(columna('proceso')).toContain('Escribiendo el capítulo 2');
+    expect(columna('bloqueada')).toContain('Dos');
+    expect(columna('pausa')).toContain('Tres');
+    expect(columna('terminada')).toContain('Lista para leer');
+    expect(raiz.textContent).not.toContain('/novela-continuar');
+    expect(raiz.textContent).not.toContain('Slugs en uso');
     boton('Detener').click();
-    boton('Reanudar').click();
+    raiz.querySelector<HTMLButtonElement>('[data-columna="bloqueada"] button')?.click();
     await vi.advanceTimersByTimeAsync(0);
     expect(pedidas()).toEqual(expect.arrayContaining(['POST /lanzamientos/uno/detener', 'POST /lanzamientos/dos/reanudar']));
-    expect(raiz.textContent).toContain('se detendrá tras el capítulo en curso');
+    expect(raiz.textContent).toContain('se pausará al terminarlo');
   });
 
-  it('esqueleto, vacío y error de GET /novelas (CA-58)', async () => {
-    fetchEspia.mockReturnValue(new Promise(() => {}));
-    parar = arrancar(raiz, () => lanzar()).detener;
-    expect(raiz.querySelectorAll('.q-esqueleto').length).toBeGreaterThan(0);
-    parar();
-    api({ 'GET /novelas': () => respuesta([]), 'GET /lanzamientos': () => respuesta([]) });
-    await montar();
-    expect(raiz.textContent).toContain('todavía no hay novelas: lanza la primera');
-    parar();
-    fetchEspia.mockReset();
+  it('con la API caída, el aviso (CA-58)', async () => {
     fetchEspia.mockRejectedValue(new TypeError('Failed to fetch'));
-    parar = arrancar(raiz, () => lanzar()).detener;
-    await vi.advanceTimersByTimeAsync(0);
+    await montar();
     expect(raiz.querySelector('[role="alert"]')?.textContent).toContain('API no disponible');
   });
 });

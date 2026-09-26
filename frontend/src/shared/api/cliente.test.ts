@@ -161,11 +161,14 @@ describe('lanzamientos: los únicos POST del panel', () => {
     expect((await fallo(api.lanzar(PETICION))).detalle).toBe('ya hay un lanzamiento en marcha');
   });
 
-  it('consultar es GET, y el 404 es «nunca lanzada desde el panel»', async () => {
-    espia.mockResolvedValue(json({ detail: 'no' }, 404));
-    expect(await api.lanzamiento('demo-24')).toBeNull();
-    expect(espia.mock.calls[0]?.[1]?.method).toBe('GET');
+  it('consultar es GET', async () => {
     espia.mockResolvedValue(json([]));
     expect(await api.lanzamientos()).toEqual([]);
+    expect(espia.mock.calls[0]?.[1]?.method).toBe('GET');
+  });
+
+  it('sin métricas guardadas, el 404 es null (spec 0015)', async () => {
+    espia.mockResolvedValue(json({ detail: 'no' }, 404));
+    expect(await api.metricas('demo-24')).toBeNull();
   });
 });

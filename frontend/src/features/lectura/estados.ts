@@ -3,12 +3,6 @@
 
 export type EstadoDeVolumen = 'cerrado' | 'en_curso' | 'pendiente';
 
-export const TEXTO_DE_ESTADO: Record<EstadoDeVolumen, string> = {
-  cerrado: 'cerrado',
-  en_curso: 'en curso',
-  pendiente: 'pendiente',
-};
-
 /** Un estado por capítulo, del 1 a `total`. */
 export function estadosDeVolumen(
   total: number,

@@ -23,6 +23,12 @@ describe('libro', () => {
     expect(q(raiz, 'portada-dedicatoria')[0]?.textContent).toBe('Para Aurora Ficticia, en el día de su boda.');
   });
 
+  it('la portada invita a empezar por el capítulo 1', () => {
+    const empezar = q(libro(LIBRO, 'demo-regalo'), 'portada-empezar')[0];
+    expect(empezar?.getAttribute('href')).toBe('#/novelas/demo-regalo/lectura/1');
+    expect(q(libro({ ...LIBRO, capitulos: [] }, 'demo-regalo'), 'portada-empezar')).toEqual([]);
+  });
+
   it('sin dedicatoria, no la pinta', () => {
     expect(q(libro({ ...LIBRO, dedicatoria: null }, 'demo-regalo'), 'portada-dedicatoria')).toEqual([]);
   });

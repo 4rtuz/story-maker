@@ -1,132 +1,251 @@
-// Lanzar: el formulario lanza la novela en el backend (POST /lanzamientos), que la escribe de
-// principio a fin con `novela producir`. No hay órdenes que copiar. Debajo, cada lanzamiento con su
-// paso, su motivo y las últimas líneas de sus sesiones, y los botones para detenerlo o reanudarlo.
+// Lanzar (spec 0015, RF-09, RF-10): un chat pregunta lo que necesita `novela producir` y el resumen
+// lanza la novela en el backend (POST /lanzamientos) con un clic. Debajo, el tablero de lanzamientos
+// por fase, con los botones de detener y reanudar. Ni órdenes, ni registro de sesiones, ni slugs.
 import type { Vista } from '../../app/rutas';
 import * as api from '../../shared/api/cliente';
 import type { Esquemas } from '../../shared/api/cliente';
 import { ErrorDeApi } from '../../shared/api/errores';
+import { icono } from '../../shared/iconos/trazados';
 import { CADA_DATOS, CADA_LOG } from '../../shared/sondeo';
-import { boton, campo, el, esqueleto, estadoVacio, etiqueta, tarjeta, vacio, type Campo } from '../../shared/ui/componentes';
-import { comprobarSlug, validar, type Campos } from './validacion';
+import { boton, el, enlaceBoton, esqueleto } from '../../shared/ui/componentes';
+import { portada, tituloProvisional } from '../../shared/ui/portada';
+import { esVisible } from '../../shared/visibles';
+import { inicial, pregunta, responder, resumen, type Conversacion } from './conversacion';
+import { agrupar, pasoLegible } from './tablero';
+import { peticion } from './validacion';
 
 type Fila = Esquemas['Lanzamiento'];
 
-const ESTADOS: Record<Fila['estado'], string> = {
-  en_marcha: 'en marcha',
-  terminado: 'terminada',
-  fallido: 'fallida',
-  detenido: 'detenida',
-  interrumpido: 'interrumpida',
-};
+/** Lo que tarda el asistente en «escribir» antes de cada mensaje: da ritmo, no espera a nada. */
+const PAUSA_MS = 450;
 
 const motivo = (error: unknown): string => (error instanceof ErrorDeApi ? error.detalle : String(error));
 
+function crearChat(existentes: () => string[] | null, alLanzar: (f: Fila) => void): HTMLElement {
+  let conversacion: Conversacion = inicial();
+  let temporizador: ReturnType<typeof setTimeout> | undefined;
+
+  const mensajes = el('div', 'q-chat__mensajes');
+  mensajes.setAttribute('role', 'log');
+  mensajes.setAttribute('aria-live', 'polite');
+  mensajes.setAttribute('aria-label', 'Conversación');
+  const opciones = el('div', 'q-chat__opciones');
+  const texto = el('textarea', 'q-chat__texto');
+  texto.rows = 1;
+  texto.setAttribute('aria-label', 'Tu respuesta');
+  texto.placeholder = 'Escribe tu respuesta…';
+  const enviar = el('button', 'q-chat__enviar', icono('send'), el('span', 'q-oculto-visual', 'Enviar'));
+  enviar.type = 'submit';
+  const formulario = el('form', 'q-chat__entrada', texto, enviar);
+  const alPie = (): void => void (mensajes.scrollTop = mensajes.scrollHeight);
+
+  function burbuja(de: 'bot' | 'tu', ...hijos: (Node | string)[]): HTMLElement {
+    const nodo = el('div', `q-burbuja q-burbuja--${de}`, ...hijos);
+    mensajes.append(nodo);
+    alPie();
+    return nodo;
+  }
+
+  /** El asistente «escribe» un momento y luego dice lo suyo. */
+  function decir(pintar: () => void): void {
+    const escribiendo = burbuja('bot', el('span', 'q-escribiendo', el('span'), el('span'), el('span')));
+    escribiendo.classList.add('q-burbuja--escribiendo');
+    escribiendo.setAttribute('aria-hidden', 'true');
+    clearTimeout(temporizador);
+    temporizador = setTimeout(() => {
+      escribiendo.remove();
+      pintar();
+    }, PAUSA_MS);
+  }
+
+  function preguntar(): void {
+    const p = pregunta(conversacion, existentes() ?? []);
+    opciones.replaceChildren();
+    formulario.hidden = true;
+    decir(() => {
+      if (!p) return mostrarResumen();
+      burbuja('bot', p.texto);
+      const chips = [...p.opciones, ...(p.omitible ? [{ valor: '', rotulo: 'Omitir' }] : [])];
+      opciones.replaceChildren(
+        ...chips.map((o) => {
+          const b = el('button', o.valor ? 'q-chip-opcion' : 'q-chip-opcion q-chip-opcion--omitir', o.rotulo);
+          b.type = 'button';
+          b.addEventListener('click', () => contestar(o.valor, o.rotulo || 'Omitir'));
+          return b;
+        }),
+      );
+      formulario.hidden = p.paso === 'regalo';
+      alPie(); // las opciones acortan el registro: se baja otra vez para que se vea la pregunta
+      texto.value = '';
+      texto.placeholder = p.multilinea ? 'Escribe tu respuesta… (Mayús + Intro para otra línea)' : 'Escribe tu respuesta…';
+      if (!formulario.hidden) texto.focus();
+    });
+  }
+
+  function contestar(valor: string, eco: string): void {
+    burbuja('tu', eco);
+    const r = responder(conversacion, valor, existentes());
+    if (r.error) {
+      opciones.replaceChildren();
+      formulario.hidden = true;
+      decir(() => {
+        burbuja('bot', `No me cuadra: ${r.error}.`).classList.add('q-burbuja--error');
+        preguntar();
+      });
+      return;
+    }
+    conversacion = r.conversacion;
+    preguntar();
+  }
+
+  function mostrarResumen(): void {
+    opciones.replaceChildren();
+    formulario.hidden = true;
+    const lanzarBoton = boton('Lanzar novela', { icono: 'rocket' });
+    const deNuevo = boton('Empezar de nuevo', { variante: 'secundario', icono: 'rotate-ccw' });
+    const filas = resumen(conversacion).map(([rotulo, valor]) => el('div', 'q-resumen__fila', el('dt', '', rotulo), el('dd', '', valor)));
+    burbuja(
+      'bot',
+      'Perfecto. Esto es lo que voy a escribir:',
+      el('dl', 'q-resumen', ...filas),
+      el('div', 'q-resumen__acciones', lanzarBoton, deNuevo),
+    );
+    lanzarBoton.focus();
+    deNuevo.addEventListener('click', () => {
+      conversacion = inicial();
+      mensajes.replaceChildren();
+      preguntar();
+    });
+    lanzarBoton.addEventListener('click', () => {
+      lanzarBoton.disabled = true;
+      deNuevo.disabled = true;
+      api
+        .lanzar(peticion(conversacion.campos))
+        .then((fila) => {
+          alLanzar(fila);
+          lanzarBoton.remove();
+          decir(() => {
+            burbuja(
+              'bot',
+              '¡En marcha! Primero preparo la biblia y después escribo capítulo a capítulo. Puedes seguirlo aquí debajo o en su página.',
+              el('div', 'q-resumen__acciones', enlaceBoton('Ver su progreso', `#/novelas/${fila.slug}/progreso`, { flecha: true })),
+            );
+            deNuevo.disabled = false;
+          });
+        })
+        .catch((error: unknown) => {
+          lanzarBoton.disabled = false;
+          deNuevo.disabled = false;
+          burbuja('bot', `No he podido lanzarla: ${motivo(error)}.`).classList.add('q-burbuja--error');
+        });
+    });
+  }
+
+  formulario.addEventListener('submit', (evento) => {
+    evento.preventDefault();
+    const valor = texto.value;
+    if (!/\S/.test(valor)) return;
+    contestar(valor, valor.trim());
+  });
+  texto.addEventListener('keydown', (evento) => {
+    if (evento.key === 'Enter' && !evento.shiftKey) {
+      evento.preventDefault();
+      formulario.requestSubmit();
+    }
+  });
+
+  preguntar();
+  return el(
+    'section',
+    'q-chat',
+    el(
+      'header',
+      'q-chat__cabecera',
+      el('span', 'q-chat__avatar', icono('sparkles')),
+      el('div', '', el('h2', 'q-chat__titulo', 'Nueva novela'), el('p', 'q-chat__subtitulo', 'Unas preguntas y me pongo a escribir')),
+    ),
+    mensajes,
+    opciones,
+    formulario,
+  );
+}
+
 export function lanzar(): Vista {
-  const campos = {
-    slug: campo({ id: 'lanzar-slug', etiqueta: 'Slug' }),
-    idea: campo({ id: 'lanzar-idea', etiqueta: 'Idea', multilinea: true }),
-    capitulos: campo({ id: 'lanzar-capitulos', etiqueta: 'Capítulos (opcional)', modoTeclado: 'numeric' }),
-    palabras: campo({ id: 'lanzar-palabras', etiqueta: 'Palabras totales (opcional)', modoTeclado: 'numeric' }),
-  } satisfies Record<keyof Campos, Campo>;
-  campos.slug.control.setAttribute('autocomplete', 'off');
   let existentes: string[] | null = null;
   let actuales: Fila[] = [];
 
-  const envio = el('p', 'q-lanzar__aviso q-lanzar__resultado-envio');
-  envio.setAttribute('role', 'status');
-  envio.hidden = true;
-  const avisar = (texto: string): void => {
-    envio.textContent = texto;
-    envio.hidden = !texto;
-  };
+  const aviso = el('p', 'q-tablero__aviso');
+  aviso.setAttribute('role', 'status');
+  const columnas = el('div', 'q-tablero__columnas', esqueleto('q-esqueleto--tablero'));
 
-  const lista = tarjeta({ titulo: 'Lanzamientos', icono: 'terminal', tono: 'cian', clase: 'q-lanzar__salida' });
-  lista.cuerpo.classList.add('q-lanzar__resultado');
-  lista.cuerpo.append(esqueleto('q-esqueleto--slugs'));
-
-  /** Una petición de un botón: deshabilitado mientras dura, y su resultado en la lista al volver. */
+  /** Una petición de un botón: deshabilitado mientras dura, y su resultado en el tablero al volver. */
   async function accion(b: HTMLButtonElement, pedir: () => Promise<Fila>, exito: string): Promise<void> {
     b.disabled = true;
     try {
       const nuevo = await pedir();
       pintar([nuevo, ...actuales.filter((l) => l.slug !== nuevo.slug)]);
-      avisar(exito);
+      aviso.textContent = exito;
     } catch (error) {
-      avisar(motivo(error));
+      aviso.textContent = motivo(error);
     } finally {
       b.disabled = false;
     }
   }
 
-  function fila(l: Fila): HTMLElement {
-    const acciones = el('div', 'q-lanzamiento__acciones');
+  function tarjeta(l: Fila): HTMLElement {
+    const titulo = tituloProvisional(l.slug);
+    const acciones = el('div', 'q-tarea__acciones');
     if (l.estado === 'en_marcha' && !l.detener_pedido) {
-      const b = boton('Detener', { variante: 'secundario' });
-      b.append(el('span', 'q-oculto-visual', ` ${l.slug}`));
-      b.addEventListener('click', () => void accion(b, () => api.detener(l.slug), `${l.slug}: se detendrá tras el capítulo en curso`));
+      const b = boton('Detener', { variante: 'secundario', icono: 'pause' });
+      b.append(el('span', 'q-oculto-visual', ` ${titulo}`));
+      b.addEventListener('click', () => void accion(b, () => api.detener(l.slug), `${titulo}: se pausará al terminar el capítulo en curso`));
       acciones.append(b);
     } else if (l.estado !== 'en_marcha' && l.estado !== 'terminado') {
       const b = boton('Reanudar', { variante: 'secundario', icono: 'rocket' });
-      b.append(el('span', 'q-oculto-visual', ` ${l.slug}`));
-      b.addEventListener('click', () => void accion(b, () => api.reanudar(l.slug), `${l.slug}: reanudada`));
+      b.append(el('span', 'q-oculto-visual', ` ${titulo}`));
+      b.addEventListener('click', () => void accion(b, () => api.reanudar(l.slug), `${titulo}: reanudada`));
       acciones.append(b);
     }
-    const estado = l.detener_pedido && l.estado === 'en_marcha' ? 'en marcha · se detendrá tras el capítulo en curso' : ESTADOS[l.estado];
-    const registro = el('pre', 'q-lanzamiento__registro', (l.registro ?? []).join('\n'));
-    registro.hidden = !l.registro?.length;
+    const ver = el('a', 'q-tarea__ver', l.estado === 'terminado' ? 'Leer' : 'Ver progreso');
+    ver.href = `#/novelas/${l.slug}/${l.estado === 'terminado' ? 'lectura' : 'progreso'}`;
+    acciones.append(ver);
+    const paso = el('p', 'q-tarea__paso', ...(l.estado === 'en_marcha' ? [el('span', 'q-girando')] : []), pasoLegible(l));
     return el(
       'article',
-      `q-lanzamiento q-lanzamiento--${l.estado}`,
-      el('div', 'q-lanzamiento__cabecera', el('h3', 'q-lanzamiento__titulo', l.slug), etiqueta(estado), acciones),
-      el('p', 'q-lanzamiento__detalle', `${l.paso} · ${l.detalle}`),
-      registro,
+      `q-tarea q-tarea--${l.estado}`,
+      portada({ slug: l.slug, tamano: 'mini', decorativa: true }).raiz,
+      el('div', 'q-tarea__cuerpo', el('h4', 'q-tarea__titulo', titulo), paso, acciones),
     );
   }
 
   function pintar(lanzamientos: Fila[]): void {
     actuales = lanzamientos;
-    lista.contar(lanzamientos.length);
-    lista.cuerpo.replaceChildren(
-      envio,
-      ...(lanzamientos.length ? lanzamientos.map(fila) : [vacio('todavía no se ha lanzado ninguna novela desde el panel')]),
+    columnas.replaceChildren(
+      ...agrupar(lanzamientos.filter((l) => esVisible(l.slug))).map(({ clave, titulo, filas }) => {
+        const columna = el(
+          'section',
+          `q-columna q-columna--${clave}`,
+          el('header', 'q-columna__cabecera', el('h3', 'q-columna__titulo', titulo), el('span', 'q-columna__cuenta', String(filas.length))),
+          ...(filas.length ? filas.map(tarjeta) : [el('p', 'q-columna__vacia', 'Nada por aquí')]),
+        );
+        columna.dataset.columna = clave;
+        columna.setAttribute('aria-label', titulo);
+        return columna;
+      }),
     );
   }
 
-  const lanzarBoton = boton('Lanzar novela', { icono: 'rocket' });
-  lanzarBoton.addEventListener('click', () => {
-    const valores: Campos = {
-      slug: campos.slug.control.value,
-      idea: campos.idea.control.value,
-      capitulos: campos.capitulos.control.value,
-      palabras: campos.palabras.control.value,
-    };
-    const errores = validar(valores);
-    const slug = errores.slug ? {} : comprobarSlug(valores.slug, existentes);
-    if (slug.error) errores.slug = slug.error;
-    for (const [clave, c] of Object.entries(campos)) c.mostrarError(errores[clave as keyof Campos] ?? null);
-    const primero = (Object.keys(campos) as (keyof Campos)[]).find((c) => errores[c]);
-    if (primero) {
-      campos[primero].control.focus();
-      return;
-    }
-    const peticion: Esquemas['PeticionDeLanzamiento'] = { slug: valores.slug, idea: valores.idea };
-    if (valores.capitulos) peticion.capitulos = Number(valores.capitulos);
-    if (valores.palabras) peticion.palabras = Number(valores.palabras);
-    void accion(lanzarBoton, () => api.lanzar(peticion), `${valores.slug}: lanzada; el backend la escribe de principio a fin`);
-  });
-
-  const formulario = tarjeta({ titulo: 'Nueva novela', icono: 'rocket', tono: 'naranja', clase: 'q-lanzar__formulario' });
-  formulario.cuerpo.append(
-    el('div', 'q-lanzar__campos', campos.slug.raiz, campos.idea.raiz, el('div', 'q-lanzar__numeros', campos.capitulos.raiz, campos.palabras.raiz)),
-    el('div', 'q-lanzar__acciones', lanzarBoton),
+  const tablero = el(
+    'section',
+    'q-tablero',
+    el('header', 'q-tablero__cabecera', el('h2', 'q-tablero__titulo', 'Lanzamientos'), aviso),
+    columnas,
   );
-
-  const slugs = tarjeta({ titulo: 'Slugs en uso', icono: 'library', tono: 'cian', clase: 'q-lanzar__slugs' });
-  slugs.cuerpo.append(esqueleto('q-esqueleto--slugs'));
+  tablero.setAttribute('aria-label', 'Lanzamientos');
 
   return {
     titulo: 'Lanzar',
-    nodo: el('div', 'q-vista q-vista--lanzar', formulario.raiz, slugs.raiz, lista.raiz),
+    nodo: el('div', 'q-vista q-vista--lanzar', crearChat(() => existentes, (f) => pintar([f, ...actuales.filter((l) => l.slug !== f.slug)])), tablero),
     recursos: [
       {
         clave: 'novelas',
@@ -138,25 +257,13 @@ export function lanzar(): Vista {
             existentes = null; // no ha respondido o ha fallado: se lanza y el backend decide (D43)
             throw error;
           }
-          slugs.contar(existentes.length);
-          slugs.cuerpo.replaceChildren(
-            existentes.length
-              ? el('div', 'q-lanzar__etiquetas', ...existentes.map(etiqueta))
-              : estadoVacio({
-                  icono: 'library',
-                  texto: 'todavía no hay novelas: lanza la primera',
-                  pista: 'Un slug nuevo no puede coincidir con ninguno de esta lista.',
-                }),
-          );
         },
       },
       {
         clave: 'lanzamientos',
         cada: CADA_LOG,
         async pedir(senal) {
-          const texto = envio.textContent ?? '';
           pintar(await api.lanzamientos(senal));
-          avisar(texto);
         },
       },
     ],

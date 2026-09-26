@@ -20,6 +20,10 @@ class Puertos:
     pendiente: Callable[[], bool]  # `novela pendiente`
     detener: Callable[[], bool]  # el panel pidió parar
     informar: Callable[[str, str], None]  # paso, detalle
+    # Extras (spec 0015, RF-05): pueden lanzar lo que sea; `_sin_parar` lo anota y sigue.
+    portada: Callable[[], None]  # `novela portada`
+    metricas: Callable[[], None]  # `novela costes --guardar`
+    anotar: Callable[[str], None]  # una línea en el registro del lanzamiento
 
 
 def entrecomillar(texto: str) -> str:
@@ -52,6 +56,14 @@ def _sesion(ws: WorkspaceRepository, p: Puertos, prompt: str) -> tuple[Final, st
     if codigo != 0:
         return "fallido", f"la sesión «{prompt.split()[0]}» salió con {codigo}"
     return None
+
+
+def _sin_parar(p: Puertos, que: str, extra: Callable[[], None]) -> None:
+    """Sin red, la novela se produce igual, sin portada y sin métricas (RNF-02)."""
+    try:
+        extra()
+    except Exception as exc:
+        p.anotar(f"sin {que}: {type(exc).__name__}: {exc}")
 
 
 def _latest(ws: WorkspaceRepository) -> bytes | None:
@@ -88,6 +100,7 @@ def producir(ws: WorkspaceRepository, nueva: str | None, p: Puertos) -> tuple[Fi
             return parada
         if not escaleta.is_file():
             return "fallido", "/novela-nueva terminó sin plan/escaleta.md"
+        _sin_parar(p, "portada", p.portada)
     elif not escaleta.is_file():
         return "fallido", "el workspace existe sin plan/escaleta.md: /novela-nueva no se reanuda"
     elif viva := intervencion_viva(ws):
@@ -103,10 +116,13 @@ def producir(ws: WorkspaceRepository, nueva: str | None, p: Puertos) -> tuple[Fi
             return parada
         if _latest(ws) == antes:
             return "fallido", f"la sesión del capítulo {capitulo:02d} no avanzó el checkpoint"
+        _sin_parar(p, "métricas", p.metricas)
 
     p.informar("auditoria", "pistas huérfanas, hilos sin cerrar y exportación")
     previo = _export(ws)
-    if parada := _sesion(ws, p, f"/novela-auditar {ws.slug}"):
+    parada = _sesion(ws, p, f"/novela-auditar {ws.slug}")
+    _sin_parar(p, "métricas", p.metricas)
+    if parada:
         return parada
     export = ws.raiz / "export"
     if _export(ws) in ({}, previo):

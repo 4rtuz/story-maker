@@ -21,6 +21,8 @@ from novela.plataforma.lock import bloquear
 from novela.plataforma.run import RAIZ_REPO
 from novela.plataforma.workspace import WorkspaceRepository
 from novela.slices.observabilidad import prompts, traza
+from novela.slices.observabilidad.cmd import guardar_metricas
+from novela.slices.portada.cmd import generar as generar_portada
 from novela.slices.producir.flujo import Puertos, orden_nueva
 from novela.slices.producir.flujo import producir as flujo
 
@@ -122,6 +124,13 @@ def producir(
         actual = lanzador.nuevo(slug, paso, detalle)
         lanzador.escribir(actual)
 
+    def anotar(linea: str) -> None:
+        with registro.open("a", encoding="utf-8") as salida:
+            salida.write(f"[{datetime.now(UTC):%H:%M:%S}] {linea}\n")
+
+    def portada() -> None:
+        generar_portada(ws)
+
     with bloquear(lanzador.cerrojo()):
         lanzador.detener_de(slug).unlink(missing_ok=True)
         puertos = Puertos(
@@ -130,6 +139,9 @@ def producir(
             pendiente=lambda: _pendiente(slug),
             detener=lanzador.detener_de(slug).exists,
             informar=informar,
+            portada=portada,
+            metricas=lambda: guardar_metricas(ws),
+            anotar=anotar,
         )
         nueva = orden_nueva(slug, idea, capitulos, palabras) if idea else None
         try:

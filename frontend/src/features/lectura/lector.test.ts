@@ -107,8 +107,7 @@ describe('el lector en la vista (CA-25)', () => {
     await vi.advanceTimersByTimeAsync(50);
     const dialogo = raiz.querySelector('[role="dialog"]');
     expect(dialogo?.querySelector('h2')?.textContent).toBe(hostil);
-    // El único img de la página es el logo del layout: ni el diálogo ni la lista tienen ninguno.
-    expect(raiz.querySelectorAll('[role="dialog"] img, .q-volumenes img')).toHaveLength(0);
-    expect(raiz.querySelector('[data-capitulo="3"]')?.textContent).toContain(hostil);
+    // Los img de la página son el logo del layout y la portada: el diálogo no tiene ninguno.
+    expect(raiz.querySelectorAll('[role="dialog"] img')).toHaveLength(0);
   });
 });

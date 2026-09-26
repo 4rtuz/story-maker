@@ -83,7 +83,7 @@ body {
   transition:
     filter var(--q-transicion),
     box-shadow var(--q-transicion),
-    transform var(--q-transicion);
+    transform var(--q-transicion) var(--q-curva);
 }
 
 .q-boton--primario {
@@ -92,7 +92,9 @@ body {
 }
 
 .q-boton--primario:hover {
-  filter: brightness(0.9);
+  filter: brightness(0.92);
+  box-shadow: var(--q-sombra-elevada);
+  transform: translateY(-1px);
 }
 
 .q-boton--secundario {
@@ -102,8 +104,9 @@ body {
 }
 
 .q-boton--secundario:hover {
-  filter: brightness(0.92);
-  box-shadow: var(--q-sombra-tarjeta);
+  filter: brightness(0.95);
+  box-shadow: var(--q-sombra-elevada);
+  transform: translateY(-1px);
 }
 
 .q-boton__flecha {
@@ -136,71 +139,6 @@ body {
   height: 18px;
 }
 
-/* --- Campo de formulario: etiqueta encima, error debajo ------------------------------------ */
-
-.q-campo {
-  display: grid;
-  align-content: start;
-  gap: 8px;
-}
-
-.q-campo__etiqueta {
-  font-size: var(--q-texto-meta);
-  font-weight: 600;
-  color: var(--q-texto);
-}
-
-.q-campo__control {
-  width: 100%;
-  min-height: 42px;
-  padding: 9px 12px;
-  border: 1px solid var(--q-borde-campo);
-  border-radius: var(--q-radio-control);
-  background: var(--q-fondo-tarjeta);
-  color: var(--q-texto);
-  font: inherit;
-  transition: border-color var(--q-transicion);
-}
-
-textarea.q-campo__control {
-  min-height: 132px;
-  resize: vertical;
-}
-
-.q-campo__control:hover {
-  border-color: var(--q-texto);
-}
-
-.q-campo__control:focus-visible {
-  outline: var(--q-contorno-foco) solid var(--q-foco);
-  outline-offset: var(--q-separacion-foco);
-}
-
-.q-campo__control:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.q-campo__control[aria-invalid="true"] {
-  border-color: var(--q-icono-naranja);
-  box-shadow: inset 0 0 0 1px var(--q-icono-naranja);
-}
-
-.q-campo__error {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  font-size: var(--q-texto-meta);
-  color: var(--q-texto);
-}
-
-.q-campo__error .q-icono {
-  width: 16px;
-  height: 16px;
-  color: var(--q-icono-naranja);
-}
-
 /* --- Tarjetas ------------------------------------------------------------------------------ */
 
 .q-tarjeta {
@@ -225,6 +163,7 @@ textarea.q-campo__control {
   font-size: var(--q-texto-titulo-tarjeta);
   font-weight: var(--q-peso-titulo-tarjeta);
   line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 
 .q-cuadro-icono {
@@ -268,6 +207,7 @@ textarea.q-campo__control {
 
 .q-metrica__valor {
   margin: 0;
+  white-space: nowrap;
   font-size: var(--q-texto-metrica);
   font-weight: var(--q-peso-metrica);
   line-height: 1.15;
@@ -281,19 +221,9 @@ textarea.q-campo__control {
   color: var(--q-texto-secundario);
 }
 
-.q-subtarjeta {
-  display: grid;
-  gap: 6px;
-  padding: 14px 16px;
-  border: 1px solid var(--q-borde-tarjeta);
-  border-radius: var(--q-radio-control);
-  background: var(--q-fondo-tarjeta);
-}
-
 /* --- Chips y etiquetas --------------------------------------------------------------------- */
 
-.q-chip,
-.q-etiqueta {
+.q-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -311,106 +241,6 @@ textarea.q-campo__control {
   font-size: var(--q-texto-meta);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-}
-
-.q-chip--banner {
-  padding: 5px 12px;
-  border: 1px solid var(--q-chip-borde);
-  background: var(--q-chip-fondo);
-  color: var(--q-banner-texto);
-  font-size: var(--q-texto-meta);
-}
-
-.q-chip--banner .q-icono {
-  width: 16px;
-  height: 16px;
-}
-
-.q-etiqueta {
-  padding: 2px 10px;
-  background: var(--q-secundario-fondo);
-  color: var(--q-texto);
-  font-size: var(--q-texto-etiqueta);
-  font-weight: var(--q-peso-etiqueta);
-}
-
-/* --- Banner: degradado que mantiene el inicio hasta la mitad y teselas a la derecha -------- */
-
-.q-banner {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  min-height: 188px;
-  overflow: hidden;
-  border-radius: var(--q-radio-tarjeta);
-  background: linear-gradient(90deg, var(--q-deco-banner-inicio) 50%, var(--q-deco-banner-fin));
-}
-
-.q-banner__texto {
-  display: grid;
-  align-content: center;
-  gap: 10px;
-  min-width: 0;
-  padding: 32px 40px;
-}
-
-.q-banner__titular {
-  margin: 0;
-  font: var(--q-peso-banner) var(--q-texto-banner) / 1.1 var(--q-fuente-display);
-  color: var(--q-banner-texto);
-  overflow-wrap: anywhere; /* un slug largo se parte en su mitad, sin truncar */
-}
-
-.q-banner__subtitulo {
-  min-height: 1lh;
-  margin: 0;
-  font-size: var(--q-texto-banner-subtitulo);
-  font-weight: 600;
-  letter-spacing: var(--q-espaciado-banner-subtitulo);
-  text-transform: uppercase;
-  color: var(--q-banner-subtitulo);
-}
-
-.q-banner__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 6px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.q-banner__chips--reserva {
-  visibility: hidden;
-}
-
-.q-banner__teselas {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  grid-auto-rows: 1fr;
-}
-
-.q-tesela {
-  background: var(--q-deco-teselas);
-}
-
-.q-tesela--curva.q-tesela--giro-0 {
-  border-top-left-radius: 100%;
-}
-
-.q-tesela--curva.q-tesela--giro-1 {
-  border-top-right-radius: 100%;
-}
-
-.q-tesela--curva.q-tesela--giro-2 {
-  border-bottom-right-radius: 100%;
-}
-
-.q-tesela--curva.q-tesela--giro-3 {
-  border-bottom-left-radius: 100%;
-}
-
-.q-tesela--cuadro:nth-child(3n) {
-  background: transparent;
 }
 
 /* --- Esqueleto, vacío, aviso y tabla ------------------------------------------------------- */
@@ -444,7 +274,9 @@ textarea.q-campo__control {
   flex-wrap: wrap;
   align-items: center;
   gap: 16px 20px;
-  padding: 8px 0;
+  padding: 20px;
+  border: 1px dashed var(--q-borde-tarjeta);
+  border-radius: var(--q-radio-control);
 }
 
 .q-estado-vacio__texto {
@@ -469,6 +301,7 @@ textarea.q-campo__control {
   align-items: flex-start;
   gap: 12px;
   padding: 14px 18px;
+  border-left: 4px solid var(--q-icono-naranja);
   border-radius: var(--q-radio-control);
   background: var(--q-tinte-naranja);
   color: var(--q-texto);
@@ -508,6 +341,10 @@ textarea.q-campo__control {
 .q-tabla td {
   padding: 7px 10px;
   color: var(--q-texto);
+}
+
+.q-tabla tbody tr:hover td {
+  background: var(--q-secundario-fondo);
 }
 
 .q-tabla tbody tr + tr td {

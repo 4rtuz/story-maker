@@ -176,3 +176,33 @@ def test_la_latencia_de_un_paso_no_cuenta_la_espera_entre_trazas() -> None:
     otro_turno = _obs("turno3", "t3", "SPAN", "20:00.000", "20:10.000", sesion=SID, tags=["demo"])
     informe = costes.agregar("demo", [*LEGADA, otro_turno], {SID: "capitulo 02"})
     assert informe["pasos"][0]["latencia_s"] == pytest.approx(40.0)
+
+
+def test_guardar_escribe_metricas_validas(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """RF-04 (spec 0015): `--guardar` deja `metricas.json` en el workspace, válido contra
+    `InformeDeCostes`; sin workspace no crea nada, y si Langfuse no contesta, sale con 1."""
+    from novela.dominio.metricas import InformeDeCostes
+
+    monkeypatch.setattr(Api, "pedir", lambda *_a, **_k: {"data": NUEVA + LEGADA, "meta": {}})
+    entorno = {"NOVELAS_DIR": str(tmp_path)}
+    r = CliRunner().invoke(app, ["costes", "demo", "--guardar"], env=entorno)
+    assert r.exit_code == 4 and not (tmp_path / "demo").exists()
+
+    (tmp_path / "demo").mkdir()
+    (tmp_path / "demo" / "config.yaml").write_text("", encoding="utf-8")
+    r = CliRunner().invoke(app, ["costes", "demo", "--guardar"], env=entorno)
+    assert r.exit_code == 0, r.output
+    informe = InformeDeCostes.model_validate_json(
+        (tmp_path / "demo" / "metricas.json").read_bytes()
+    )
+    assert informe.slug == "demo" and informe.generado.tzinfo is not None
+    assert informe.total.coste_usd == pytest.approx(2.0)
+    assert informe.pasos[0].roles["escritor"].llamadas == 1
+
+    def caida(*_a: object, **_k: object) -> Any:
+        raise OSError("sin red")
+
+    monkeypatch.setattr(Api, "pedir", caida)
+    antes = (tmp_path / "demo" / "metricas.json").read_bytes()
+    assert CliRunner().invoke(app, ["costes", "demo", "--guardar"], env=entorno).exit_code == 1
+    assert (tmp_path / "demo" / "metricas.json").read_bytes() == antes

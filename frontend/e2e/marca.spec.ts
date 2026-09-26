@@ -1,4 +1,4 @@
-// La marca en el navegador, solo en Chromium (CA-48, CA-50, CA-51, CA-53, CA-54, CA-57, CA-59;
+// La marca en el navegador, solo en Chromium (CA-48, CA-50, CA-51, CA-54, CA-57, CA-59;
 // RNF-21, RNF-23, RNF-24): lo que jsdom no calcula —estilos computados, disposición, foco, CLS—.
 import type { Page } from '@playwright/test';
 import { expect, test } from './comun';
@@ -102,17 +102,6 @@ test('el logo: alt, tamaño, esquinas al 22 % y recortadas, desplegada y plegada
   }
 });
 
-test('banner: display, subtítulo, un chip por campo del cursor y el texto en la mitad izquierda (CA-53)', async ({ page }) => {
-  await page.goto('/#/novelas/demo-24/progreso');
-  const banner = page.locator('.q-banner');
-  await expect(banner.locator('.q-banner__titular')).toHaveText('demo-24');
-  expect(await estilo(page, '.q-banner__titular', 'font-family')).toContain('Outfit');
-  await expect(banner.locator('.q-banner__subtitulo')).toContainText('24 CAPÍTULOS');
-  await expect(banner.locator('.q-chip')).toHaveCount(4);
-  const [caja, texto] = await Promise.all([banner.boundingBox(), banner.locator('.q-banner__texto').boundingBox()]);
-  expect(texto!.x + texto!.width).toBeLessThanOrEqual(caja!.x + caja!.width / 2);
-});
-
 test('rejilla de dos columnas a 1440 px y una a 1024, sin desplazamiento horizontal (CA-54)', async ({ page }) => {
   await page.goto('/#/novelas/demo-24/progreso');
   await expect(page.locator('.q-tension').first()).toBeVisible();
@@ -150,15 +139,12 @@ test('las medidas computadas son las de sus tokens (RNF-23)', async ({ page }) =
     ['.q-rejilla', 'column-gap', '--q-hueco'],
     ['.q-rejilla > .q-tarjeta', 'padding-top', '--q-relleno-tarjeta'],
     ['.q-rejilla > .q-tarjeta', 'border-top-left-radius', '--q-radio-tarjeta'],
-    ['.q-banner', 'border-top-left-radius', '--q-radio-tarjeta'],
     ['.q-nav__item', 'border-top-left-radius', '--q-radio-control'],
     ['.q-barra__titulo', 'font-size', '--q-texto-titulo-pagina'],
     ['.q-tarjeta__titulo', 'font-size', '--q-texto-titulo-tarjeta'],
     ['body', 'font-size', '--q-texto-cuerpo'],
-    ['.q-etiqueta', 'font-size', '--q-texto-etiqueta'],
+    ['.q-nav__rotulo', 'font-size', '--q-texto-etiqueta'],
     ['.q-metrica__valor', 'font-size', '--q-texto-metrica'],
-    ['.q-banner__titular', 'font-size', '--q-texto-banner'],
-    ['.q-banner__subtitulo', 'font-size', '--q-texto-banner-subtitulo'],
     ['.q-cuadro-icono', 'width', '--q-cuadro-icono'],
     ['.q-icono', 'width', '--q-tamano-icono'],
   ];
@@ -172,7 +158,6 @@ test('las medidas computadas son las de sus tokens (RNF-23)', async ({ page }) =
     ['.q-barra__titulo', '--q-peso-titulo-pagina'],
     ['.q-tarjeta__titulo', '--q-peso-titulo-tarjeta'],
     ['.q-metrica__valor', '--q-peso-metrica'],
-    ['.q-banner__titular', '--q-peso-banner'],
   ];
   for (const [selector, nombre] of pesos) expect(await estilo(page, selector, 'font-weight')).toBe(await token(page, nombre));
 });
@@ -206,10 +191,10 @@ test('Tab por todos los interactivos con un outline de ≥ 2 px en el color de f
 
 test('CLS ≤ 0,1 en cada vista hasta los primeros datos (RNF-21)', async ({ page }) => {
   for (const [ruta, listo] of [
-    ['/#/', '.q-entrada'],
-    ['/#/lanzar', '.q-lanzar__slugs .q-etiqueta'],
+    ['/#/', '.q-obra[data-slug]'],
+    ['/#/lanzar', '.q-chip-opcion'],
     ['/#/novelas/demo-24/progreso', '.q-tension'],
-    ['/#/novelas/demo-24/lectura', '.q-volumen'],
+    ['/#/novelas/demo-24/lectura', '[data-testid="indice-capitulo"]'],
   ] as const) {
     await page.goto('about:blank');
     await page.addInitScript(() => {
@@ -230,14 +215,14 @@ test('CLS ≤ 0,1 en cada vista hasta los primeros datos (RNF-21)', async ({ pag
 test('foco visible con forced-colors y transiciones a 0 s con reduced motion (CA-57)', async ({ page }) => {
   await page.emulateMedia({ forcedColors: 'active' });
   await page.goto('/#/lanzar');
-  await page.getByRole('button', { name: 'Lanzar novela' }).focus();
+  await page.getByRole('button', { name: 'Sí, es un regalo' }).focus();
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Tab');
   expect(await page.evaluate(() => getComputedStyle(document.activeElement!).outlineStyle)).not.toBe('none');
   expect(px(await page.evaluate(() => getComputedStyle(document.activeElement!).outlineWidth))).toBeGreaterThanOrEqual(2);
   await page.emulateMedia({ forcedColors: 'none', reducedMotion: 'reduce' });
   await page.reload();
-  for (const selector of ['.q-boton', '.q-nav__item', '.q-campo__control']) {
+  for (const selector of ['.q-chip-opcion', '.q-nav__item', '.q-chat__texto']) {
     expect(await estilo(page, selector, 'transition-duration'), selector).toMatch(/^0s(, 0s)*$/);
   }
 });

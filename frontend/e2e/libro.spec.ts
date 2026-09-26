@@ -68,7 +68,10 @@ test(`validación visual de la lectura de ${SLUG}`, async ({ page, request }) =>
 
   // Portada y dedicatoria
   const titulo = (await por(page, 'portada-titulo').textContent()) ?? '';
-  resultado.push(titulo.trim() && titulo === libro.titulo ? ok('portada', titulo) : fallo('portada', 'frontend', `título «${titulo}», se esperaba «${libro.titulo}»`));
+  // Mientras la API sirva el slug como título, el panel enseña el slug legible (tituloDe, portada.ts).
+  const legible = SLUG.replaceAll('-', ' ').replace(/^./, (c) => c.toUpperCase());
+  const tituloEsperado = libro.titulo !== SLUG ? libro.titulo : legible;
+  resultado.push(titulo.trim() && titulo === tituloEsperado ? ok('portada', titulo) : fallo('portada', 'frontend', `título «${titulo}», se esperaba «${tituloEsperado}»`));
   const dedicatoria = por(page, 'portada-dedicatoria');
   if (!libro.dedicatoria) resultado.push(fallo('dedicatoria', 'exportacion', 'el libro no trae dedicatoria: ¿falta brief/brief.json?'));
   else if ((await dedicatoria.count()) === 0 || (await dedicatoria.textContent()) !== libro.dedicatoria)

@@ -3,10 +3,10 @@
 // pulsarlos, el router abre el lector del capítulo. Los data-testid son el contrato de la
 // validación visual (.claude/skills/validar-visual, e2e/libro.spec.ts): no se renombran.
 import { hashDe } from '../../app/rutas';
-import type * as api from '../../shared/api/cliente';
-import { el } from '../../shared/ui/componentes';
+import { urlDePdf, type Esquemas } from '../../shared/api/cliente';
+import { el, enlaceBoton, vacio } from '../../shared/ui/componentes';
 
-type E = api.Esquemas;
+type E = Esquemas;
 
 function conId<T extends HTMLElement>(nodo: T, testid: string, datos: Record<string, string> = {}): T {
   nodo.dataset.testid = testid;
@@ -24,18 +24,37 @@ function enlace(slug: string, n: number, texto: string, testid: string, nombre?:
   return el('li', '', conId(a, testid, { destino: String(n) }));
 }
 
-export function libro(datos: E['Libro'], slug: string): HTMLElement {
+/** `cubierta`, si llega, es la ilustración de la portada (spec 0015): va a la izquierda del título. */
+export function libro(datos: E['Libro'], slug: string, cubierta?: HTMLElement, subtitulo = ''): HTMLElement {
   const titulo = (n: number): string => datos.capitulos.find((c) => c.capitulo === n)?.titulo ?? `Capítulo ${n}`;
 
-  const portada = conId(el('header', 'q-libro__portada', conId(el('h3', 'q-libro__titulo', datos.titulo), 'portada-titulo')), 'portada');
-  if (datos.dedicatoria) portada.append(conId(el('p', 'q-libro__dedicatoria', datos.dedicatoria), 'portada-dedicatoria'));
+  const presentacion = el(
+    'div',
+    'q-libro__presentacion',
+    ...(subtitulo ? [el('p', 'q-libro__subtitulo', subtitulo)] : []),
+    conId(el('h2', 'q-libro__titulo', datos.titulo), 'portada-titulo'),
+  );
+  if (datos.dedicatoria) presentacion.append(conId(el('p', 'q-libro__dedicatoria', datos.dedicatoria), 'portada-dedicatoria'));
+  const primero = datos.capitulos[0];
+  if (primero) {
+    const empezar = enlaceBoton('Empezar a leer', hashDe({ vista: 'lectura', slug, capitulo: primero.capitulo }), { variante: 'primario', icono: 'book-open' });
+    const pdf = conId(enlaceBoton('Descargar PDF', urlDePdf(slug), { icono: 'download' }), 'portada-pdf');
+    pdf.setAttribute('download', `${slug}.pdf`);
+    presentacion.append(
+      el('p', 'q-libro__cuantos', `${datos.capitulos.length} ${datos.capitulos.length === 1 ? 'capítulo' : 'capítulos'} para leer`),
+      el('div', 'q-libro__acciones', conId(empezar, 'portada-empezar'), pdf),
+    );
+  }
+  const portada = conId(el('header', 'q-libro__portada', ...(cubierta ? [cubierta] : []), presentacion), 'portada');
 
   const indice = conId(
     el(
       'nav',
       'q-libro__indice',
       el('h3', 'q-libro__seccion', 'Índice'),
-      el('ol', 'q-libro__lista', ...datos.capitulos.map((c) => enlace(slug, c.capitulo, `${c.capitulo}. ${c.titulo}`, 'indice-capitulo'))),
+      datos.capitulos.length
+        ? el('ol', 'q-libro__lista', ...datos.capitulos.map((c) => enlace(slug, c.capitulo, `${c.capitulo}. ${c.titulo}`, 'indice-capitulo')))
+        : vacio('ningún capítulo cerrado todavía'),
     ),
     'indice',
   );
@@ -76,5 +95,5 @@ export function libro(datos: E['Libro'], slug: string): HTMLElement {
     ),
     'ficha',
   );
-  return conId(el('div', 'q-libro', portada, indice, ficha), 'libro');
+  return conId(el('div', 'q-libro', portada, el('div', 'q-libro__cuerpo', indice, ficha)), 'libro');
 }

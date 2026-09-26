@@ -49,53 +49,6 @@ export function enlaceBoton(texto: string, href: string, opciones: OpcionesDeBot
   return a;
 }
 
-export interface Campo {
-  raiz: HTMLElement;
-  control: HTMLInputElement | HTMLTextAreaElement;
-  /** Un motivo lo muestra bajo el control y marca el campo inválido; null lo quita. */
-  mostrarError(motivo: string | null): void;
-}
-
-/** Etiqueta encima, control y error debajo, enlazado con aria-describedby. */
-export function campo({
-  id,
-  etiqueta,
-  multilinea = false,
-  modoTeclado,
-}: {
-  id: string;
-  etiqueta: string;
-  multilinea?: boolean;
-  modoTeclado?: 'numeric';
-}): Campo {
-  const control = multilinea ? el('textarea', 'q-campo__control') : el('input', 'q-campo__control');
-  control.id = id;
-  if (control instanceof HTMLInputElement) control.type = 'text';
-  if (modoTeclado) control.inputMode = modoTeclado;
-  control.spellcheck = multilinea;
-  const rotulo = el('label', 'q-campo__etiqueta', etiqueta);
-  rotulo.htmlFor = id;
-  const error = el('p', 'q-campo__error');
-  error.id = `${id}-error`;
-  error.hidden = true;
-  const raiz = el('div', 'q-campo', rotulo, control, error);
-  return {
-    raiz,
-    control,
-    mostrarError(motivo) {
-      error.replaceChildren(...(motivo ? [icono('circle-alert'), motivo] : []));
-      error.hidden = !motivo;
-      if (motivo) {
-        control.setAttribute('aria-invalid', 'true');
-        control.setAttribute('aria-describedby', error.id);
-      } else {
-        control.removeAttribute('aria-invalid');
-        control.removeAttribute('aria-describedby');
-      }
-    },
-  };
-}
-
 export function cuadroDeIcono(nombre: NombreDeIcono, tono: Tono): HTMLElement {
   return el('span', `q-cuadro-icono q-cuadro-icono--${tono}`, icono(nombre));
 }
@@ -104,8 +57,35 @@ export function chip(texto: string, clase = ''): HTMLElement {
   return el('span', `q-chip ${clase}`.trim(), texto);
 }
 
-export function etiqueta(texto: string): HTMLElement {
-  return el('span', 'q-etiqueta', texto);
+/** El estado de una novela o un lanzamiento: un punto de color y la palabra, nunca solo color. */
+export function estadoConPunto({ texto, tono }: { texto: string; tono: string }): HTMLElement {
+  const punto = el('span', 'q-estado__punto');
+  punto.setAttribute('aria-hidden', 'true');
+  return el('span', `q-estado q-estado--${tono}`, punto, texto);
+}
+
+export interface BarraDeAvance {
+  raiz: HTMLElement;
+  /** `fraccion` de 0 a 1; `texto`, lo que anuncia un lector de pantalla. */
+  poner(fraccion: number, texto: string): void;
+}
+
+export function barraDeAvance(nombre: string): BarraDeAvance {
+  const relleno = el('span', 'q-avance__relleno');
+  const raiz = el('div', 'q-avance', relleno);
+  raiz.setAttribute('role', 'progressbar');
+  raiz.setAttribute('aria-label', nombre);
+  raiz.setAttribute('aria-valuemin', '0');
+  raiz.setAttribute('aria-valuemax', '100');
+  return {
+    raiz,
+    poner(fraccion, texto) {
+      const acotada = Math.min(1, Math.max(0, fraccion));
+      relleno.style.setProperty('--avance', String(acotada));
+      raiz.setAttribute('aria-valuenow', String(Math.round(acotada * 100)));
+      raiz.setAttribute('aria-valuetext', texto);
+    },
+  };
 }
 
 export interface Tarjeta {
@@ -174,10 +154,6 @@ export function metrica({ etiqueta: rotulo, icono: nombre, tono }: {
       detalle.textContent = d; // vacío, guarda su línea: la tarjeta no crece al llegar (RNF-21)
     },
   };
-}
-
-export function subtarjeta(...hijos: Hijo[]): HTMLElement {
-  return el('article', 'q-subtarjeta', ...hijos);
 }
 
 /** Un bloque gris con las medidas finales de lo que va a llegar; oculto a los lectores. */

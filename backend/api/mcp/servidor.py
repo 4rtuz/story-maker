@@ -209,26 +209,9 @@ def query_story_bible(
 def download_novel(slug: Slug) -> File:
     """La novela en PDF (el libro de regalo de la spec 0006) con los capítulos cerrados, como
     recurso embebido en base64. Se construye en memoria: no escribe en el workspace."""
-    # Import diferido: la API no carga slices/ (test_api_no_importa_slices). De export solo
-    # usa lectores y `pdf.construir`, que devuelve bytes: test_ninguna_tool_de_lectura_escribe.
-    from novela.plataforma import libro as libros
-    from novela.slices.export import cmd as export
-    from novela.slices.export import pdf
+    from api.pdf import pdf_de
 
-    ws = _ws(slug)
-    punto = ws.ultimo_checkpoint()
-    if punto is None:
-        raise ValueError("no hay capítulos cerrados que exportar")
-    capitulos = [libros.capitulo(ws, c) for c in range(1, punto.capitulo + 1)]
-    libro = pdf.Libro(
-        titulo=slug,
-        idioma=ws.config().parametros_obra.idioma,
-        dedicatoria=libros.libro(ws).dedicatoria,
-        capitulos=tuple(pdf.Capitulo(n, t, c) for n, (t, c) in enumerate(capitulos, 1)),
-        ficha=libros.ficha(ws, punto.capitulo),
-        creado=export._creado(ws, punto),
-    )
-    return File(data=pdf.construir(libro), format="pdf", name=f"{slug}.pdf")
+    return File(data=pdf_de(_ws(slug), titulo=slug), format="pdf", name=f"{slug}.pdf")
 
 
 class PlanDeCambio(BaseModel):

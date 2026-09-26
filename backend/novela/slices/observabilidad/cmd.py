@@ -3,10 +3,12 @@
 import json
 import shutil
 import subprocess
-from typing import Annotated
+from datetime import UTC, datetime
+from typing import Annotated, Any
 
 import typer
 
+from novela.dominio.metricas import InformeDeCostes
 from novela.plataforma import atomic, langfuse, run
 from novela.plataforma.workspace import WorkspaceRepository
 from novela.slices.observabilidad import costes as _costes
@@ -25,9 +27,14 @@ def costes(
     markdown: Annotated[
         bool, typer.Option(help="Escribe docs/evaluacion/costes-<slug>.md")
     ] = False,
+    guardar: Annotated[
+        bool, typer.Option(help="Escribe novelas/<slug>/metricas.json, que sirve la API")
+    ] = False,
 ) -> None:
     """Tokens, coste USD y latencia por paso, por rol y por novela, desde Langfuse."""
     ws = WorkspaceRepository.resolver(slug)
+    if guardar:
+        ws.exigir()
     try:
         observaciones = _costes.descargar(_api(), slug)
     except (OSError, ValueError) as exc:  # URLError y HTTPError son OSError
@@ -38,14 +45,28 @@ def costes(
         destino = _costes.DESTINO / f"costes-{slug}.md"
         atomic.escribir(destino, _costes.markdown(informe))
         typer.echo(f"escrito {destino}", err=json_)
+    if guardar:
+        guardar_metricas(ws, informe)
+        typer.echo(f"escrito {ws.raiz / 'metricas.json'}", err=json_)
     if json_:
         typer.echo(json.dumps(informe, ensure_ascii=False, indent=2))
-    elif not markdown:
+    elif not (markdown or guardar):
         for p in [*informe["pasos"], {"paso": "novela", **informe["total"]}]:
             typer.echo(
                 f"{p['paso']}: {p['llamadas']} llamadas · {p['tokens_entrada']} entrada · "
                 f"{p['tokens_salida']} salida · {p['coste_usd']:.4f} USD · {p['latencia_s']} s"
             )
+
+
+def guardar_metricas(ws: WorkspaceRepository, informe: dict[str, Any] | None = None) -> None:
+    """`metricas.json` validado por `InformeDeCostes`. Sin informe, lo descarga: es lo que llama
+    `producir` tras cada capítulo, y deja que la excepción la decida él."""
+    if informe is None:
+        observaciones = _costes.descargar(_api(), ws.slug)
+        informe = _costes.agregar(ws.slug, observaciones, _costes.sesiones_del_workspace(ws.raiz))
+    validado = InformeDeCostes.model_validate({**informe, "generado": datetime.now(UTC)})
+    with ws.bloquear():
+        ws.escribir(ws.raiz / "metricas.json", validado.model_dump_json(indent=2) + "\n")
 
 
 def traza(slug: str, paso: str) -> None:

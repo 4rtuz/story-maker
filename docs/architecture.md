@@ -37,7 +37,7 @@ Este documento describe **cómo se implementa** la ontología definida en `docs/
 | Observabilidad | Hook Stop de Claude Code + Langfuse SDK 4.x | Trazado nativo, sin proxy |
 | Tests | pytest + `jsonschema` | Contratos verificados sin consumir cuota |
 | Backend | Python 3.12 + FastAPI | API de lectura sobre el workspace y lanzamiento de `novela producir`; reutiliza los modelos Pydantic del CLI |
-| Frontend | Vite + TypeScript + Three.js | Consume la API del backend; sin lógica de negocio |
+| Frontend | Vite + TypeScript | Consume la API del backend; sin lógica de negocio |
 | Export | `markdown-it-py` + `ebooklib` + `fpdf2` | Salida a `.md` único, `.epub` y el libro de regalo en `.pdf` con DejaVu Serif embebida en subconjunto (ADR 0003). markdown-it convierte a XHTML para el epub y da los tokens que compone el PDF |
 | MCP | FastMCP, en la API (`/mcp/`) y por stdio | Consultar y descargar novelas desde un cliente MCP; `request_change` opcional (`docs/mcp.md`) |
 | LSP | `pygls`, por stdio | Diagnósticos al editar un capítulo a mano (`docs/lsp.md`) |
@@ -51,7 +51,7 @@ Fuera del stack, explícitamente: API de Anthropic, OpenRouter, Claude Agent SDK
 El repositorio es un monorepo con dos carpetas grandes:
 
 - **`backend/`** — Python 3.12. Contiene el CLI determinista `novela`, los modelos Pydantic, los esquemas, la configuración y la API FastAPI. Es lo único que toca el workspace.
-- **`frontend/`** — Vite + TypeScript + Three.js. Solo lectura, consume la API del backend.
+- **`frontend/`** — Vite + TypeScript. Solo lectura, consume la API del backend.
 
 Lo que no es ni backend ni frontend — `.claude/`, `docs/`, `novelas/` — vive en la raíz, porque lo comparten los dos o no pertenece a ninguno.
 
@@ -265,6 +265,7 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │   ├── prosa/            # lint-prosa (docs/linters-prosa.md)
 │   │   │   ├── visual/           # registrar-visual (docs/validacion-visual.md)
 │   │   │   ├── observabilidad/   # costes, traza y prompts publicar (docs/observabilidad.md)
+│   │   │   ├── portada/          # portada: prompt y URL puros en nucleo.py, la descarga en cmd.py
 │   │   │   └── export/           # cmd.py · markdown.py · epub.py · pdf.py · ficha.py · fuentes/
 │   │   │
 │   │   ├── dominio/              # la ontología como código; sin I/O, sin framework
@@ -275,6 +276,7 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │   ├── plan.py           # rama 3 — Plan
 │   │   │   ├── estado.py         # rama 4 — Estado, LibroDeHechos (append-only)
 │   │   │   ├── version.py        # PeticionDeCambio, Version, RegistroDeVersiones (spec 0007)
+│   │   │   ├── metricas.py       # InformeDeCostes de metricas.json (spec 0015)
 │   │   │   └── qa.py
 │   │   │
 │   │   ├── lsp/                  # servidor LSP de edición manual (docs/lsp.md)
@@ -310,17 +312,17 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │       ├── test_contratos.py     # Pydantic ↔ schemas/
 │       └── fixtures/             # workspaces sintéticos, sin llamadas a modelo
 │
-├── frontend/                     # Vite + TypeScript + Three.js; lee y lanza por la API
-│   ├── package.json              # dependencias de ejecución: three y markdown-it
+├── frontend/                     # Vite + TypeScript; lee y lanza por la API
+│   ├── package.json              # dependencia de ejecución: markdown-it
 │   ├── vite.config.ts            # 5173 fijo; /@fs/ limitado a frontend/
 │   ├── eslint.config.js          # imports de fuera de src/, HTML sin sanear
 │   ├── index.html
 │   ├── test/fixtures/            # usos prohibidos para lint.test.ts, fuera de `eslint .`
 │   └── src/                      # package by feature, ver §3.0; tests junto a su módulo
 │       ├── features/
-│       │   ├── lanzar/           # formulario y orden /novela-nueva para copiar
-│       │   ├── progreso/         # cursor, curva de tensión, hilos abiertos, runs y actividad
-│       │   └── lectura/          # escena Three.js, navegación 3D del libro
+│       │   ├── lanzar/           # chat de lanzamiento y tablero por fases
+│       │   ├── progreso/         # proceso de creación, tensión y métricas de Langfuse
+│       │   └── lectura/          # portada, índice, ficha y lector
 │       ├── shared/               # cliente de la API, tipos, componentes base
 │       │   ├── marca/            # tokens.css (único fichero con colores), pares, logo, fuente
 │       │   ├── iconos/           # trazados de Lucide copiados, con su LICENSE
@@ -863,7 +865,8 @@ novela comparar-juicios <slug> --humano <fichero>   # juez_acuerdo_humano (docs/
 novela prohibidas añadir|listar|comprobar <slug> …  # guardrail de palabras prohibidas (docs/guardrails.md)
 novela lint-prosa <slug> [<cap>] [--stdout]         # qa/NN-prosa.json, informativo (docs/linters-prosa.md)
 novela registrar-visual <slug> --fichero <json>     # qa/visual.json y visual_lectura (docs/validacion-visual.md)
-novela costes <slug> [--json] [--markdown]          # tokens, USD y latencia desde Langfuse (docs/observabilidad.md)
+novela costes <slug> [--json] [--markdown] [--guardar]   # tokens, USD y latencia desde Langfuse (docs/observabilidad.md); --guardar: metricas.json
+novela portada <slug> [--forzar]   # ilustración de Pollinations.ai en portada.jpg (spec 0015 §5.1)
 novela traza <slug> <paso>         # abre la traza del paso e imprime su traceparent
 novela prompts publicar            # sube .claude/agents/*.md a Langfuse, marcados con el sha
 ```
@@ -989,7 +992,7 @@ Python 3.12. Cuatro caras sobre el mismo código:
 - **Servidor MCP** (`backend/api/mcp/`, FastMCP): montado en la API en `/mcp/` y por stdio (`python -m api.mcp`). Tools de solo lectura para listar novelas, leer capítulos y versiones, consultar la biblia y descargar el PDF, construido en memoria; y `request_change`, deshabilitada salvo con `STORY_MAKER_MCP_ESCRITURA=1`, solo desde loopback y con confirmación, que lanza `novela cambio` como proceso (`docs/mcp.md`).
 - **API FastAPI** (`backend/api/`): lectura para el frontend, y el lanzamiento de novelas. Sirve el estado, los capítulos, los manifiestos y lo que el panel necesita de la configuración, del plan y de los checkpoints. Los capítulos y los manifiestos salen del disco tal cual; el estado se serializa desde `estado.db` con los mismos modelos Pydantic, abriendo la base en modo lectura.
 
-La API **no escribe en ningún workspace**. El PDF de regalo lo genera `novela exportar --formato pdf` y se entrega como fichero (ADR 0003); `GET …/libro` sirve lo mismo que su portada, índice y ficha como JSON para la lectura web (`docs/lectura-web.md`). Fuera de leer hace dos cosas, y en las dos escribe el CLI: `request_change` del MCP, descrita arriba, y `/lanzamientos`: arranca `python -m novela producir` en segundo plano (grupo de procesos propio, sin ventana), y es ese subcomando del CLI el que escribe. `producir` repite el bucle desatendido de `AGENTS.md` § Proceso: ejecución —`comprobar-entorno`, `/novela-nueva`, un `/novela-continuar <slug> --capitulos 1` por capítulo mientras `novela pendiente` salga con 0, y `/novela-auditar`—, cada paso en su `claude -p` con `--setting-sources project,local --permission-mode dontAsk --model opus`, un `NOVELA_SESSION_ID` nuevo y el prompt como argumento de `claude.exe`, sin shell. Para con un código distinto de 0, con una sesión que no avanza `checkpoints/latest.json`, con un `intervencion.md` sin `resuelto:` o si la auditoría no exporta; nunca insiste.
+La API **no escribe en ningún workspace**. El PDF de regalo lo genera `novela exportar --formato pdf` y se entrega como fichero (ADR 0003); `GET …/libro` sirve lo mismo que su portada, índice y ficha como JSON para la lectura web (`docs/lectura-web.md`). Fuera de leer hace dos cosas, y en las dos escribe el CLI: `request_change` del MCP, descrita arriba, y `/lanzamientos`: arranca `python -m novela producir` en segundo plano (grupo de procesos propio, sin ventana), y es ese subcomando del CLI el que escribe. `producir` repite el bucle desatendido de `AGENTS.md` § Proceso: ejecución —`comprobar-entorno`, `/novela-nueva`, un `/novela-continuar <slug> --capitulos 1` por capítulo mientras `novela pendiente` salga con 0, y `/novela-auditar`—, cada paso en su `claude -p` con `--setting-sources project,local --permission-mode dontAsk --model opus`, un `NOVELA_SESSION_ID` nuevo y el prompt como argumento de `claude.exe`, sin shell. Para con un código distinto de 0, con una sesión que no avanza `checkpoints/latest.json`, con un `intervencion.md` sin `resuelto:` o si la auditoría no exporta; nunca insiste. Tras `/novela-nueva` pide la portada, y tras cada capítulo que avanza el checkpoint y tras la auditoría guarda `metricas.json`; si fallan (sin red, Langfuse sin claves), lo anota en el registro del lanzamiento y sigue (spec 0015, RF-05).
 
 Su estado vive en `novelas/.lanzador/`, fuera de todo workspace: `<slug>.json` (estado, paso, detalle), `<slug>.log` (la salida de las sesiones) y `<slug>.detener` (el panel pidió parar, y `producir` para antes del siguiente capítulo). `activo.lock` lo sostiene el proceso mientras vive: hay uno a la vez en la máquina, y un `en_marcha` sin cerrojo tomado se sirve como `interrumpido`. Como el directorio empieza por punto, ningún slug lo alcanza.
 
@@ -1009,6 +1012,9 @@ GET /novelas/{slug}/escaleta              Escaleta de plan/escaleta.md; 404 si f
 GET /novelas/{slug}/checkpoint            checkpoints/latest.json, o null
 GET /novelas/{slug}/runs                  manifiestos por run_id ascendente
 GET /novelas/{slug}/runs/{run_id}/log     TramoDeLog de harness.log desde ?desde=<byte>
+GET /novelas/{slug}/portada               portada.jpg como image/jpeg; 404 si no hay
+GET /novelas/{slug}/metricas              InformeDeCostes de metricas.json; 404 si no hay o no valida
+GET /novelas/{slug}/pdf                   el PDF de regalo de los cerrados, en memoria, como adjunto; 404 sin cerrados
 POST /lanzamientos                        PeticionDeLanzamiento → 202 Lanzamiento
 POST /lanzamientos/{slug}/reanudar        producir sin idea; 404 si no existe
 POST /lanzamientos/{slug}/detener         para tras el capítulo en curso; 409 si no está en marcha
@@ -1036,11 +1042,13 @@ Si `python` no resuelve, se desactiva el alias en «Alias de ejecución de aplic
 
 ### 11.2 Frontend (`frontend/`)
 
-Vite + TypeScript + Three.js. No escribe en el workspace: lee de la API y lanza novelas a través de ella.
+Vite + TypeScript. No escribe en el workspace: lee de la API y lanza novelas a través de ella (spec 0015).
 
-- **Lanzar novela**: formulario con slug, idea, capítulos y palabras que, con un clic, hace `POST /lanzamientos`; no hay ninguna orden que copiar. Debajo, cada lanzamiento con su estado, su paso, su motivo y las últimas líneas de sus sesiones, refrescados cada 3 s, con «Detener» si está en marcha y «Reanudar» si está parado, fallido o interrumpido. El `config.yaml` lo sigue escribiendo `novela nueva` desde `config/default.yaml` y los flags.
-- **Progreso**: consulta la API por *polling*; muestra cursor, capítulos cerrados según el checkpoint, palabras, curva de tensión real contra objetivo con actos y puntos de giro —y su tabla—, hilos abiertos y runs.
-- **Lectura**: una estantería 3D con un volumen por capítulo —cerrado, en curso o pendiente según el checkpoint y el índice—, y su lista HTML equivalente, con el estado también como texto y el mismo teclado; sin WebGL queda solo la lista. Encima, la tarjeta **Libro** con lo mismo que el PDF: portada y dedicatoria, índice navegable y ficha de personajes y lugares con enlace a cada capítulo (`docs/lectura-web.md`); la valida en un navegador la skill `validar-visual` (`docs/validacion-visual.md`). Solo se leen los capítulos cerrados: el lector quita el frontmatter y muestra el markdown sin HTML, enlaces ni imágenes, que quedan como texto.
+- **Inicio**: la biblioteca, una portada por novela con su título, su estado y su avance; oculta `eval-*`, `humo-*` y `regalo-carmen`, que siguen abriéndose por su ruta. Sin portada (`GET …/portada` da 404), una cubierta tipográfica.
+
+- **Lanzar novela**: un chat pregunta si es un regalo (y entonces nombre, edad, rasgos y recuerdos), la idea, el género, el tono, los capítulos, las palabras totales y un nombre corto con sugerencia, valida cada respuesta con las reglas del antiguo formulario y, desde el resumen, hace `POST /lanzamientos` con un clic. Debajo, un tablero con cuatro columnas —En proceso, En pausa, Bloqueada y Terminada— refrescado cada 3 s, con el paso contado en lenguaje de lector, «Detener» si está en marcha y «Reanudar» si está parado, fallido o interrumpido. No enseña registros de sesión. El `config.yaml` lo sigue escribiendo `novela nueva` desde `config/default.yaml` y los flags.
+- **Progreso**: consulta la API por *polling*; muestra la ficha con la portada, capítulos aceptados según el checkpoint, palabras, coste y tiempo de Langfuse, el **proceso de creación** —porcentaje y últimos hitos derivados de escaleta, checkpoint, cursor y lanzamiento, con carga animada en el hito en curso y una marca que se dibuja al terminar— y la curva de tensión real contra objetivo con su tabla. Las métricas de Langfuse (`GET …/metricas`, que escribe `novela costes --guardar`) van por novela, por capítulo y por rol.
+- **Lectura**: la portada con la ilustración, el título, la dedicatoria y «Empezar a leer»; debajo, índice navegable y ficha de personajes y lugares con enlace a cada capítulo (`docs/lectura-web.md`); la valida en un navegador la skill `validar-visual` (`docs/validacion-visual.md`). Junto a «Empezar a leer», «Descargar PDF» baja el libro de regalo (`GET …/pdf`). El lector se abre desde esos enlaces: un libro abierto sobre papel con textura, con la portada antes del capítulo 1, fondo papel, sepia o noche y tamaño de letra ajustable, sin guardar nada en el navegador. Solo se leen los capítulos cerrados: el lector quita el frontmatter y muestra el markdown sin HTML, enlaces ni imágenes, que quedan como texto.
 
 **Identidad visual** (spec 0004, D21 a D28). El panel lleva la marca de Qaracter con WCAG 2.1 AA. Todos los colores, familias tipográficas, radios, sombras y medidas son propiedades CSS de `frontend/src/shared/marca/tokens.css`, el único fichero con colores literales; los componentes solo usan roles semánticos, y la escena y la gráfica leen esos mismos roles de las propiedades computadas. Los tonos vivos de la marca quedan para lo decorativo y el texto usa tonos derivados que cumplen AA; `pares.ts` declara los pares en uso y un test recalcula su contraste desde `tokens.css`. El logo es el PNG oficial, sin retocar, y se muestra siempre dentro de un contenedor con las esquinas redondeadas al 22 % del lado: solo `logo.ts` puede importarlo, y el favicon se deriva de él con las esquinas ya recortadas. La fuente display y los iconos se sirven desde `frontend/`, con su licencia al lado. Sin modo oscuro ni selector de idioma.
 

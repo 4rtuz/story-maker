@@ -1,5 +1,5 @@
-// Regresión visual (RNF-22, CA-53, CA-57, CA-58): una captura por vista y estado y por componente y
-// estado, en Chromium a 1440 × 900, con el reloj fijo y el canvas y las horas enmascarados. Las
+// Regresión visual (RNF-22, CA-57, CA-58; spec 0015 §5.5): una captura por vista y estado y por
+// componente y estado, en Chromium a 1440 × 900, con el reloj fijo y las horas enmascaradas. Las
 // referencias son las de la imagen de Playwright del job frontend-e2e (D30): en otra plataforma el
 // renderizado de fuentes difiere y el test se salta. Solo muestran workspaces sintéticos (RF-60).
 import type { Page } from '@playwright/test';
@@ -23,14 +23,14 @@ const capturar = (page: Page, nombre: string) =>
     fullPage: true,
     maxDiffPixelRatio: 0.001,
     animations: 'disabled',
-    mask: [page.locator('canvas'), page.locator('.q-barra__actualizado, time, .q-fecha')],
+    mask: [page.locator('.q-barra__actualizado, time, .q-fecha')],
   });
 
 const VISTAS: [string, string, string][] = [
-  ['inicio', '/#/', '.q-entrada'],
-  ['lanzar', '/#/lanzar', '.q-lanzar__slugs .q-etiqueta'],
+  ['inicio', '/#/', '.q-obra[data-slug]'],
+  ['lanzar', '/#/lanzar', '.q-chip-opcion'],
   ['progreso', '/#/novelas/demo-24/progreso', '.q-tension'],
-  ['lectura', '/#/novelas/demo-24/lectura', '.q-volumen'],
+  ['lectura', '/#/novelas/demo-24/lectura', '[data-testid="indice-capitulo"]'],
 ];
 
 for (const [nombre, ruta, listo] of VISTAS) {
@@ -83,22 +83,23 @@ test('lector abierto', async ({ page }) => {
   await capturar(page, 'lector');
 });
 
-test('banner (CA-53)', async ({ page }) => {
+test('ficha de Progreso (spec 0015 §5.5)', async ({ page }) => {
   await preparar(page);
   await page.goto('/#/novelas/demo-24/progreso');
-  await expect(page.locator('.q-banner .q-chip')).toHaveCount(4);
-  await expect(page.locator('.q-banner')).toHaveScreenshot('banner.png', { maxDiffPixelRatio: 0.001 });
+  await expect(page.locator('.q-ficha .q-estado')).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  await expect(page.locator('.q-ficha')).toHaveScreenshot('ficha.png', { maxDiffPixelRatio: 0.001, animations: 'disabled' });
 });
 
 const COMPONENTES: [string, string, string][] = [
-  ['boton-primario', '/#/lanzar', 'button.q-boton--primario'],
-  ['boton-secundario', '/#/novelas/demo-24/lectura/3', '.q-lector button.q-boton--secundario'],
-  ['campo', '/#/lanzar', '#lanzar-slug'],
+  ['boton-primario', '/#/novelas/demo-24/progreso', '.q-ficha .q-boton--primario'],
+  ['boton-secundario', '/#/novelas/demo-24/lectura/3', '.q-lector button.q-boton--secundario >> nth=-1'],
+  ['chip-opcion', '/#/lanzar', '.q-chip-opcion >> nth=0'],
   ['nav-item', '/#/', '.q-nav__item >> nth=1'],
   ['plegar', '/#/', '.q-plegar'],
-  ['entrada', '/#/', '.q-entrada__slug >> nth=0'],
-  ['volumen', '/#/novelas/demo-24/lectura', '.q-volumen >> nth=4'],
-  ['detalles', '/#/novelas/demo-24/progreso', '.q-detalles__resumen'],
+  ['obra', '/#/', '.q-obra[data-slug] .q-obra__cubierta >> nth=0'],
+  ['indice', '/#/novelas/demo-24/lectura', '[data-testid="indice-capitulo"] >> nth=2'],
+  ['detalles', '/#/novelas/demo-24/progreso', '.q-detalles__resumen >> nth=0'],
 ];
 
 for (const [nombre, ruta, selector] of COMPONENTES) {

@@ -28,6 +28,10 @@ class Harness:
         self.detener = False
         self.cerrados = 0
         self.efectos = efectos or Harness.bien
+        self.portadas = 0
+        self.metricas = 0
+        self.notas: list[str] = []
+        self.extras_fallan = False
 
     def bien(self, prompt: str) -> int:
         if prompt.startswith("/novela-nueva"):
@@ -54,7 +58,20 @@ class Harness:
             pendiente=lambda: self.cerrados < NUM,
             detener=lambda: self.detener,
             informar=lambda paso, _detalle: self.pasos.append(paso),
+            portada=self.portada,
+            metricas=self.guardar_metricas,
+            anotar=self.notas.append,
         )
+
+    def portada(self) -> None:
+        self.portadas += 1
+        if self.extras_fallan:
+            raise OSError("Pollinations no contesta")
+
+    def guardar_metricas(self) -> None:
+        self.metricas += 1
+        if self.extras_fallan:
+            raise OSError("Langfuse sin claves")
 
     def producir(self, nueva: str | None = "/novela-nueva demo --idea 'x'") -> tuple[str, str]:
         return producir(self.ws, nueva, self.puertos())
@@ -70,6 +87,29 @@ def test_de_principio_a_fin(tmp_path: Path) -> None:
         "/novela-auditar demo",
     ]
     assert h.pasos == ["entorno", "nueva", "capitulo 01", "capitulo 02", "capitulo 03", "auditoria"]
+    assert (h.portadas, h.metricas, h.notas) == (1, NUM + 1, [])
+
+
+def test_portada_y_metricas_que_fallan_no_paran_la_novela(tmp_path: Path) -> None:
+    """RF-05 (spec 0015): son extras; su fallo queda en el registro y la novela sigue."""
+    h = Harness(tmp_path)
+    h.extras_fallan = True
+    estado, detalle = h.producir()
+    assert estado == "terminado", detalle
+    assert (h.portadas, h.metricas) == (1, NUM + 1)
+    assert len(h.notas) == NUM + 2 and "Pollinations" in h.notas[0]
+
+
+def test_reanudar_no_pide_portada_y_un_capitulo_atascado_no_guarda_metricas(
+    tmp_path: Path,
+) -> None:
+    def atascada(h: Harness, prompt: str) -> int:
+        return 0 if prompt.startswith("/novela-continuar") else Harness.bien(h, prompt)
+
+    h = Harness(tmp_path, atascada)
+    h.bien("/novela-nueva")
+    assert h.producir(None)[0] == "fallido"
+    assert (h.portadas, h.metricas) == (0, 0)
 
 
 def test_entorno_con_hallazgos_no_lanza_nada(tmp_path: Path) -> None:

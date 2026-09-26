@@ -20,6 +20,7 @@
   /* Primitivos: ningún componente los usa directamente. */
   --q-pizarra-800: #2D3748;
   --q-pizarra-600: #4A5568;
+  --q-pizarra-200: #CBD5E0;
   --q-naranja-500: #F97316;
   --q-naranja-700: #C2410C;
   --q-naranja-100: #FFEDD5;
@@ -35,6 +36,17 @@
   --q-gris-500: #6B7280;
   --q-gris-800: #1F2937;
   --q-blanco: #FFFFFF;
+  /* Estados (spec 0015): solo en los roles --q-estado-*, siempre con su palabra al lado. */
+  --q-verde-700: #15803D;
+  --q-verde-100: #DCFCE7;
+  --q-rojo-700: #B91C1C;
+  --q-rojo-100: #FEE2E2;
+  /* El papel del lector (spec 0015): tres fondos y sus tintas, solo en los roles --q-lector-*. */
+  --q-papel-50: #FBF7EE;
+  --q-sepia-100: #F2E4C9;
+  --q-noche-900: #1F2228;
+  --q-tinta-900: #2B2520;
+  --q-tinta-100: #E7E0D2;
 
   /* Roles semánticos. Los tonos vivos (-500) solo en --q-deco-* y --q-nav-indicador (D22). */
   --q-fondo-pagina: var(--q-gris-50);
@@ -48,6 +60,8 @@
   --q-secundario-fondo: var(--q-gris-100);
   --q-nav-fondo: var(--q-pizarra-800);
   --q-nav-texto: var(--q-blanco);
+  /* Rótulos y URL de la barra lateral: un escalón por debajo del blanco. */
+  --q-nav-texto-secundario: var(--q-pizarra-200);
   --q-nav-separador: var(--q-pizarra-600);
   --q-nav-activo-fondo: var(--q-naranja-700);
   --q-nav-indicador: var(--q-naranja-500);
@@ -69,6 +83,46 @@
   /* Sombras: el texto principal al 8 %, de 1 a 3 px de desenfoque. */
   --q-sombra-tarjeta: 0 1px 3px color-mix(in srgb, var(--q-gris-800) 8%, transparent);
   --q-sombra-boton: 0 1px 2px color-mix(in srgb, var(--q-gris-800) 8%, transparent);
+  /* Hover de lo que se puede pulsar y el diálogo del lector: la misma tinta, más difusa. */
+  --q-sombra-elevada:
+    0 2px 4px color-mix(in srgb, var(--q-gris-800) 6%, transparent),
+    0 8px 20px -4px color-mix(in srgb, var(--q-gris-800) 12%, transparent);
+  --q-sombra-dialogo: 0 24px 64px -12px color-mix(in srgb, var(--q-gris-800) 35%, transparent);
+  --q-velo: color-mix(in srgb, var(--q-pizarra-800) 55%, transparent);
+
+  /* Spec 0015: estados, portadas y animaciones del panel editorial. */
+  --q-estado-hecho: var(--q-verde-700);
+  --q-estado-hecho-fondo: var(--q-verde-100);
+  --q-estado-vivo: var(--q-cian-700);
+  --q-estado-vivo-fondo: var(--q-cian-100);
+  --q-estado-pausa: var(--q-pizarra-600);
+  --q-estado-pausa-fondo: var(--q-gris-100);
+  --q-estado-bloqueo: var(--q-rojo-700);
+  --q-estado-bloqueo-fondo: var(--q-rojo-100);
+  /* El título va sobre la ilustración: el velo lo hace legible sobre cualquier imagen. */
+  --q-portada-texto: var(--q-blanco);
+  --q-portada-velo: color-mix(in srgb, var(--q-pizarra-800) 88%, transparent);
+  --q-portada-brillo: color-mix(in srgb, var(--q-blanco) 22%, transparent);
+  --q-sombra-libro:
+    0 1px 2px color-mix(in srgb, var(--q-gris-800) 10%, transparent),
+    0 12px 28px -8px color-mix(in srgb, var(--q-gris-800) 30%, transparent);
+  --q-sombra-libro-elevada:
+    0 2px 4px color-mix(in srgb, var(--q-gris-800) 10%, transparent),
+    0 22px 40px -10px color-mix(in srgb, var(--q-gris-800) 38%, transparent);
+  --q-fondo-destacado: linear-gradient(135deg, var(--q-naranja-100), var(--q-gris-50) 60%);
+
+  /* El libro abierto: fondo, tinta y acento de cada tema, y el grano del papel, que es ruido SVG
+     (feTurbulence) en dos escalas: fibras finas y manchas amplias. */
+  --q-lector-papel: var(--q-papel-50);
+  --q-lector-sepia: var(--q-sepia-100);
+  --q-lector-noche: var(--q-noche-900);
+  --q-lector-tinta: var(--q-tinta-900);
+  --q-lector-tinta-noche: var(--q-tinta-100);
+  --q-lector-acento: var(--q-naranja-700);
+  --q-lector-acento-noche: var(--q-ambar-400);
+  --q-textura-papel: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .38 0 0 0 0 .3 0 0 0 0 .2 0 0 0 1.1 -.42'/%3E%3C/filter%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .36 0 0 0 0 .24 0 0 0 .5 -.19'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+  --q-textura-papel-noche: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .95 0 0 0 0 .92 0 0 0 0 .85 0 0 0 .7 -.3'/%3E%3C/filter%3E%3Cfilter id='m' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .9 0 0 0 0 .86 0 0 0 0 .78 0 0 0 .18 -.07'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+  --q-barra-translucida: color-mix(in srgb, var(--q-gris-50) 86%, transparent);
 
   /* Medidas. El umbral de 1280 px de la rejilla va en su media query: no lee propiedades. */
   --q-ancho-barra: 270px;
@@ -103,14 +157,19 @@
   --q-contorno-foco: 2px;
   --q-separacion-foco: 2px;
   --q-transicion: 150ms;
+  --q-transicion-lenta: 240ms;
+  --q-curva: cubic-bezier(0.16, 1, 0.3, 1);
 
   --q-fuente-cuerpo: system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --q-fuente-display: 'Outfit', var(--q-fuente-cuerpo);
+  /* El texto de la novela, en la serif de lectura del sistema: no se descarga nada (RF-44). */
+  --q-fuente-lectura: 'Iowan Old Style', Charter, 'Sitka Text', Cambria, Georgia, serif;
   --q-fuente-mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
     --q-transicion: 0ms;
+    --q-transicion-lenta: 0ms;
   }
 }

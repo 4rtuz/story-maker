@@ -33,21 +33,24 @@ describe('iconos', () => {
     expect(fs.readFileSync(path.join(ICONOS, 'LICENSE'), 'utf8')).toMatch(/^ISC License/);
   });
 
-  it('están los doce de la spec §8.4', () => {
+  it('están los de la spec §8.4 que siguen en uso y los de la spec 0015', () => {
     expect([...NOMBRES_DE_ICONO].sort()).toEqual(
       [
         'activity',
         'book-open',
         'chart-line',
         'circle-alert',
-        'copy',
-        'history',
+        'circle-dollar-sign',
+        'clock',
+        'download',
         'library',
-        'list-tree',
         'panel-left',
+        'pause',
         'plug',
         'rocket',
-        'terminal',
+        'rotate-ccw',
+        'send',
+        'sparkles',
       ].sort(),
     );
   });
@@ -65,6 +68,6 @@ describe('iconos', () => {
     const paquete = JSON.parse(fs.readFileSync(path.join(FRONTEND, 'package.json'), 'utf8')) as {
       dependencies: Record<string, string>;
     };
-    expect(Object.keys(paquete.dependencies).sort()).toEqual(['markdown-it', 'three']);
+    expect(Object.keys(paquete.dependencies).sort()).toEqual(['markdown-it']);
   });
 });

@@ -71,6 +71,10 @@ ficha y marcadores. Se prueba entero con `pypdf` en la suite, sin cuota.
   los capítulos; `md` y `epub` siguen funcionando.
 - **Sin PDF/UA ni tipografía avanzada.** Hay marcadores, `/Lang` y texto extraíble, nada más.
 
+**Nota (spec 0015, D8).** La API sirve ese mismo PDF en `GET /novelas/{slug}/pdf`, construido en
+memoria con `pdf.construir`, para el botón «Descargar PDF» de Lectura. No reabre la decisión: el
+entregable sigue siendo el fichero, y la API no escribe ni sale de `localhost`.
+
 ## Cuándo reabrirla
 
 Si `fpdf2` cambia de licencia o deja de mantenerse, si el libro tiene que leerse en línea (una web

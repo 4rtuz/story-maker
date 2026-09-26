@@ -3,11 +3,13 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
+from fastapi.responses import FileResponse
 
 from novela.dominio.artefactos import Checkpoint, Manifest, TramoDeLog
 from novela.dominio.config import Config
 from novela.dominio.estado import CursorDeNovela, Estado
 from novela.dominio.ids import RUN_ID_PATRON, SLUG_PATRON
+from novela.dominio.metricas import InformeDeCostes
 from novela.dominio.plan import Escaleta
 from novela.plataforma import estado_db
 from novela.plataforma.workspace import (
@@ -102,3 +104,24 @@ def manifiesto(ws: Workspace, run_id: RunIdPath) -> Manifest:
     if not ruta.is_file():
         raise HTTPException(404, f"no existe el run {run_id}")
     return ws.leer_json(ruta, Manifest)
+
+
+# spec 0015 §5.4: lo que `novela portada` y `novela costes --guardar` dejaron en el workspace.
+@router.get(
+    SLUG + "/portada",
+    response_class=FileResponse,
+    responses={200: {"content": {"image/jpeg": {}}, "description": "La portada, sin texto"}},
+)
+def portada(ws: Workspace) -> FileResponse:
+    ruta = ws.raiz / "portada.jpg"
+    if not ruta.is_file():
+        raise HTTPException(404, f"{ws.slug} no tiene portada")
+    return FileResponse(ruta, media_type="image/jpeg")
+
+
+@router.get(SLUG + "/metricas")
+def metricas(ws: Workspace) -> InformeDeCostes:
+    ruta = ws.raiz / "metricas.json"
+    if not ruta.is_file():
+        raise HTTPException(404, f"{ws.slug} no tiene métricas guardadas")
+    return ws.leer_json(ruta, InformeDeCostes)

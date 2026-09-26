@@ -1,16 +1,22 @@
-// Progreso (RF-17 a RF-23, RF-53, RF-54): banner, fila de métricas y rejilla de tarjetas. Cada
-// recurso guarda su última respuesta válida y la vista se repinta con lo que haya: si una
-// petición falla, lo anterior sigue en pantalla y el aviso lo pone el layout (RF-04).
+// Progreso (spec 0015): la ficha de la novela con su portada, cuatro cifras, el proceso de creación,
+// la tensión y las métricas de Langfuse. Cada recurso guarda su última respuesta válida y la vista
+// se repinta con lo que haya: si una petición falla, lo anterior sigue en pantalla y el aviso lo
+// pone el layout (RF-04).
 import type { Vista } from '../../app/rutas';
 import * as api from '../../shared/api/cliente';
-import { CADA_DATOS, type Recurso } from '../../shared/sondeo';
-import { banner, CURSOR_DE_MUESTRA, datosDeBanner } from '../../shared/ui/banner';
 import { lectorDelNavegador } from '../../shared/marca/lector-de-tokens';
-import { el, esqueleto, estadoVacio, etiqueta, metrica, subtarjeta, tabla, tarjeta, vacio } from '../../shared/ui/componentes';
-import { hilosAbiertos, resumir } from './resumen';
-import { crearActividad } from './actividad';
-import { listaDeRuns } from './runs';
+import { estadoDeObra, SUBGENEROS } from '../../shared/obra';
+import { CADA_DATOS, CADA_LOG, type Recurso } from '../../shared/sondeo';
+import { el, enlaceBoton, esqueleto, estadoConPunto, estadoVacio, metrica, tabla, tarjeta, vacio } from '../../shared/ui/componentes';
+import { portada, tituloDe, tituloProvisional } from '../../shared/ui/portada';
+import { crearCreacion } from './creacion';
+import { barrasPorCapitulo, barrasPorRol, tablaPorCapitulo, type Medida } from './graficas';
+import { resumirCostes } from './metricas';
+import { proceso } from './proceso';
+import { resumir } from './resumen';
 import { filasDeTension, graficaDeTension, serieDeTension } from './tension';
+
+type E = api.Esquemas;
 
 /** La leyenda: real y objetivo se distinguen por el trazo, no solo por el color (§8.4). */
 function leyenda(): HTMLElement {
@@ -29,88 +35,133 @@ function contenidoDeTension(real: (number | null)[], escaleta: E['Escaleta'] | n
   return [...avisos, leyenda(), el('div', 'q-tension__lienzo', graficaDeTension(serie, lectorDelNavegador())), datos];
 }
 
-type E = api.Esquemas;
-
-const RESERVA = datosDeBanner('', undefined, CURSOR_DE_MUESTRA).chips;
-
 interface Datos {
   estado?: E['Estado'];
   config?: E['Config'];
   checkpoint?: E['Checkpoint'] | null;
-  capitulos?: E['FrontmatterCapitulo'][];
-  runs?: E['Manifest'][];
   escaleta?: E['Escaleta'] | null;
+  libro?: E['Libro'];
+  metricas?: E['InformeDeCostes'] | null;
+  lanzamiento?: E['Lanzamiento'] | null;
 }
+
+/** Un dato pequeño de la tarjeta de Langfuse: rótulo encima y valor debajo. */
+const dato = (rotulo: string, valor: string): HTMLElement => el('div', 'q-dato', el('dt', 'q-dato__rotulo', rotulo), el('dd', 'q-dato__valor', valor));
 
 export function progreso({ slug }: { slug: string }): Vista {
   const datos: Datos = {};
-  const cabecera = el('div', 'q-progreso__banner', banner({ ...datosDeBanner(slug, undefined, undefined), reservarChips: RESERVA }));
+  let medida: Medida = 'coste';
 
-  const cerrados = metrica({ etiqueta: 'Capítulos cerrados', icono: 'book-open', tono: 'naranja' });
+  const cubierta = portada({ slug, decorativa: true });
+  const subtitulo = el('p', 'q-ficha__subtitulo');
+  const titulo = el('h2', 'q-ficha__titulo', tituloProvisional(slug));
+  const estadoObra = el('p', 'q-ficha__estado');
+  const ficha = el(
+    'header',
+    'q-ficha',
+    cubierta.raiz,
+    el('div', 'q-ficha__texto', subtitulo, titulo, estadoObra, el('div', 'q-ficha__acciones', enlaceBoton('Leer la novela', `#/novelas/${slug}/lectura`, { variante: 'primario', icono: 'book-open' }))),
+  );
+
+  const capitulos = metrica({ etiqueta: 'Capítulos aceptados', icono: 'book-open', tono: 'naranja' });
   const palabras = metrica({ etiqueta: 'Palabras', icono: 'chart-line', tono: 'cian' });
-  const desviacion = metrica({ etiqueta: 'Desviación', icono: 'activity', tono: 'naranja' });
-  const hilos = metrica({ etiqueta: 'Hilos abiertos', icono: 'list-tree', tono: 'cian' });
+  const coste = metrica({ etiqueta: 'Coste en Langfuse', icono: 'circle-dollar-sign', tono: 'naranja' });
+  const tiempo = metrica({ etiqueta: 'Tiempo de escritura', icono: 'clock', tono: 'cian' });
 
-  const actividad = crearActividad(slug);
-  const tarjetaTension = tarjeta({ titulo: 'Tensión', icono: 'chart-line', tono: 'cian' });
+  const tarjetaCreacion = tarjeta({ titulo: 'Proceso de creación', icono: 'sparkles', tono: 'naranja', clase: 'q-progreso__creacion' });
+  const creacion = crearCreacion();
+  tarjetaCreacion.cuerpo.append(esqueleto('q-esqueleto--lista'));
+  const tarjetaTension = tarjeta({ titulo: 'Tensión', icono: 'chart-line', tono: 'cian', clase: 'q-progreso__tension' });
   tarjetaTension.cuerpo.append(esqueleto('q-esqueleto--grafica'));
-  const tarjetaHilos = tarjeta({ titulo: 'Hilos abiertos', icono: 'list-tree', tono: 'naranja' });
-  tarjetaHilos.cuerpo.append(esqueleto('q-esqueleto--lista'));
-  const tarjetaRuns = tarjeta({ titulo: 'Runs', icono: 'history', tono: 'cian' });
-  tarjetaRuns.cuerpo.append(esqueleto('q-esqueleto--lista'));
+  const tarjetaLangfuse = tarjeta({ titulo: 'Métricas de Langfuse', icono: 'activity', tono: 'cian', clase: 'q-progreso__langfuse' });
+  tarjetaLangfuse.cuerpo.append(esqueleto('q-esqueleto--grafica'));
 
-  function pintar(): void {
-    const { estado, config, checkpoint, capitulos, runs } = datos;
-    cabecera.replaceChildren(banner({ ...datosDeBanner(slug, config, estado?.cursor), reservarChips: RESERVA }));
-    if (estado && config && checkpoint !== undefined) {
-      const r = resumir(estado, config, checkpoint);
-      const enCurso = capitulos?.filter((c) => c.capitulo > (checkpoint?.capitulo ?? 0)).length;
-      cerrados.poner(r.numeroCerrados, enCurso ? `${r.cerrados}; ${enCurso} en curso` : r.cerrados);
-      palabras.poner(r.palabras, r.palabrasObjetivo);
-      desviacion.poner(r.desviacion, 'frente al plan');
-    }
-    if (estado) {
-      const abiertos = hilosAbiertos(estado);
-      hilos.poner(String(abiertos.length));
-      tarjetaHilos.contar(abiertos.length);
-      tarjetaHilos.cuerpo.replaceChildren(
-        abiertos.length
-          ? el(
-              'ul',
-              'q-lista',
-              ...abiertos.map((h) =>
-                el(
-                  'li',
-                  '',
-                  subtarjeta(
-                    el('div', 'q-subtarjeta__cabecera', el('strong', '', h.id), etiqueta(`abierto en ${h.abierto_en}`)),
-                    el('p', 'q-subtarjeta__texto', h.descripcion),
-                  ),
-                ),
-              ),
-            )
-          : vacio('no hay hilos abiertos'),
-      );
-    }
-    if (estado && datos.escaleta !== undefined) {
-      tarjetaTension.cuerpo.replaceChildren(...contenidoDeTension(estado.tension_real, datos.escaleta));
-    }
-    if (runs) {
-      tarjetaRuns.contar(runs.length);
-      const desplazable = el('div', 'q-desplazable', listaDeRuns(runs));
-      desplazable.tabIndex = 0; // se desplaza con teclado
-      desplazable.setAttribute('aria-label', 'Runs de la novela');
-      tarjetaRuns.cuerpo.replaceChildren(
-        runs.length
-          ? desplazable
-          : estadoVacio({ icono: 'history', texto: 'sin runs todavía', pista: 'El primer run aparece con el primer paso del bucle.' }),
-      );
-    }
+  const selector = el('div', 'q-selector');
+  selector.setAttribute('role', 'group');
+  selector.setAttribute('aria-label', 'Medida de la gráfica');
+  const opcionesDeMedida: [Medida, string][] = [
+    ['coste', 'Coste'],
+    ['tiempo', 'Tiempo'],
+  ];
+  for (const [clave, rotulo] of opcionesDeMedida) {
+    const b = el('button', 'q-selector__opcion', rotulo);
+    b.type = 'button';
+    b.dataset.medida = clave;
+    b.addEventListener('click', () => {
+      medida = clave;
+      pintarLangfuse();
+    });
+    selector.append(b);
   }
 
-  const recurso = (clave: string, pedir: (senal: AbortSignal) => Promise<void>): Recurso => ({
+  function pintarLangfuse(): void {
+    const informe = datos.metricas;
+    if (informe === undefined) return;
+    if (informe === null || !informe.pasos.length) {
+      coste.poner('—', 'sin datos todavía');
+      tiempo.poner('—', 'sin datos todavía');
+      tarjetaLangfuse.cuerpo.replaceChildren(
+        estadoVacio({
+          icono: 'activity',
+          texto: 'Todavía no hay métricas de Langfuse',
+          pista: 'Aparecerán en cuanto se cierre el primer capítulo.',
+        }),
+      );
+      return;
+    }
+    const r = resumirCostes(informe);
+    coste.poner(r.coste, `${r.medioPorCapitulo} por capítulo`);
+    tiempo.poner(r.tiempo, `${r.llamadas} llamadas al modelo`);
+    for (const b of selector.querySelectorAll<HTMLButtonElement>('button')) b.setAttribute('aria-pressed', String(b.dataset.medida === medida));
+    const generado = el('time', '', new Date(informe.generado).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' }));
+    generado.dateTime = informe.generado;
+    tarjetaLangfuse.cuerpo.replaceChildren(
+      el('dl', 'q-datos', dato('Llamadas', r.llamadas), dato('Tokens', r.tokens), dato('Caché leída', r.cache), dato('Coste medio por capítulo', r.medioPorCapitulo)),
+      el(
+        'div',
+        'q-langfuse',
+        el(
+          'figure',
+          'q-langfuse__figura',
+          el('figcaption', 'q-langfuse__rotulo', medida === 'coste' ? 'Coste por capítulo' : 'Tiempo por capítulo', selector),
+          r.capitulos.length ? barrasPorCapitulo(r.capitulos, medida) : vacio('ningún capítulo medido todavía'),
+          ...(r.capitulos.length ? [tablaPorCapitulo(r.capitulos)] : []),
+        ),
+        el('figure', 'q-langfuse__figura', el('figcaption', 'q-langfuse__rotulo', 'Coste por rol'), barrasPorRol(r.roles)),
+      ),
+      el('p', 'q-langfuse__pie', 'Actualizado el ', generado, '. El coste lo calcula Langfuse por generación.'),
+    );
+  }
+
+  function pintar(): void {
+    const { estado, config, checkpoint, escaleta, libro, lanzamiento } = datos;
+    const obra = config?.parametros_obra;
+    const total = obra?.num_capitulos ?? 0;
+    const cerrados = checkpoint?.capitulo ?? 0;
+    const nombre = tituloDe(libro, slug);
+    cubierta.poner(nombre, obra ? SUBGENEROS[obra.subgenero] : '');
+    titulo.textContent = nombre;
+    subtitulo.textContent = obra ? `${SUBGENEROS[obra.subgenero]} · ${total} capítulos` : '';
+    if (config && checkpoint !== undefined && lanzamiento !== undefined) {
+      estadoObra.replaceChildren(estadoConPunto(estadoDeObra(cerrados, total, lanzamiento)));
+    }
+    if (estado && config && checkpoint !== undefined) {
+      const r = resumir(estado, config, checkpoint);
+      capitulos.poner(r.numeroCerrados, r.cerrados);
+      palabras.poner(r.palabras, r.palabrasObjetivo);
+    }
+    if (estado && config && checkpoint !== undefined && escaleta !== undefined && lanzamiento !== undefined) {
+      const p = proceso({ total, hayEscaleta: escaleta !== null, cerrados, cursor: estado.cursor, lanzamiento });
+      if (!creacion.raiz.isConnected) tarjetaCreacion.cuerpo.replaceChildren(creacion.raiz);
+      creacion.poner(p, cerrados >= total ? `${total} capítulos` : `Capítulo ${Math.min(cerrados + 1, total)} de ${total}`);
+    }
+    if (estado && escaleta !== undefined) tarjetaTension.cuerpo.replaceChildren(...contenidoDeTension(estado.tension_real, escaleta));
+    pintarLangfuse();
+  }
+
+  const recurso = (clave: string, pedir: (senal: AbortSignal) => Promise<void>, cada = CADA_DATOS): Recurso => ({
     clave,
-    cada: CADA_DATOS,
+    cada,
     async pedir(senal) {
       await pedir(senal);
       pintar();
@@ -122,21 +173,21 @@ export function progreso({ slug }: { slug: string }): Vista {
     nodo: el(
       'div',
       'q-vista q-vista--progreso',
-      cabecera,
-      el('div', 'q-metricas', cerrados.raiz, palabras.raiz, desviacion.raiz, hilos.raiz),
-      el('div', 'q-rejilla', tarjetaTension.raiz, tarjetaHilos.raiz, tarjetaRuns.raiz, actividad.tarjeta),
+      ficha,
+      el('div', 'q-metricas', capitulos.raiz, palabras.raiz, coste.raiz, tiempo.raiz),
+      el('div', 'q-rejilla', tarjetaCreacion.raiz, tarjetaTension.raiz),
+      tarjetaLangfuse.raiz,
     ),
     recursos: [
       recurso('estado', async (s) => void (datos.estado = await api.estado(slug, s))),
       recurso('config', async (s) => void (datos.config = await api.config(slug, s))),
       recurso('escaleta', async (s) => void (datos.escaleta = await api.escaleta(slug, s))),
       recurso('checkpoint', async (s) => void (datos.checkpoint = await api.checkpoint(slug, s))),
-      recurso('capitulos', async (s) => void (datos.capitulos = await api.capitulos(slug, s))),
-      recurso('runs', async (s) => {
-        datos.runs = await api.runs(slug, s);
-        actividad.alCambiarRuns(datos.runs);
-      }),
-      actividad.recurso,
+      recurso('libro', async (s) => void (datos.libro = await api.libro(slug, s))),
+      recurso('metricas', async (s) => void (datos.metricas = await api.metricas(slug, s))),
+      // El lanzamiento cambia de paso a menudo: a la cadencia del log, para que el proceso se note vivo.
+      // La lista y no `/lanzamientos/{slug}`: una novela que no se lanzó desde el panel no da un 404.
+      recurso('lanzamiento', async (s) => void (datos.lanzamiento = (await api.lanzamientos(s)).find((l) => l.slug === slug) ?? null), CADA_LOG),
     ],
   };
 }

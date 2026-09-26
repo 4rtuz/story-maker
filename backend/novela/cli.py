@@ -20,6 +20,7 @@ from novela.slices.juicio.cmd import comparar_juicios, juicio
 from novela.slices.nueva.cmd import nueva
 from novela.slices.observabilidad import cmd as observabilidad
 from novela.slices.plan.cmd import validar_plan
+from novela.slices.portada.cmd import portada
 from novela.slices.producir.cmd import producir
 from novela.slices.prohibidas import cmd as prohibidas
 from novela.slices.prosa.cmd import lint_prosa
@@ -62,6 +63,7 @@ app.command()(con_codigos(observabilidad.costes))
 app.command()(con_codigos(observabilidad.traza))
 app.add_typer(observabilidad.prompts_app, name="prompts")
 app.command("registrar-visual")(con_codigos(registrar_visual))
+app.command()(con_codigos(portada))
 
 brief_app = typer.Typer(no_args_is_help=True, help="Fase de brief de una novela de regalo.")
 brief_app.command()(con_codigos(brief.iniciar))

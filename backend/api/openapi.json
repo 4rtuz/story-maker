@@ -376,6 +376,88 @@
         }
       }
     },
+    "/novelas/{slug}/portada": {
+      "get": {
+        "tags": [
+          "novelas"
+        ],
+        "summary": "Portada",
+        "operationId": "portada_novelas__slug__portada_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "La portada, sin texto",
+            "content": {
+              "image/jpeg": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/novelas/{slug}/metricas": {
+      "get": {
+        "tags": [
+          "novelas"
+        ],
+        "summary": "Metricas",
+        "operationId": "metricas_novelas__slug__metricas_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InformeDeCostes"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/novelas/{slug}/capitulos": {
       "get": {
         "tags": [
@@ -506,6 +588,46 @@
                   "$ref": "#/components/schemas/Libro"
                 }
               }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/novelas/{slug}/pdf": {
+      "get": {
+        "tags": [
+          "capitulos"
+        ],
+        "summary": "Pdf",
+        "description": "El libro de regalo en PDF con los capítulos cerrados, para descargar (spec 0015). El título\nes el que muestra el panel: el slug con espacios, mientras la novela no tenga uno propio.",
+        "operationId": "pdf_novelas__slug__pdf_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/pdf": {}
             }
           },
           "422": {
@@ -845,6 +967,102 @@
           "parametros_sistema"
         ],
         "title": "Config"
+      },
+      "Consumo": {
+        "properties": {
+          "llamadas": {
+            "type": "integer",
+            "title": "Llamadas"
+          },
+          "tokens_entrada": {
+            "type": "integer",
+            "title": "Tokens Entrada"
+          },
+          "tokens_salida": {
+            "type": "integer",
+            "title": "Tokens Salida"
+          },
+          "tokens_cache_lectura": {
+            "type": "integer",
+            "title": "Tokens Cache Lectura"
+          },
+          "coste_usd": {
+            "type": "number",
+            "title": "Coste Usd"
+          },
+          "latencia_media_llamada_s": {
+            "type": "number",
+            "title": "Latencia Media Llamada S"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "llamadas",
+          "tokens_entrada",
+          "tokens_salida",
+          "tokens_cache_lectura",
+          "coste_usd",
+          "latencia_media_llamada_s"
+        ],
+        "title": "Consumo"
+      },
+      "ConsumoDePaso": {
+        "properties": {
+          "llamadas": {
+            "type": "integer",
+            "title": "Llamadas"
+          },
+          "tokens_entrada": {
+            "type": "integer",
+            "title": "Tokens Entrada"
+          },
+          "tokens_salida": {
+            "type": "integer",
+            "title": "Tokens Salida"
+          },
+          "tokens_cache_lectura": {
+            "type": "integer",
+            "title": "Tokens Cache Lectura"
+          },
+          "coste_usd": {
+            "type": "number",
+            "title": "Coste Usd"
+          },
+          "latencia_media_llamada_s": {
+            "type": "number",
+            "title": "Latencia Media Llamada S"
+          },
+          "paso": {
+            "type": "string",
+            "title": "Paso"
+          },
+          "latencia_s": {
+            "type": "number",
+            "title": "Latencia S"
+          },
+          "roles": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Consumo"
+            },
+            "type": "object",
+            "title": "Roles"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "llamadas",
+          "tokens_entrada",
+          "tokens_salida",
+          "tokens_cache_lectura",
+          "coste_usd",
+          "latencia_media_llamada_s",
+          "paso",
+          "latencia_s",
+          "roles"
+        ],
+        "title": "ConsumoDePaso"
       },
       "Cursor": {
         "properties": {
@@ -1523,6 +1741,43 @@
         ],
         "title": "Hilo"
       },
+      "InformeDeCostes": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "sesion": {
+            "type": "string",
+            "title": "Sesion"
+          },
+          "generado": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generado"
+          },
+          "pasos": {
+            "items": {
+              "$ref": "#/components/schemas/ConsumoDePaso"
+            },
+            "type": "array",
+            "title": "Pasos"
+          },
+          "total": {
+            "$ref": "#/components/schemas/TotalDeCostes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "slug",
+          "sesion",
+          "generado",
+          "pasos",
+          "total"
+        ],
+        "title": "InformeDeCostes"
+      },
       "Lanzamiento": {
         "properties": {
           "slug": {
@@ -2119,6 +2374,50 @@
         ],
         "title": "Relacion",
         "description": "Arista de la evolución; `intensidad` es cuantitativa y no es la `tension` del canon."
+      },
+      "TotalDeCostes": {
+        "properties": {
+          "llamadas": {
+            "type": "integer",
+            "title": "Llamadas"
+          },
+          "tokens_entrada": {
+            "type": "integer",
+            "title": "Tokens Entrada"
+          },
+          "tokens_salida": {
+            "type": "integer",
+            "title": "Tokens Salida"
+          },
+          "tokens_cache_lectura": {
+            "type": "integer",
+            "title": "Tokens Cache Lectura"
+          },
+          "coste_usd": {
+            "type": "number",
+            "title": "Coste Usd"
+          },
+          "latencia_media_llamada_s": {
+            "type": "number",
+            "title": "Latencia Media Llamada S"
+          },
+          "latencia_s": {
+            "type": "number",
+            "title": "Latencia S"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "llamadas",
+          "tokens_entrada",
+          "tokens_salida",
+          "tokens_cache_lectura",
+          "coste_usd",
+          "latencia_media_llamada_s",
+          "latencia_s"
+        ],
+        "title": "TotalDeCostes"
       },
       "TramoDeLog": {
         "properties": {

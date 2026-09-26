@@ -51,6 +51,10 @@ def test_app_arranca() -> None:
         "/novelas/..%2F..%2Fetc/config",
         "/novelas/..%2F..%2Fetc/escaleta",
         "/novelas/..%2F..%2Fetc/checkpoint",
+        # spec 0015 §5.4
+        "/novelas/..%2F..%2Fetc/portada",
+        "/novelas/..%2F..%2Fetc/metricas",
+        "/novelas/..%2F..%2Fetc/pdf",
     ],
 )
 def test_path_traversal(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, ruta: str) -> None:
@@ -450,11 +454,15 @@ def _rutas(rutas: list[Any], prefijo: str = "") -> list[str]:
 
 
 def test_sin_rutas_de_libro() -> None:
-    """CA-32 (RF-32), VAL-34: el PDF de regalo no se sirve por la API (ADR 0003). La única ruta es
-    la de la lectura web complementaria, en JSON y sin cuerpo (docs/lectura-web.md)."""
+    """CA-32 (RF-32), VAL-34: el libro no se sirve como web (ADR 0003). Las únicas rutas son la de
+    la lectura web complementaria, en JSON y sin cuerpo (docs/lectura-web.md), la ilustración de
+    cubierta de la spec 0015, que es un JPEG sin texto, y el mismo PDF que genera el CLI, para
+    descargarlo desde Lectura (spec 0015, D8): construido en memoria, sin escribir."""
     prohibidas = ("libro", "pdf", "ficha", "portada", "apariciones")
-    assert [c for c in _rutas(app.routes) if any(p in c for p in prohibidas)] == [
-        "/novelas/{slug:path}/libro"
+    assert sorted(c for c in _rutas(app.routes) if any(p in c for p in prohibidas)) == [
+        "/novelas/{slug:path}/libro",
+        "/novelas/{slug:path}/pdf",
+        "/novelas/{slug:path}/portada",
     ]
 
 
