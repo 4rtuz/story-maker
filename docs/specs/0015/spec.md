@@ -1,7 +1,7 @@
 ---
 spec: 0015
 titulo: "Panel editorial: portadas, lanzamiento conversacional, proceso de creación y métricas de Langfuse"
-estado: aceptada
+estado: implementada
 autor: "4rtuzz"
 fecha: 2026-09-25
 version: 0.1
@@ -9,7 +9,7 @@ afecta: [backend, frontend, esquemas, docs]
 depende_de: ["0004"]
 sustituye: []
 adr: []
-commit: null
+commit: ea2a525
 ---
 
 # 0015 — Panel editorial: portadas, lanzamiento conversacional, proceso de creación y métricas de Langfuse
