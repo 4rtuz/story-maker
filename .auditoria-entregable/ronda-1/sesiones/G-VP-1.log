@@ -1,0 +1,29 @@
+He creado la spec, el plan de implementación y los validadores:
+- Spec: docs/specs/0009/spec.md
+- Plan de implementación: docs/implementation-plans/0009.md
+- Validadores: docs/validators.md (sección 0009)
+
+Las decisiones que resuelven las preguntas abiertas de la spec están en docs/specs/0009/decisions.md.
+
+Revisa:
+- **Decisiones con confianza baja:**
+  - D4: un nombre cuenta como mal escrito si, sin tildes ni mayúsculas, coincide con uno canónico pero no se escribe igual. Solo se miran nombres de 3 letras o más que empiezan por mayúscula y no van enteros en mayúsculas. No se usa distancia de edición.
+  - D7: los elementos obligatorios son el nombre del destinatario y cada recuerdo. La edad, los rasgos y la dedicatoria no cuentan.
+  - D11: los scores valen 1,0 o 0,0, y `vp_cobertura` es la fracción de elementos cubiertos. Por eso los cinco scores que salen de `validar` valdrán casi siempre 1,0. Queda registrado como riesgo.
+- **Preguntas bloqueantes del plan:**
+  - P1: la spec 0005, la del brief, no está implementada. Faltan `brief.py`, `brief.schema.json` y la función que lee `brief/brief.json`, y eso bloquea las tareas T5.1–T5.4 y T5.7–T5.10.
+  - Hay otras preguntas no bloqueantes que conviene revisar:
+    - P2: la firma de `gates.esquemas` no admite contexto, y sin él `Escaleta` se rechaza siempre.
+    - P6: si falla la lectura del brief o de un informe, `harness.log` recibiría la excepción entera, con datos personales.
+    - P7: la spec sigue en estado `Propuesta`, no `aceptada`.
+- **Requisitos sin cobertura:** R1. No tiene verificador: ningún paso comprueba que `validar`, `aplicar-delta` y `auditar` no emitan scores. Además, entre la spec y el plan hay 7 discrepancias (5 puntos sin cubrir y 2 contradicciones) y quedan 12 preguntas abiertas, todo en la sección 0009.
+
+Estos servidores MCP necesitan autorización y no se pueden usar hasta que la tengan: claude.ai EULER (desde los ajustes de conectores de claude.ai) y los de los plugins design y engineering (con `claude mcp` o `/mcp` en una sesión interactiva). El servidor `pdf-viewer` no pudo conectarse.
+SessionEnd hook [if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; else exec python3 "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; fi] failed: En l�nea: 1 Car�cter: 3
++ if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script " ...
++   ~
+Falta '(' despu�s de 'if' en la instrucci�n if.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingOpenParenthesisInIfStatement
+ 
+

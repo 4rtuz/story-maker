@@ -1,0 +1,32 @@
+Se han diseñado la spec, el plan de implementación y los validadores:
+- Spec: docs/specs/0013/spec.md
+- Plan de implementación: docs/implementation-plans/0013.md
+- Validadores: docs/validators.md (sección 0013)
+
+Las decisiones tomadas para resolver las preguntas abiertas de la spec están en docs/specs/0013/decisions.md
+
+Revisa:
+- Decisiones con confianza baja: D2 (TLA+ sin PlusCal, con acciones con nombre), D6 (qué estados cuentan como finales y qué acciones tienen equidad para `Termina`), D11 (versión y sha256 de `tla2tools.jar` fijados en `formal/tla/tla2tools.version`, con Java 17 en CI), D17 (se mantiene la enumeración de `test_bucle.py`).
+- Preguntas bloqueantes del plan: P10. Hay que cerrar la fusión pendiente en `entrega` antes de empezar: con ficheros sin fusionar no se puede hacer ningún commit, y la última tarea edita `docs/architecture.md`.
+- Requisitos sin cobertura: Ninguno. R39 (no tocar `backend/novela`, la API, `.claude` ni `AGENTS.md`) sí tiene tarea, pero ningún verificador lo comprueba.
+
+Conviene arreglar en el plan cuatro puntos que marcó el validador antes de implementar:
+- **Estado `agotado`:** está entre dos pasos y todavía no es final, así que una caída seguida de reanudación podría reintentar un gate ya agotado. Eso contradice CA-06.
+- **Configuración mutante:** el plan también desactiva la comprobación de custodia de `aplicar-delta`, cosa que la spec no pide. Además, CI solo comprueba que la salida nombra `PublicaSoloValidado`, y eso no demuestra que esa invariante se haya violado de verdad.
+- **Códigos de salida en CI:** `sha256sum -c` no acepta el formato `sha256=<hex>`. Y pasar TLC por `| tee` sin `pipefail` puede dejar el job en verde aunque el modelo esté roto.
+- **Cómo se representa el contenido:** si solo se guarda la versión de la última escritura, `ReaplicadosIdenticos` puede cumplirse siempre por construcción.
+
+Otras dudas del plan, no bloqueantes:
+- **P2:** el panel no reanuda `/novela-nueva` si la sesión se cae.
+- **P7:** CI clona sin historial, así que la comprobación de que existen los commits citados en `docs/tla-contraejemplos.md` fallaría allí.
+- **P8:** el plan está en `docs/implementation-plans/` y no en `docs/specs/0013/plan/`, que es lo que pide `AGENTS.md`.
+
+Aparte: llegó un mensaje de otra sesión dirigido a la que implementa la spec 0007, sobre fusionar `entrega` en `spec-0007`. No es para esta sesión y no he hecho nada con él.
+SessionEnd hook [if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; else exec python3 "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; fi] failed: En l�nea: 1 Car�cter: 3
++ if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script " ...
++   ~
+Falta '(' despu�s de 'if' en la instrucci�n if.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingOpenParenthesisInIfStatement
+ 
+

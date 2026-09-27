@@ -1,0 +1,31 @@
+Se han diseñado la spec, el plan de implementación y los validadores:
+- Spec: docs/specs/0010/spec.md
+- Plan de implementación: docs/implementation-plans/0010.md
+- Validadores: docs/validators.md (sección 0010)
+
+Las decisiones tomadas para resolver las preguntas abiertas de la spec están en docs/specs/0010/decisions.md
+
+Revisa:
+- **Decisiones con confianza baja:**
+  - D1: el navegador abre una previa HTML que genera el CLI, no `export/novela.pdf`. Se basa en una suposición que nadie ha comprobado: que Playwright no puede inspeccionar el índice ni los enlaces en el visor de PDF de Chromium en modo headless.
+  - D8: `.mcp.json` tiene un solo servidor `playwright` (`cmd /c npx`, versión fijada, `--headless --isolated`, capturas en `.playwright-mcp`). Los flags, el acceso a `file://` y el envoltorio `cmd /c` están sin verificar hasta la tarea T-01.
+  - D7 (el redactor pide que la revises): `CLAUDE.md` asigna `sonnet` a los revisores, pero `CONTRATO` en `test_contratos.py` les pone `haiku`. Para el nuevo rol se ha usado `sonnet`.
+- **Preguntas bloqueantes del plan:**
+  - P1: añadir `Agente.REVISOR_VISUAL` cambia `config.schema.json`, `openapi.json` y `esquema.gen.ts`, y eso choca con RNF-11, RF-34 y CA-34 de la propia spec. Hay que elegir entre crear un tipo aparte solo para el briefing o aceptar el cambio de esos contratos. Bloquea T1.2 y T2.2.
+  - P2: la spec 0006 (`Libro`, `Ficha`, `apariciones`, `demo-regalo`) no está implementada. T2.1, T2.2, T5.2 y T6.1 esperan a que la 0006 llegue hasta su T-05.
+- **Requisitos sin cobertura:** R50 no tiene verificador. Es el procedimiento que se detiene cuando `briefing … revisor-visual` devuelve 4.
+
+El validador también señala tres contradicciones importantes entre la spec y el plan:
+- **D2:** un informe ilegible debería devolver 1 según RF-18 y RF-19, pero 5 según CA-21. El plan lo resuelve cambiando el criterio en vez de corregir la spec.
+- **D3:** CA-28 pide denegar la previa de otro capítulo, pero la expresión del plan la deja pasar.
+- **VER-17 (crítico):** la expresión del hook tiene que anclarse a la raíz del repo. Si no, admite rutas `file://` de fuera del repositorio.
+
+Además, `docs/validators.md` cambió en otra parte del fichero mientras el validador trabajaba. Su sección 0010 es la única que añadió y no tocó las demás, pero conviene revisar ese cambio que vino de fuera.
+SessionEnd hook [if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; else exec python3 "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; fi] failed: En l�nea: 1 Car�cter: 3
++ if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script " ...
++   ~
+Falta '(' despu�s de 'if' en la instrucci�n if.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingOpenParenthesisInIfStatement
+ 
+

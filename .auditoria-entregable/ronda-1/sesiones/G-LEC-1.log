@@ -1,0 +1,37 @@
+Se han diseñado la spec, el plan de implementación y los validadores:
+- Spec: docs/specs/0006/spec.md
+- Plan de implementación: docs/implementation-plans/0006.md
+- Validadores: docs/validators.md (sección 0006)
+
+Las decisiones tomadas para resolver las preguntas abiertas de la spec están en docs/specs/0006/decisions.md
+
+Revisa:
+- **Decisiones con confianza baja:**
+  - D2: `fpdf2` como dependencia (LGPL-3.0) y `pypdf` solo en `dev`, para comprobar los enlaces.
+  - D3: una fuente TTF libre embebida. Si un carácter no tiene glifo, sale con 1 e indica el `U+XXXX`.
+  - D10: sin brief, la portada lleva solo el título y sale con 0. Con un brief inválido, sale con 4.
+  - D11: opción `--titulo`; si no se pasa, se usa el slug.
+  - D12: el orden es portada, índice, capítulos y ficha. En la ficha van primero los personajes, por orden de primera aparición.
+  - D14: el PDF es determinista. `CreationDate` sale del manifiesto del último checkpoint.
+- **Preguntas bloqueantes del plan:**
+  - P1: la spec está en estado `Propuesta` y sin commitear, y AGENTS.md pide que esté aceptada. Además, AGENTS.md usa el estado `borrador`, no `Propuesta`. ¿Se acepta tal cual?
+  - P2: la fase 4, la de la dedicatoria, depende de la spec 0005, que aún no está implementada. ¿Se entrega en dos partes (fases 1 a 3 y después la 4) o se espera a la 0005?
+- **Requisitos sin cobertura:** Ninguno.
+
+Otras cosas que tienes que saber:
+- **La spec 0006 contradice a la 0005.** Añade `dedicatoria` como campo obligatorio del `Brief`, algo que la 0005 dejaba fuera en su §3.2 y en su RNF-06 (D9).
+- **Añade la tabla `apariciones` a `estado.db`.** Eso choca con la spec 0002, que decía que la forma de `estado.db` no cambiaba. Las novelas anteriores no se migran, y exportarlas a PDF sale con 4 (D6).
+- **El validador marca tres puntos que conviene corregir antes de escribir código:**
+  - VAL-6: un enlace `javascript:` en el markdown podría acabar impreso en el PDF. El validador lo deduce del comportamiento de la librería y no lo ha ejecutado.
+  - VER-20: el plan apunta a una línea equivocada para el VAL-37 de la 0005.
+  - VAL-17/VER-22: un `brief.json` mal formado podría imprimir la dedicatoria por stderr.
+
+Nota de Privacidad: Para cumplir con nuestras políticas de protección de datos (RGPD), se ha anonimizado la información personal en mi respuesta. Te recuerdo que debes minimizar el uso de datos personales reales en tus consultas a la Inteligencia Artificial.
+SessionEnd hook [if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; else exec python3 "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; fi] failed: En l�nea: 1 Car�cter: 3
++ if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script " ...
++   ~
+Falta '(' despu�s de 'if' en la instrucci�n if.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingOpenParenthesisInIfStatement
+ 
+

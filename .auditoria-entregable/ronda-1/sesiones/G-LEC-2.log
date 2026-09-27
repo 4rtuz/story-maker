@@ -1,0 +1,28 @@
+He preparado la spec, el plan de implementación y los validadores:
+- Spec: docs/specs/0007/spec.md
+- Plan de implementación: docs/implementation-plans/0007.md
+- Validadores: docs/validators.md (sección 0007)
+
+Las decisiones que resuelven las preguntas abiertas de la spec están en docs/specs/0007/decisions.md.
+
+Revisa:
+- **Decisiones con confianza baja:**
+  - D16: al regenerar un capítulo, el `escritor` recibe también su texto de la versión anterior.
+  - D20: los scores de Langfuse de las versiones 2 en adelante llevan `v<N>` en el id, para no sustituir los de la versión anterior.
+- **Preguntas bloqueantes del plan:**
+  - P1: falta decidir cómo evita una versión nueva reutilizar los runs de la anterior. Hoy `run._run_id` reutiliza el run del mismo capítulo si no hay checkpoint, y también acepta un `NOVELA_RUN_ID` antiguo. Sin resolverlo, se sobrescribirían los briefings de la versión 1 y el bucle saltaría al checkpoint en los capítulos regenerados. Bloquea T2.4, T3.4 y T5.1.
+  - P2: CA-25 espera que `--reaplicar` rechace un delta que cierra un hilo que nunca se abrió. Pero `violaciones.py` no comprueba eso y la spec 0002 no está implementada. Solo bloquea el CA-25 de T3.1.
+- **Requisitos sin cobertura:** ninguno. El validador sí encontró 7 discrepancias entre la spec y el plan: 5 contradicciones y 2 tareas del plan que no responden a ningún requisito. Están en la sección 0007, junto con 17 preguntas abiertas.
+
+Antes de aceptar la spec conviene tener en cuenta tres cosas:
+- **Diseño:** cada versión de la novela tiene su propia `estado.db`. La versión anterior se guarda intacta en `versiones/vN/`. Los capítulos que no usan el hecho se vuelven a aplicar tal cual con `aplicar-delta --reaplicar`, y solo los que lo usan se regeneran. La spec pide el ADR 0004 y cambiar en una línea el invariante 7 de `AGENTS.md`.
+- **Prompt del `cronista`:** su delta gana el campo `hechos_usados`. Como cambia un prompt, no lleva TDD: se valida con la novela de humo de 3 capítulos (tarea T-15).
+- **Otras specs:** la página de novedades en PDF (LEC-07) depende del exportador de la 0006, que aún no existe. Esta spec y la 0002 tocan los mismos ficheros: `slices/delta/cmd.py`, `validar` y `novela-continuar.md`.
+SessionEnd hook [if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; else exec python3 "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; fi] failed: En l�nea: 1 Car�cter: 3
++ if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script " ...
++   ~
+Falta '(' despu�s de 'if' en la instrucci�n if.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingOpenParenthesisInIfStatement
+ 
+

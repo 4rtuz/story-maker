@@ -1,0 +1,29 @@
+He diseñado la spec, el plan de implementación y los validadores:
+- Spec: docs/specs/0008/spec.md
+- Plan de implementación: docs/implementation-plans/0008.md
+- Validadores: docs/validators.md (sección 0008)
+
+Las decisiones que resuelven las preguntas abiertas de la spec están en docs/specs/0008/decisions.md.
+
+Hay un cambio que no pediste: `novela validar` tendrá una opción nueva, `--origen hook`. Hoy cada llamada a `validar` escribe una línea en `harness.log`, y el procedimiento cuenta esas líneas como intentos. Sin la opción, el hook gastaría un intento cada vez que el agente se corrige y acierta. Con ella, sus validaciones se registran como `validar-hook` y no cuentan (D3).
+
+Revisa:
+- **Decisiones con confianza baja:**
+  - D8: el hook no pone límite a las autocorrecciones de un agente dentro de la misma invocación. El único límite sigue siendo el gate del orquestador.
+  - D13: `settings.json` da 60 s al hook y el hook espera 45 s a `novela validar`, para que un cuelgue bloquee en vez de dejar pasar el capítulo.
+- **Preguntas bloqueantes del plan:**
+  - P4: la spec está en estado `Propuesta`. `AGENTS.md` pide `borrador` como estado inicial y, desde la 0004, el plan dentro de `docs/specs/0008/plan/` con su propio `validators.md`. Antes de la primera tarea, T1.1, hay que aceptar la spec y confirmar si vale el plan en `docs/implementation-plans/`, como el de la 0006 y la 0007.
+- **Requisitos sin cobertura:** R20 tiene validador pero ningún verificador. Además, el validador encontró 7 discrepancias entre la spec y el plan (2 contradicciones) y dejó 8 preguntas abiertas en la sección 0008.
+
+Otras cosas a tener en cuenta:
+- El diseño supone que Claude Code pasa `agent_type` al hook `PostToolUse` cuando escribe un subagente. No está garantizado, y solo lo comprobará la demostración en una sesión real del harness (T-07).
+- Hoy ni la CI ni el pre-commit pasan `mypy` ni `ruff` por `.claude/hooks/` (P1). El plan los ejecuta a mano en la fase 4.
+- La nueva comprobación de `comprobar-entorno` hará fallar tres tests que ya existen en `test_entorno.py`, y habrá que ajustarlos.
+SessionEnd hook [if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; else exec python3 "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; fi] failed: En l�nea: 1 Car�cter: 3
++ if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script " ...
++   ~
+Falta '(' despu�s de 'if' en la instrucci�n if.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingOpenParenthesisInIfStatement
+ 
+

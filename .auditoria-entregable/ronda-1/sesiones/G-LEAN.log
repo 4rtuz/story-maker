@@ -1,0 +1,33 @@
+He diseñado la spec, el plan de implementación y los validadores:
+- Spec: docs/specs/0012/spec.md
+- Plan de implementación: docs/implementation-plans/0012.md
+- Validadores: docs/validators.md (sección 0012)
+
+Las decisiones que resuelven las preguntas abiertas de la spec están en docs/specs/0012/decisions.md
+
+Revisa:
+- Decisiones con confianza baja:
+  - **D4:** los momentos se guardan como fechas absolutas en ISO 8601 y se pasan a minutos enteros para Lean. Si G-MEM usa tiempo relativo, la comprobación de nacimiento no funciona.
+  - **D6:** `lake build` compila las invariantes y `lake env lean` comprueba el `Hechos.lean`, que decide con `native_decide`. Falta medir si 1 000 eventos caben en 60 s.
+  - **D16:** hay un teorema que demuestra que la función que busca violaciones equivale a las invariantes. Es prioridad Should y no está claro cuánto cuesta sin Mathlib.
+  - **D17:** cada llamada a `lake` o `lean` tiene un límite de 120 s. Si lo supera, sale con código 4 y no gasta reintentos del escritor.
+- Preguntas bloqueantes del plan:
+  - **P1:** qué tablas, columnas y campos del delta aporta G-MEM para momento, lugar, personajes presentes, nacimiento y exclusión. G-MEM no tiene spec y no aparece en el repo.
+  - **P2:** si G-MEM guarda momentos `AAAA-MM-DDTHH:MM` y nacimientos `AAAA-MM-DD`.
+  - **P3:** la spec está en «Propuesta». `AGENTS.md` pide que esté aceptada y que el plan viva en `docs/specs/0012/plan/`.
+- Requisitos sin cobertura: ninguno se queda sin validador. R11 (el README) y R29 (`.gitignore`) no tienen verificador.
+
+Tres cosas más que afectan a cómo implementarlo:
+- **Cuándo corre y a quién vuelve:** el gate se ejecuta después del `cronista` y antes de `aplicar-delta`. Pediste que el fallo volviera al «editor». La spec lo manda al `escritor`, porque el `editor-estilo` solo corrige estilo y no ve el estado. Confirma que te vale esa interpretación.
+- **Riesgo de integración:** en cuanto `aplicar-delta` exija `qa/NN-lean.json`, el bucle real deja de cerrar capítulos hasta que existan G-MEM y `novela lean`. Por eso el plan pide no llevar la Fase 5 a `main` antes que ellos.
+- **Contradicciones entre spec y plan:** el validador encontró 5 discrepancias. La más clara: el plan añade la instalación de Lean en `AGENTS.md` § Puesta en marcha, y RF-28 solo permite una línea en la sección CLI. Encontró además 2 verificadores críticos:
+  - la expresión de ids con `$` deja pasar un salto de línea final;
+  - la custodia puede comprobar unos bytes del delta y aplicar otros distintos.
+SessionEnd hook [if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; else exec python3 "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; fi] failed: En l�nea: 1 Car�cter: 3
++ if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script " ...
++   ~
+Falta '(' despu�s de 'if' en la instrucci�n if.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingOpenParenthesisInIfStatement
+ 
+

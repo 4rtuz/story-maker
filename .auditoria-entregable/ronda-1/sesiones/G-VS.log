@@ -1,0 +1,37 @@
+Se han diseñado la spec, el plan de implementación y los validadores:
+- Spec: docs/specs/0011/spec.md
+- Plan de implementación: docs/implementation-plans/0011.md
+- Validadores: docs/validators.md (sección 0011)
+
+Las decisiones tomadas para resolver las preguntas abiertas de la spec están en docs/specs/0011/decisions.md
+
+Revisa:
+- Decisiones con confianza baja:
+  - D8: la escala va de 1 a 5, en enteros, con descripción solo en los niveles 1, 3 y 5.
+  - D12: el juez actúa en el paso 7, en el mismo turno que el `cronista`, sobre el capítulo ya aprobado.
+  - D14: cada criterio tiene su score `rub_<criterio>`, y hay además un `rub_global`, que es una media ponderada calculada por el CLI. Todos los pesos valen 1 al principio.
+  - D15: la versión de la rúbrica va en el comentario del score, no en su nombre. Para eso `ScoreSink.emitir` recibe un parámetro opcional nuevo, `sufijos`.
+  - D18: la revisión humana se hace a ciegas y con pseudónimo, sobre la novela de humo, y se repite cada vez que cambian la rúbrica o el prompt del juez.
+  - D19: las revisiones rellenadas se guardan en `revisiones/`, que git ignora. A `docs/validators.md` §4.11 solo pasa el resumen numérico.
+  - D20: los umbrales de calibración son un error absoluto medio de 1,0 como máximo, al menos un 80 % de pares con diferencia de 1 o menos, y no más de un 70 % de cincos.
+- Preguntas bloqueantes del plan:
+  - P1: la spec 0005 (el brief) no está implementada. Faltan `Brief`, `brief.json` y `novela nueva --brief`. Hay que decidir si se espera a esa spec o si se adelanta su T-01. Solo bloquea el criterio de personalización (T2.3) y la calibración (T7.3); el resto del plan puede avanzar.
+- Requisitos sin cobertura: Ninguno.
+
+Otros puntos a tener en cuenta:
+- **Choques con el código.** El plan encontró cuatro sitios donde la spec no encaja con el repositorio y los resolvió con un supuesto:
+  - P3: la función `normalizar` baja a `dominio/`.
+  - P4: el parámetro `sufijos` se declara con `None` como valor por defecto, porque ruff rechaza `{}` (regla B006).
+  - P6: hace falta una regla en `.gitattributes` para que los saltos de línea no alteren la versión de la rúbrica entre máquinas.
+  - P7: el informe del juez es opcional en el agente falso, porque si no fallarían tests actuales.
+- **Validación.** El validador encontró 4 discrepancias entre spec y plan: 2 requisitos sin cubrir en el plan y 2 contradicciones. Además deja 10 preguntas abiertas en la sección 0011.
+- **Modelo de los revisores.** El repositorio se contradice: `docs/architecture.md` y `default.yaml` dicen `sonnet`, y los frontmatter y `test_contratos.py` dicen `haiku`. El juez nuevo (`juez-narrativo`) lleva `sonnet`, y el modelo de los demás revisores no se ha tocado.
+- **Estado de la spec.** Sigue en `Propuesta`. `AGENTS.md` pide que el plan de una spec aceptada viva en `docs/specs/0011/plan/`, pero ahora está en `docs/implementation-plans/0011.md`. Conviene decidir dónde va antes de ejecutarla.
+SessionEnd hook [if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; else exec python3 "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; fi] failed: En l�nea: 1 Car�cter: 3
++ if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script " ...
++   ~
+Falta '(' despu�s de 'if' en la instrucci�n if.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingOpenParenthesisInIfStatement
+ 
+

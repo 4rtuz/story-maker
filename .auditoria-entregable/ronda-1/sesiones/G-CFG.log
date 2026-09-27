@@ -1,0 +1,45 @@
+Se han diseñado la spec, el plan de implementación y los validadores:
+- Spec: docs/specs/0005/spec.md
+- Plan de implementación: docs/implementation-plans/0005.md
+- Validadores: docs/validators.md (sección 0005)
+
+Las decisiones que resuelven las preguntas abiertas de la spec están en docs/specs/0005/decisions.md
+
+Revisa:
+- **Decisiones con confianza baja:**
+  - **D5:** el tono solo admite cinco valores: `ligero`, `tierno`, `emotivo`, `intrigante` y `oscuro`.
+  - **D7:** se detectan tres contradicciones:
+    - un destinatario menor de 12 años con género `noir` o `thriller_psicologico`;
+    - un menor de 12 años con tono `oscuro`;
+    - un término prohibido que aparece en un recuerdo o en un rasgo.
+
+    El límite de 12 años es una suposición del agente, no un dato que hayas dado tú.
+  - **D16:** la entrevista se abre con `--setting-sources project`, sin `local`, así que Langfuse no la traza. El log guarda solo códigos, nunca valores. Los capítulos de la novela sí se trazan, y eso queda como riesgo aceptado.
+  - **D18:** una lista fija de patrones marca las líneas del texto pegado que parecen instrucciones. De esas líneas no se puede citar nada, pero la entrada no se modifica.
+  - **D19:** los límites son:
+    - hasta 20 entradas de 20.000 caracteres;
+    - un briefing de 40.000 tokens como máximo;
+    - entre 1 y 10 rasgos;
+    - entre 1 y 20 recuerdos.
+
+    Los únicos datos personales son nombre, edad, rasgos y recuerdos.
+- **Preguntas bloqueantes del plan:**
+  - **P1:** la spec está en estado `Propuesta`, sin commitear y sin `validators.md` propio. `AGENTS.md` exige que esté `aceptada` antes de ejecutarla, así que hay que decidir si se acepta tal cual.
+  - **P2:** la suite ya falla. Tus cambios sin commitear en `trazador`, `continuista`, `editor-estilo` y `lector-suspense` los pasan a `model: haiku`, y el test de contrato espera otros modelos. Hay que revertir esos cambios o actualizar el contrato antes de la primera tarea, porque no se commitea con tests fallando.
+- **Requisitos sin cobertura:** todos tienen validador. R16, R30, R35, R36 y R43 no tienen verificador.
+
+Otros puntos:
+- **Contradicciones entre la spec y el plan:**
+  - La spec pide una línea de log por invocación, pero el plan quita esa línea cuando la orden sale con código 1 o 2.
+  - El plan decide que `novela nueva --brief` no abre run, y la spec dice que sí.
+- **Formato de la spec:** el agente de la spec usó el estado `Propuesta` en lugar del `borrador` que pide `AGENTS.md`. El agente de validadores escribió su sección en `docs/validators.md` en lugar de en `docs/specs/0005/validators.md`, que es lo que pide `AGENTS.md`.
+- **Revisa `git diff docs/validators.md` antes de commitear:** el fichero cambió mientras trabajaba el agente, por cambios que no son suyos.
+- **Pipeline:** los agentes de la spec y de los validadores no abrieron su respuesta con la frase exacta que esperaba el pipeline. Seguí igualmente porque los dos habían escrito sus documentos.
+SessionEnd hook [if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; else exec python3 "${CLAUDE_PLUGIN_ROOT}"/hooks/langfuse_hook.py; fi] failed: En l�nea: 1 Car�cter: 3
++ if command -v uv >/dev/null 2>&1; then exec uv run --quiet --script " ...
++   ~
+Falta '(' despu�s de 'if' en la instrucci�n if.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : MissingOpenParenthesisInIfStatement
+ 
+
