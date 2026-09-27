@@ -97,13 +97,7 @@ El proyecto de desarrollo cuesta 26.950 euros: 490 horas a 55 euros la hora. Los
 «La escala mejora poco el margen, porque la infraestructura es casi fija y el coste lo dominan los tokens y la revisión humana: con 50 novelas al mes el margen es del 37,7 % y con 1.000, del 39,8 %.
 Lo que importa es la sensibilidad. Si los tokens suben un 50 %, el margen baja al 18,5 % pero sigue siendo positivo. Si un cliente usa las tres revisiones incluidas, se queda en el 12 %. Una cuarta revisión gratis lo deja en negativo, así que a partir de la cuarta se cobran a 15 euros cada una.»
 
-## 15 · Demo (≈45 s + vídeo de 3:26)
-
-«Vamos a verlo. El cliente nos dice que la carta la guardaba en el cajón del mostrador de préstamos, no en casa. Una orden de simulación nos enseña qué capítulos usan ese hecho: 3 de 10. Al confirmar, la versión 1 queda guardada intacta y solo se regeneran esos tres capítulos, con los mismos gates que la primera vez, Lean incluido: 4 de 4 sobre 39 eventos, juez 4,67 y 11,71 dólares. El PDF nuevo abre con una página de novedades que enlaza cada capítulo cambiado.»
-
-→ Reproduce [`demo.webm`](demo.webm). Sus tramos: brief (0:07), panel (0:39), cambio (1:47), PDF v2 (2:13), Langfuse (2:32), Lean y TLC (2:51).
-
-## 16 · Riesgos y siguientes pasos (≈60 s)
+## 15 · Riesgos y siguientes pasos (≈60 s)
 
 «El riesgo principal no es técnico. Con datos reales de una persona hacen falta consentimiento y un entorno con una política RGPD pactada. El harness ya minimiza lo que guarda y lo que traza.
 Otros riesgos: tres intervenciones en diez capítulos, todas justificadas; un coste sensible al precio de los tokens; y un juez que todavía no está calibrado contra la revisión humana.

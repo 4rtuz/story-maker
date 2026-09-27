@@ -26,7 +26,7 @@ mindmap
         idioma
       parametros de sistema
         modelo por agente
-        temperatura por agente
+        temperatura por agente inerte
         presupuesto de requests y tokens
         politica de reintentos
         politica de checkpoint
@@ -54,7 +54,6 @@ mindmap
       reciente
       remota
       permanente
-      indice recuperable
       recetas de ensamblado
     6 ARTEFACTOS EN DISCO
       config.yaml
@@ -66,7 +65,10 @@ mindmap
       capitulos/
       qa/
       checkpoints/
-      CLAUDE.md
+      estado/deltas/
+      runs/
+      export/
+      versiones/ y cambios/
     7 AGENTES
       orquestador
       entrevistador
@@ -77,6 +79,7 @@ mindmap
       editor de estilo
       lector de suspense
       cronista
+      juez
     8 PROTOCOLO
       fases
       loop por capitulo
@@ -86,20 +89,19 @@ mindmap
       presupuesto
     9 OBSERVABILIDAD LANGFUSE
       session igual a novela
-      trace igual a capitulo
+      trace igual a paso
       span igual a agente
       generation igual a llamada LLM
       prompts versionados
       scores
-      evaluadores LLM as judge
-      datasets de regresion
+      juez con rubrica
     10 GUARDARRAILES
       esquema validado
       inmutabilidad del canon
       aislamiento del secreto
       fair play
       limites de longitud
-      deteccion de deriva de voz
+      palabras prohibidas y linters de prosa
       auditoria de pistas huerfanas
 ```
 
@@ -107,7 +109,7 @@ mindmap
 
 ## 2. CANON — la biblia de la obra
 
-Versionado. Solo el orquestador autoriza cambios; `misterio.verdad_oculta` únicamente se amplía, nunca se reescribe.
+Versionado por huella de contenido: el sha256 de `canon/` va en cada `manifest.json` y en cada checkpoint. Lo escribe el arquitecto en el arranque y ningún flujo lo modifica después; `misterio.verdad_oculta` únicamente se amplía, nunca se reescribe. Un cambio pedido con la novela terminada va sobre el libro de hechos, no sobre el canon.
 
 ```mermaid
 mindmap
@@ -193,7 +195,7 @@ flowchart LR
 
     subgraph E["4 ESTADO NARRATIVO — lo que ya paso"]
         direction TB
-        E1["cursor<br/>capitulo · fase · ultimo paso · intento"]
+        E1["cursor<br/>capitulo · fase escritura, registro o cerrado · ultimo paso"]
         E2["linea temporal diegetica"]
         E3["personajes<br/>ubicacion · animo · condicion"]
         E4["conocimiento por personaje<br/>que sabe y desde cuando"]
@@ -210,66 +212,80 @@ flowchart LR
         direction TB
         M1["inmediata<br/>capitulo anterior completo"]
         M2["reciente<br/>resumenes de los ultimos N"]
-        M3["remota<br/>resumenes jerarquicos y por acto"]
-        M4["permanente<br/>canon + libro de hechos"]
-        M5["indice recuperable<br/>embeddings de escena"]
+        M3["remota<br/>una linea de cada capitulo desde el 1"]
+        M4["permanente<br/>ficheros de canon y plan por receta"]
         M6["recetas de ensamblado<br/>por agente y presupuesto"]
         M1 --> M6
         M2 --> M6
         M3 --> M6
         M4 --> M6
-        M5 --> M6
     end
 
     P3 -.->|"instrucciones del capitulo"| M6
-    E7 -.->|"hechos no negociables"| M4
+    E7 -.->|"capa estado<br/>solo continuista y cronista"| M6
     E3 -.->|"estado de entrada de la escena"| M6
-    M6 ==>|"contexto ensamblado"| OUT["prompt del escritor"]
-    OUT ==>|"capitulo escrito"| E
+    M6 ==>|"novela briefing"| OUT["runs/&lt;run&gt;/briefings/NN-&lt;agente&gt;.md"]
+    OUT ==> CRO["cronista<br/>estado/deltas/NN.json"]
+    CRO ==>|"novela aplicar-delta"| E
+    CRO ==>|"delta.resumen"| M2
 ```
 
 ---
 
 ## 4. Grafo de orquestación
 
-El orquestador es el único proceso con visión del bucle completo; no escribe prosa.
+El orquestador es el único proceso con visión del bucle completo; no escribe prosa. El procedimiento exacto está en `.claude/commands/novela-nueva.md`, `novela-continuar.md` y `novela-auditar.md`; aquí, su forma.
 
 ```mermaid
 flowchart TD
-    S["idea semilla del usuario"] --> ARQ["arquitecto"]
-    ARQ ==> CAN[("canon/")]
-    CAN --> TRZ["trazador"]
+    S["idea semilla o brief/brief.json"] --> NV["novela nueva<br/>config.yaml + estado.db"]
+    NV --> ARQ["arquitecto"]
+    ARQ ==> CANB[("canon/ + misterio.borrador.md")]
+    CANB --> GA{"gate del arquitecto<br/>novela briefing 1 trazador<br/>valida el canon y promueve el misterio"}
+    GA -->|4| ARQ
+    GA -->|0| TRZ["trazador"]
     TRZ ==> PLN[("plan/")]
-    PLN --> ENS
+    PLN --> GT{"gate del trazador<br/>novela validar-plan"}
+    GT -->|1| TRZ
+    GT -->|0| SIT
 
-    subgraph LOOP["loop por capitulo n"]
+    subgraph LOOP["por capitulo n · una sesion /novela-continuar"]
         direction TB
-        ENS["ensamblar contexto<br/>segun receta de memoria"]
-        ENS --> ESC["escritor de capitulo"]
-        ESC --> CAP["capitulos/NN.md"]
-        CAP --> CON["continuista"]
-        CON --> G1{"continuidad<br/>y hechos ok"}
-        G1 -->|no| FIX["reescritura dirigida<br/>solo con el informe de QA"]
-        FIX --> ESC
-        G1 -->|si| EDI["editor de estilo"]
-        EDI --> LEC["lector de suspense"]
-        LEC --> G2{"tension, fair play<br/>y longitud ok"}
-        G2 -->|no| FIX
-        G2 -->|si| CRO["cronista"]
-        CRO ==> UPD[("aplicar-delta<br/>estado.db + memoria/resumenes")]
-        UPD --> CKP["checkpoint"]
+        SIT["situacion<br/>pendiente · intervencion viva · cambio --siguiente"]
+        SIT -->|"NN reaplicar"| REA["aplicar-delta --reaplicar"]
+        REA --> CKP
+        SIT -->|"sin cambio o NN regenerar"| ESC["briefing → escritor<br/>capitulos/NN.md"]
+        ESC --> V1{"novela validar<br/>gate mecanico"}
+        V1 -->|1| ESC
+        V1 -->|0| B3["tres briefings de revision<br/>sobre el mismo capitulo"]
+        B3 --> CON["continuista<br/>qa/NN-continuidad.json"]
+        B3 --> EDI["editor-estilo<br/>capitulos/NN.md + qa/NN-estilo.json"]
+        B3 --> LEC["lector-suspense<br/>qa/NN-suspense.json"]
+        CON & EDI & LEC --> V2{"novela validar<br/>otra vez"}
+        V2 -->|1| EDI
+        V2 -->|0| GR{"gate de revision<br/>veredicto de continuidad y suspense"}
+        GR -->|rechazado| ESC
+        GR -->|aprobado| CRO["briefing → cronista<br/>estado/deltas/NN.json"]
+        CRO --> AD{"novela aplicar-delta<br/>custodia + violaciones"}
+        AD -->|"1 · causa"| CRO
+        AD -->|"0 · estado.db + memoria/resumenes/NN.md"| CKP["novela checkpoint<br/>checkpoints/NN.json + latest.json · scores"]
     end
 
-    CKP --> G3{"quedan capitulos"}
-    G3 -->|si| ENS
-    G3 -->|no| AUD["auditoria final<br/>pistas huerfanas · hilos abiertos"]
-    AUD --> EXP["export novela completa"]
+    CKP --> G3{"novela pendiente"}
+    G3 -->|0| SIT
+    G3 -->|1| AUD["novela auditar"]
+    AUD -->|0| LEAN["novela verificar-lean"]
+    LEAN -->|0| JZ{"hay brief"}
+    JZ -->|si| JUE["juez → qa/juicio.json<br/>novela juicio · umbral"]
+    JZ -->|no| EXP
+    JUE -->|0| EXP["exportar md · epub<br/>y pdf si hay brief"]
 
-    ORQ["orquestador"] -.->|"invoca, aplica gates,<br/>controla presupuesto"| LOOP
-    LF["Langfuse"] -.->|"span por agente,<br/>score por gate"| LOOP
-
-    FIX -->|"3 intentos fallidos"| HALT["parada con informe<br/>de intervencion humana"]
+    V1 & V2 & GR & AD & GA & GT -->|"3.er fallo del mismo gate<br/>contado en harness.log"| HALT["intervencion.md y parada"]
+    AD -->|"custodia:"| HALT
+    AUD & LEAN & JUE -->|"≠0"| STOP["parada sin exportar"]
 ```
+
+Cada gate reintenta a quien lo hizo fallar, con su mismo briefing y la ruta del informe: el escritor tras el primer `validar` y tras el gate de revisión, el editor-estilo tras el segundo `validar`, el cronista tras `aplicar-delta`. Los intentos se cuentan en `runs/<run_id>/harness.log`, nunca en la conversación ni en `cursor.intento`.
 
 ---
 
@@ -288,17 +304,16 @@ flowchart TB
 
     subgraph R1["arquitecto · solo en setup"]
         direction LR
-        i1["config.yaml"] --> a1(["arquitecto"])
-        i2["idea semilla"] --> a1
-        i3["CLAUDE.md"] --> a1
+        i1["config.yaml<br/>incluye la idea semilla"] --> a1(["arquitecto"])
         a1 --> o1["canon/premisa · mundo · personajes · estilo"]
-        a1 --> o2["canon/misterio.md"]
+        a1 --> o2["canon/misterio.borrador.md"]
+        o2 -. "novela briefing 1 trazador" .-> o20["canon/misterio.md<br/>lo promueve el CLI"]
     end
 
     subgraph R2["trazador · solo en setup"]
         direction LR
-        i4["canon/ completo"] --> a2(["trazador"])
-        i5["canon/misterio.md"] --> a2
+        i4["canon/ completo<br/>misterio incluido"] --> a2(["trazador"])
+        i5["personajes: todos"] --> a2
         i6["config: num capitulos · longitud"] --> a2
         a2 --> o3["plan/escaleta.md"]
         a2 --> o4["plan/capitulos/NN.md"]
@@ -310,6 +325,7 @@ flowchart TB
         i8["canon: premisa · mundo · estilo<br/>personajes de esta escena"] --> a3
         i9["memoria ensamblada<br/>inmediata + reciente + remota"] --> a3
         i10["estado: personajes · conocimiento<br/>hilos · objetos"] --> a3
+        i10b["restriccion de apertura<br/>y, al regenerar, cambio y version anterior"] --> a3
         i11["canon/misterio.md"] -. "sin acceso" .-x a3
         a3 --> o5["capitulos/NN.md"]
     end
@@ -318,7 +334,7 @@ flowchart TB
         direction LR
         i12["capitulos/NN.md"] --> a4(["continuista"])
         i13["libro de hechos + linea temporal"] --> a4
-        i14["canon/ + canon/misterio.md<br/>acceso completo"] --> a4
+        i14["canon/* + misterio<br/>incrustados en el briefing"] --> a4
         i15["coartadas y cronologia privada"] --> a4
         a4 --> o6["qa/NN-continuidad.json<br/>contradicciones estructuradas"]
     end
@@ -328,32 +344,44 @@ flowchart TB
         i16["capitulos/NN.md"] --> a5(["editor de estilo"])
         i17["canon/estilo + parrafos canonicos"] --> a5
         i18["voz de los personajes presentes"] --> a5
+        i11b["canon/misterio.md"] -. "sin acceso" .-x a5
         a5 --> o7["capitulos/NN.md corregido"]
+        a5 --> o7b["qa/NN-estilo.json"]
     end
 
     subgraph R6["lector de suspense"]
         direction LR
         i19["capitulos/NN.md"] --> a6(["lector de suspense"])
-        i20["plan: tension objetivo · pistas"] --> a6
-        i21["conocimiento del lector"] --> a6
+        i20["plan/escaleta · misterio"] --> a6
+        i21["estado: pistas · conocimiento del lector<br/>tension real"] --> a6
         a6 --> o8["qa/NN-suspense.json<br/>tension · fair play · previsibilidad"]
-        a6 --> o9["scores a Langfuse"]
+        o8 -. "novela checkpoint" .-> o9["scores a Langfuse"]
     end
 
     subgraph R7["cronista"]
         direction LR
         i22["capitulos/NN.md aprobado"] --> a7(["cronista"])
-        i23["estado.db actual"] --> a7
-        a7 --> o10["estado.db actualizado"]
-        a7 --> o11["el delta es su unica salida"]
-        a7 --> o12["memoria/ y checkpoints/<br/>los escribe el CLI"]
+        i23["estado filtrado + canon/mundo<br/>+ ficha del plan"] --> a7
+        i11c["canon/misterio.md"] -. "sin acceso" .-x a7
+        a7 --> o10["estado/deltas/NN.json<br/>su unica salida"]
+        o10 -. "novela aplicar-delta" .-> o12["estado.db · memoria/resumenes/NN.md<br/>los escribe el CLI"]
+    end
+
+    subgraph R8["juez · solo en auditoria de novelas de regalo"]
+        direction LR
+        i24["brief/brief.json · canon/premisa · estilo"] --> a8(["juez"])
+        i25["personajes: todos + la obra entera<br/>o resumenes y muestra de 3"] --> a8
+        i26["canon/misterio.md"] -. "sin acceso" .-x a8
+        a8 --> o13["qa/juicio.json"]
+        o13 -. "novela juicio" .-> o14["scores juez_* · umbral"]
     end
 
     R0 -. "novela nueva --brief" .-> R1
-    R1 --> R2 --> R3 --> R4 --> R5 --> R6 --> R7
+    R1 --> R2 --> R3 --> R4 & R5 & R6 --> R7
+    R7 -. "novela-auditar" .-> R8
 ```
 
-La asimetría clave está entre las filas 3 y 4: el escritor no ve `misterio.md` y el continuista sí. Es lo que permite verificar fair play contra la solución real sin que el escritor pueda filtrarla en el subtexto.
+La asimetría clave: escritor, editor de estilo, cronista y juez no ven el misterio; trazador, continuista y lector de suspense lo reciben incrustado en su briefing. Es lo que permite verificar fair play contra la solución real sin que el escritor pueda filtrarla en el subtexto. Ningún agente lee `canon/misterio.md` directamente, y el hook impide al escritor y al editor leer un informe de `qa/` que copie ocho palabras seguidas del misterio.
 
 ---
 
@@ -361,11 +389,13 @@ La asimetría clave está entre las filas 3 y 4: el escritor no ve `misterio.md`
 
 ```mermaid
 flowchart TD
-    SES["session = una novela<br/>session_id: novela_id + run"]
-    SES --> T0["trace: setup<br/>canon + plan"]
-    SES --> T1["trace: capitulo 01"]
-    SES --> TN["trace: capitulo N"]
-    SES --> TC["trace: cierre y auditoria"]
+    SES["session = una novela<br/>session_id: novela-&lt;slug&gt;"]
+    SES --> TB["trace: &lt;slug&gt; · brief"]
+    SES --> T0["trace: &lt;slug&gt; · nueva<br/>canon + plan"]
+    SES --> T1["trace: &lt;slug&gt; · capitulo 01"]
+    SES --> TN["trace: &lt;slug&gt; · capitulo N"]
+    SES --> TC["trace: &lt;slug&gt; · auditoria"]
+    SES --> TX["trace: &lt;slug&gt; · cambio"]
 
     T1 --> SP1["span: escritor"]
     T1 --> SP2["span: continuista"]
@@ -375,7 +405,7 @@ flowchart TD
 
     SP1 --> GEN["generation<br/>modelo · tokens · coste · latencia"]
 
-    T1 -.-> SC["scores<br/>coherencia · continuidad · tension<br/>longitud · fair play · estilo"]
-    T1 -.-> MD["metadata<br/>capitulo_n · version_canon · version_plan<br/>receta_contexto · intento"]
-    SES -.-> EV["evaluador de sesion<br/>LLM as judge comparativo"]
+    T1 -.-> SC["scores de novela checkpoint<br/>coherencia · continuidad · tension<br/>longitud · fair play · estilo<br/>+ un vp_* binario por validador"]
+    T1 -.-> MD["metadata de traza: slug · paso · sha_commit · prompt_&lt;rol&gt;<br/>de score: run_id · capitulo"]
+    TC -.-> EV["juez con rubrica · solo novelas de regalo<br/>juez_&lt;criterio&gt; · umbral en novela juicio"]
 ```

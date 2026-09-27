@@ -32,19 +32,19 @@ Este documento describe **cómo se implementa** la ontología definida en `docs/
 | Estado | SQLite vía `sqlite3` de la stdlib | Una base por workspace; selección indexada y append-only impuesto por triggers, sin dependencia nueva |
 | Esquemas | Pydantic v2 | Modelos tipados que exportan JSON Schema a `schemas/`; siguen siendo el contrato de la API |
 | CLI | Typer | Subcomandos invocados por el orquestador vía Bash |
-| Frontmatter | `python-frontmatter` | Capítulos y fichas de plan son Markdown con metadatos |
+| Frontmatter | `pyyaml` y `dominio/frontmatter.py` | Capítulos y fichas de plan son Markdown con metadatos; partir y unir la cabecera no pide una dependencia más |
 | Concurrencia | `filelock` | Un solo proceso por workspace |
-| Observabilidad | Hook Stop de Claude Code + Langfuse SDK 4.x | Trazado nativo, sin proxy |
-| Tests | pytest + `jsonschema` | Contratos verificados sin consumir cuota |
-| Backend | Python 3.12 + FastAPI | API de lectura sobre el workspace y lanzamiento de `novela producir`; reutiliza los modelos Pydantic del CLI |
+| Observabilidad | Plugin de Langfuse (hooks `Stop` y `SessionEnd`) y, desde el CLI, HTTP de la stdlib contra la API de Langfuse | Trazado nativo, sin proxy ni SDK en el backend |
+| Tests | pytest + `jsonschema` + `hypothesis`; `mutmut` sobre gates y deltas | Contratos verificados sin consumir cuota |
+| Backend | Python 3.12 + FastAPI sobre `uvicorn` | API de lectura sobre el workspace y lanzamiento de `novela producir`; reutiliza los modelos Pydantic del CLI |
 | Frontend | Vite + TypeScript | Consume la API del backend; sin lógica de negocio |
-| Export | `markdown-it-py` + `ebooklib` + `fpdf2` | Salida a `.md` único, `.epub` y el libro de regalo en `.pdf` con DejaVu Serif embebida en subconjunto (ADR 0003). markdown-it convierte a XHTML para el epub y da los tokens que compone el PDF |
+| Export | `markdown-it-py` + `ebooklib` + `fpdf2` con `fonttools` | Salida a `.md` único, `.epub` y el libro de regalo en `.pdf` con DejaVu Serif embebida en subconjunto (ADR 0003). markdown-it convierte a XHTML para el epub y da los tokens que compone el PDF |
 | MCP | FastMCP, en la API (`/mcp/`) y por stdio | Consultar y descargar novelas desde un cliente MCP; `request_change` opcional (`docs/mcp.md`) |
 | LSP | `pygls`, por stdio | Diagnósticos al editar un capítulo a mano (`docs/lsp.md`) |
 | Verificación formal | Lean 4 (`formal/lean/`) y TLA+ con TLC (`formal/tla/`) | La cronología de cada novela en `verificar-lean`; el procedimiento del harness, en desarrollo (`docs/formal/`) |
 | Validación visual | Playwright MCP (`.mcp.json`) | La lectura web en un navegador real, desde una sesión de desarrollo (`docs/validacion-visual.md`) |
 
-Fuera del stack, explícitamente: API de Anthropic, OpenRouter, Claude Agent SDK, LiteLLM o cualquier gateway de modelos. Nada de eso hace falta. FastAPI no es una excepción a esa regla: no llama a ningún modelo, solo sirve ficheros del workspace al frontend.
+Fuera del stack, explícitamente: API de Anthropic, OpenRouter, Claude Agent SDK, LiteLLM o cualquier gateway de modelos. Nada de eso hace falta. FastAPI no es una excepción a esa regla: no llama a ningún modelo. Sirve el workspace al frontend y, para lanzar, arranca `novela producir`, que es quien abre las sesiones de Claude Code.
 
 ### 2.0 Monorepo
 
@@ -59,15 +59,16 @@ Lo que no es ni backend ni frontend — `.claude/`, `docs/`, `novelas/` — vive
 
 ```
 sesión de Claude Code (orquestador)
-├── Bash: novela briefing 07 escritor        → genera el contexto de la llamada
+├── Bash: novela briefing <slug> 7 escritor  → genera el contexto de la llamada
 ├── Task: subagente escritor                 → escribe capitulos/07.md
-├── Bash: novela validar 07                  → esquema, longitud, pistas, hilos
-├── Task: subagente continuista              → qa/07-continuidad.json
-├── Task: subagente editor-estilo
-├── Task: subagente lector-suspense
-├── Task: subagente cronista                 → delta de estado
-├── Bash: novela aplicar-delta 07            → estado.db + resumen
-└── Bash: novela checkpoint 07
+├── Bash: novela validar <slug> 7            → esquema, longitud, pistas, hilos
+├── Bash: novela briefing … × 3              → continuista, editor-estilo, lector-suspense
+├── Task × 3, en un turno                    → qa/07-continuidad.json, qa/07-estilo.json, qa/07-suspense.json
+├── Bash: novela validar <slug> 7            → otra vez: el editor reescribió el capítulo
+├── Bash: novela briefing <slug> 7 cronista
+├── Task: subagente cronista                 → estado/deltas/07.json
+├── Bash: novela aplicar-delta <slug> 7      → estado.db + resumen
+└── Bash: novela checkpoint <slug> 7
 ```
 
 El orquestador nunca lee `capitulos/07.md`. Los subagentes leen y escriben ficheros; lo que devuelven a la sesión principal es un informe de dos o tres líneas. Esta disciplina es lo que permite que una sesión cubra varios capítulos sin saturarse.
@@ -94,7 +95,7 @@ Fuera del bucle por capítulo hay más gates. En `/novela-nueva`, `novela valida
 
 Los hallazgos del `editor-estilo` no son gate: se aplican, no bloquean. Un capítulo con prosa mejorable avanza; uno que contradice un hecho establecido, no.
 
-**Reintentos.** Máximo dos por gate. El reintento vuelve al `escritor` con el informe de QA como única entrada nueva: nunca un «está mal» genérico y nunca el capítulo entero de vuelta por el canal de conversación, que el agente ya sabe leer su propio fichero. Al tercer fallo el bucle escribe `runs/<run_id>/intervencion.md` y para. Dos formas distintas de fallar agotan el presupuesto igual que la misma dos veces: si un capítulo necesita tres intentos, el problema no está en el capítulo.
+**Reintentos.** Máximo dos por gate, contados en `runs/<run_id>/harness.log`. El reintento vuelve a quien hizo fallar el gate —el `escritor` tras el primer `validar` y el gate de revisión, el `editor-estilo` tras el segundo `validar`, el `cronista` tras `aplicar-delta`— con el informe de QA o la causa como única entrada nueva: nunca un «está mal» genérico y nunca el capítulo entero de vuelta por el canal de conversación, que el agente ya sabe leer su propio fichero. Al tercer fallo el bucle escribe `runs/<run_id>/intervencion.md` y para. Dos formas distintas de fallar agotan el presupuesto igual que la misma dos veces: si un capítulo necesita tres intentos, el problema no está en el capítulo.
 
 **Estado del bucle.** Cada paso se identifica por `(run_id, capitulo, agente, intento)` y atraviesa tres situaciones: pendiente, ejecutado y confirmado. `novela checkpoint` confirma una sola vez, al final del capítulo y con el delta ya aplicado. Reanudar es repetir el primer paso no confirmado, siempre entero; por eso todos los pasos son idempotentes sobre ficheros de nombre determinista.
 
@@ -145,7 +146,7 @@ Un capítulo por sesión mantiene el contexto del orquestador pequeño y acota e
 Es el riesgo específico de poner el orquestador dentro de Claude Code, y se controla con cuatro reglas:
 
 1. Los subagentes devuelven informes de longitud acotada; los hallazgos completos van a `qa/`, no al canal de retorno.
-2. El orquestador lee estado a través de `novela estado --breve`, que imprime cursor, cuota, hilos abiertos y poco más.
+2. El orquestador lee estado a través de `novela estado --breve`, que imprime en cinco líneas el cursor, los capítulos cerrados, los hilos abiertos, las pistas por pagar y las palabras.
 3. Un capítulo por sesión en modo desatendido; en modo interactivo, `/clear` entre actos.
 4. `CLAUDE.md` se mantiene corto. Se carga en cada sesión y en cada subagente: cada línea superflua se paga muchas veces.
 
@@ -166,7 +167,7 @@ Cuatro decisiones, cada una respondiendo a una pregunta distinta. No se solapan 
 
 **Vertical slices.** Una carpeta por caso de uso, no por capa técnica. Un subcomando del CLI es un slice: su parseo, su lógica y sus tests están juntos. Añadir `novela presupuesto` es crear una carpeta, no tocar siete. Borrarlo es borrar una carpeta. No hay `services/`, `handlers/` ni `utils/` transversales: si dos slices necesitan lo mismo, o baja a `dominio/` porque es una regla del negocio, o a `plataforma/` porque es I/O; si no es ninguna de las dos, se duplica y ya se verá.
 
-Una excepción acotada: `checkpoint` importa `slices/validacion/gates.py` para `vp_schema` (spec 0009 D13). Los gates son puros, y moverlos a `dominio/` los sacaría de `mutmut`, que muta ese fichero; duplicarlos dejaría dos reglas que se separan.
+Excepciones acotadas, cada una con su motivo. `checkpoint` importa `slices/validacion/gates.py` para `vp_schema` (spec 0009 D13): los gates son puros, y moverlos a `dominio/` los sacaría de `mutmut`, que muta ese fichero; duplicarlos dejaría dos reglas que se separan. Además, `briefing` usa `cambio/plan.py`, `aplicar-delta` usa `formal/cronologia.py`, `exportar` usa `versiones/novedades.py`, `producir` orquesta `portada` y `observabilidad`, y el LSP reutiliza `validacion` y `prosa`.
 
 En el frontend la misma regla con otro nombre — package by feature: `features/lanzar/`, `features/progreso/`, `features/lectura/`. Las tres pantallas de §11.2 son las tres carpetas.
 
@@ -174,21 +175,21 @@ En el frontend la misma regla con otro nombre — package by feature: `features/
 
 Regla práctica: si un fichero del núcleo importa `pathlib`, `open`, `datetime.now` o `requests`, está mal colocado.
 
-**DDD táctico en `dominio/`.** Ahí vive la ontología de `docs/definitions.md` como código: `Estado`, `Canon`, `Plan`, `Pista`, `LibroDeHechos`. Entidades con identidad estable (los ids de §5, que no cambian aunque cambie el nombre visible del personaje), objetos de valor inmutables, y las invariantes dentro del propio modelo: `LibroDeHechos` no expone forma de modificar ni borrar una entrada, solo de añadir. Un invariante que se pueda expresar como tipo no se escribe como validación suelta.
+**DDD táctico en `dominio/`.** Ahí vive la ontología de `docs/definitions.md` como código: `Estado`, `Canon`, `Escaleta` y `FichaCapitulo`, `Pista`, `ColeccionAppendOnly`. Entidades con identidad estable (los ids de §5, que no cambian aunque cambie el nombre visible del personaje), objetos de valor inmutables, y las invariantes dentro del propio modelo: `ColeccionAppendOnly`, la del `libro_de_hechos` y las demás colecciones append-only, no expone forma de modificar ni borrar una entrada, solo de añadir. Un invariante que se pueda expresar como tipo no se escribe como validación suelta.
 
 `dominio/` no importa nada de `slices/` ni de `plataforma/`, y no sabe que existe un sistema de ficheros. Son los mismos modelos Pydantic que responde la API (§11.1): una sola ontología.
 
 **Los dos puertos.** Del hexágono sobrevive solo lo que tiene más de una implementación real:
 
 - `WorkspaceRepository` — leer y escribir el workspace, con escritura atómica y lock. Segunda implementación: los workspaces sintéticos de `backend/tests/fixtures/`.
-- `ScoreSink` — emitir scores y trazas. Segunda implementación: el no-op cuando `TRACE_TO_LANGFUSE` está apagado (§10.1).
+- `ScoreSink` — emitir scores. Segunda implementación: el no-op cuando `TRACE_TO_LANGFUSE` está apagado (§10.1). Las trazas de paso las abre `novela traza`, fuera del puerto.
 
 Todo lo demás se llama directamente. Nada de repositorio por entidad, capa de casos de uso, DTOs entre dominio y API, ni interfaz con una sola implementación: cuando aparezca la segunda, se extrae entonces.
 
 ### 3.1 El árbol
 
 ```
-novela-harness/                    # monorepo: backend/ + frontend/
+story-maker/                       # monorepo: backend/ + frontend/; sin presentacion/, ejemplos/ ni CI
 ├── CLAUDE.md                     # convenciones; corto a propósito, ver §2.4
 ├── AGENTS.md
 ├── README.md
@@ -240,24 +241,28 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   ├── main.py               # app + CORS para el dev server de Vite
 │   │   ├── routers/
 │   │   │   ├── novelas.py
-│   │   │   ├── capitulos.py      # también /libro
+│   │   │   ├── capitulos.py      # también /libro y /pdf
 │   │   │   └── lanzamientos.py
-│   │   └── mcp/                  # servidor FastMCP, en /mcp/ y por stdio (docs/mcp.md)
+│   │   ├── pdf.py                # el PDF de regalo en memoria, para /pdf y download_novel
+│   │   ├── openapi.json          # contrato del frontend
+│   │   └── mcp/                  # servidor FastMCP, en /mcp/ y por stdio (docs/mcp.md); langfuse.py traza cada tool
 │   │
 │   ├── novela/                   # CLI determinista; cero llamadas a modelo
 │   │   ├── cli.py                # Typer: solo registra el cmd.py de cada slice
 │   │   │
 │   │   ├── slices/               # un caso de uso por carpeta, ver §3.0
+│   │   │   ├── nueva/            # novela nueva: árbol, config.yaml y estado.db
+│   │   │   ├── estado/           # estado y pendiente, solo lectura
+│   │   │   ├── producir/         # la novela entera: cmd.py (sesiones) · flujo.py (puro)
 │   │   │   ├── brief/            # cmd.py · entradas.py · assemble.py · gates.py, con sus tests
 │   │   │   ├── briefing/         # cmd.py · assemble.py · recipes.py · test_briefing.py
 │   │   │   ├── validacion/       # cmd.py · gates.py · test_gates.py
-│   │   │   ├── delta/            # cmd.py · apply.py · violaciones.py · test_delta.py
+│   │   │   ├── delta/            # cmd.py · apply.py · violaciones.py · custodia.py · test_delta.py
 │   │   │   ├── cambio/           # novela cambio: cmd.py · plan.py (plan de regeneración, puro)
 │   │   │   ├── versiones/        # novela versiones: cmd.py · novedades.py
 │   │   │   ├── checkpoint/
 │   │   │   ├── auditoria/        # pistas huérfanas, hilos abiertos
 │   │   │   ├── entorno/          # comprobar-entorno: hooks, python, settings.local.json, .env
-│   │   │   ├── presupuesto/      # ventana de uso y degradación
 │   │   │   ├── plan/             # validar-plan
 │   │   │   ├── formal/           # verificar-lean (docs/formal/lean.md)
 │   │   │   ├── juicio/           # juicio y comparar-juicios (docs/evaluacion/juez.md)
@@ -266,17 +271,28 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   │   ├── visual/           # registrar-visual (docs/validacion-visual.md)
 │   │   │   ├── observabilidad/   # costes, traza y prompts publicar (docs/observabilidad.md)
 │   │   │   ├── portada/          # portada: prompt y URL puros en nucleo.py, la descarga en cmd.py
-│   │   │   └── export/           # cmd.py · markdown.py · epub.py · pdf.py · ficha.py · fuentes/
+│   │   │   └── export/           # cmd.py · markdown.py · epub.py · pdf.py · fuentes/
 │   │   │
 │   │   ├── dominio/              # la ontología como código; sin I/O, sin framework
+│   │   │   ├── base.py           # Modelo, schema_version y ColeccionAppendOnly
+│   │   │   ├── ids.py            # formatos de id y Agente
 │   │   │   ├── config.py         # rama 1
 │   │   │   ├── brief.py          # Brief, BorradorBrief, InformeBrief e idea_semilla
 │   │   │   ├── texto.py          # normalizar: qué cuenta como la misma cita
 │   │   │   ├── canon.py          # rama 2 — Canon, Pista
-│   │   │   ├── plan.py           # rama 3 — Plan
-│   │   │   ├── estado.py         # rama 4 — Estado, LibroDeHechos (append-only)
+│   │   │   ├── plan.py           # rama 3 — Escaleta, FichaCapitulo
+│   │   │   ├── estado.py         # rama 4 — Estado, Delta
+│   │   │   ├── artefactos.py     # rama 6 — FrontmatterCapitulo, Checkpoint, Manifest, FrontmatterBriefing
+│   │   │   ├── frontmatter.py    # partir y unir cabecera y cuerpo
 │   │   │   ├── version.py        # PeticionDeCambio, Version, RegistroDeVersiones (spec 0007)
 │   │   │   ├── metricas.py       # InformeDeCostes de metricas.json (spec 0015)
+│   │   │   ├── lanzamiento.py    # PeticionDeLanzamiento, Lanzamiento
+│   │   │   ├── libro.py · ficha.py   # Libro de /libro y la ficha de personajes y lugares
+│   │   │   ├── juicio.py         # Juicio del juez y de la revisión humana
+│   │   │   ├── visual.py         # InformeVisual
+│   │   │   ├── prohibidas.py     # términos del guardrail
+│   │   │   ├── validadores.py    # catálogo vp_* (validators.md §3.10)
+│   │   │   ├── esquemas.py       # genera schemas/
 │   │   │   └── qa.py
 │   │   │
 │   │   ├── lsp/                  # servidor LSP de edición manual (docs/lsp.md)
@@ -288,6 +304,11 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │       ├── versiones.py      # edición vigente, cambio en curso, instantánea y restablecimiento
 │   │       ├── atomic.py         # escritura tmp + rename, para todo lo que no es el estado
 │   │       ├── lock.py           # un proceso por workspace
+│   │       ├── run.py            # run, manifiesto y harness.log
+│   │       ├── salida.py         # códigos de salida comunes
+│   │       ├── policy_db.py      # listas del guardrail y auditoria_policy
+│   │       ├── lanzador.py       # novelas/.lanzador/ y el proceso de producir
+│   │       ├── libro.py          # portada, índice y ficha, comunes al PDF y a /libro
 │   │       └── langfuse.py       # ScoreSink
 │   │
 │   ├── config/
@@ -305,11 +326,15 @@ novela-harness/                    # monorepo: backend/ + frontend/
 │   │   ├── plan-capitulo.schema.json
 │   │   ├── capitulo.schema.json      # frontmatter de capítulo (§7.2)
 │   │   ├── delta.schema.json         # delta del cronista (§7.6)
-│   │   └── qa-informe.schema.json
+│   │   ├── qa-informe.schema.json
+│   │   ├── qa-visual.schema.json
+│   │   ├── juicio.schema.json        # qa/juicio.json del juez y la revisión humana
+│   │   └── brief.schema.json · brief-borrador.schema.json · brief-informe.schema.json
 │   │
 │   └── tests/                    # solo lo transversal; el test de un slice vive con él
 │       ├── test_api.py
 │       ├── test_contratos.py     # Pydantic ↔ schemas/
+│       ├── canario/              # el agente canario de validators.md §4.9
 │       └── fixtures/             # workspaces sintéticos, sin llamadas a modelo
 │
 ├── frontend/                     # Vite + TypeScript; lee y lanza por la API
@@ -344,6 +369,8 @@ Reflejo literal de la rama 6 de la ontología.
 ```
 novelas/<slug>/
 ├── config.yaml                   # rama 1, inmutable tras el arranque
+├── portada.jpg                   # novela portada; la sirve GET …/portada
+├── metricas.json                 # novela costes --guardar; la sirve GET …/metricas
 │
 ├── brief/                        # solo en novelas de regalo, antes de config.yaml
 │   ├── inicio.json               # CLI: ocasión y fecha
@@ -387,6 +414,7 @@ novelas/<slug>/
 ├── qa/
 │   ├── 01-validacion.json        # CLI: novela validar
 │   ├── 01-continuidad.json
+│   ├── 01-estilo.json
 │   ├── 01-suspense.json
 │   ├── 01-prosa.json             # CLI: lint-prosa, informativo
 │   ├── lean.json                 # CLI: verificar-lean
@@ -414,6 +442,7 @@ novelas/<slug>/
 │       ├── briefings/            # el contexto exacto de cada invocación, ver §6.1
 │       │   ├── 01-escritor.md
 │       │   └── 01-continuista.md
+│       ├── intervencion.md       # solo si un gate agota sus intentos
 │       └── harness.log           # una línea por subcomando, con sesion=<uuid> si la hay
 │
 └── export/
@@ -509,12 +538,12 @@ La receta se versiona y su identificador se escribe en `runs/<run_id>/manifest.j
 
 ### 6.3 Aislamiento del secreto
 
-`canon/misterio.md` está excluido por receta del `escritor` y del `editor-estilo`. Dos capas de refuerzo, porque una regla en el prompt no basta:
+`canon/misterio.md` está excluido por receta del `escritor`, el `editor-estilo`, el `cronista` y el `juez`. Dos capas de refuerzo, porque una regla en el prompt no basta:
 
 1. `novela briefing` aborta si el contenido resultante contiene texto procedente de ese fichero.
 2. Ningún agente tiene `Glob` ni `Grep` en su frontmatter. Sin herramientas de búsqueda, un agente solo alcanza las rutas que su briefing le nombra, y al `escritor` y al `editor-estilo` el briefing nunca le nombra el misterio.
 
-Conviene ser exacto sobre qué hace `tools`, porque de ello depende el invariante 3: restringe **capacidad y descubrimiento**, no rutas. `Read` no lleva lista blanca de ficheros, así que un agente que conozca la ruta puede leerla. Restringir por ruta exige una regla `deny`, y `.claude/settings.json` la tiene: `Read(./novelas/*/canon/misterio.md)`. Los permisos valen para la sesión entera y no por subagente; la regla sirve para los siete porque `novela briefing` incrusta el misterio en el briefing de los tres que lo necesitan, y ninguno tiene que abrir el fichero.
+Conviene ser exacto sobre qué hace `tools`, porque de ello depende el invariante 3: restringe **capacidad y descubrimiento**, no rutas. `Read` no lleva lista blanca de ficheros, así que un agente que conozca la ruta puede leerla. Restringir por ruta exige una regla `deny`, y `.claude/settings.json` la tiene: `Read(./novelas/*/canon/misterio.md)`. Los permisos valen para la sesión entera y no por subagente; la regla sirve para los nueve porque `novela briefing` incrusta el misterio en el briefing de los tres que lo necesitan, y ninguno tiene que abrir el fichero.
 
 El escritor recibe solo el contenido de las pistas listadas en `plan/capitulos/NN.md` para su capítulo. Un modelo que conoce la solución la filtra en el subtexto mucho antes de tiempo, y es un fallo invisible en revisión capítulo a capítulo.
 
@@ -554,7 +583,7 @@ briefing ≤ 100.000 − fijo − salida_esperada − margen
 |---|---|---|---|
 | `escritor` | ~15.000 (capítulo de 3.300 palabras ≈ 4.700, resto razonamiento) | 60.000 | 60.000 |
 | `continuista` | ~10.000 (JSON de hallazgos) | 65.000 | 65.000 |
-| `cronista` | ~5.000 (delta) | 70.000 | — |
+| `cronista` | ~5.000 (delta) | 70.000 | 70.000 |
 
 `CLAUDE.md` y `AGENTS.md` se pagan en cada subagente: por eso no ampliarlos es una regla y no una preferencia.
 
@@ -720,7 +749,7 @@ Salida estructurada, nunca prosa libre: es lo único que se le pasa al escritor 
 
 El subagente escribe el JSON en `qa/` y devuelve a la sesión orquestadora únicamente `veredicto` y el número de hallazgos por gravedad.
 
-`veredicto` es `aprobado | rechazado | aprobado_con_reservas` y `gravedad` es `alta | media | baja`. `tipo` es un vocabulario cerrado, uno por productor: `novela validar` (`frontmatter_invalido`, `longitud_fuera_de_rango`, `pista_ausente`, `hilo_cerrado_sin_abrir`, `id_inexistente`, `nombre_mal_escrito`), `novela checkpoint` (`esquema_invalido`, que no escribe en ningún informe: sale por stderr y `harness.log`), `continuista` (`contradiccion_hecho`, `contradiccion_temporal`, `contradiccion_personaje`, `contradiccion_canon`), `editor-estilo` (`prohibicion_estilo`, `desviacion_ritmo`, `voz_de_personaje`), `lector-suspense` (`tension_insuficiente`, `fair_play`, `previsibilidad`, `gancho_debil`) y `novela auditar` (`pista_huerfana`, `hilo_sin_cerrar`, `pista_falsa_sin_desmontar`, `revelacion_sin_pista`; `elemento_sin_cubrir` queda reservado para `vp_cobertura`, que necesita el brief de la spec 0005). Cada tipo de los gates programáticos pertenece a un solo validador del catálogo `dominio/validadores.py` (`docs/validators.md` §3.10). Dos campos opcionales más: `puntuaciones`, que solo rellena el `lector-suspense` (`tension` de 1 a 10, `fair_play`, `coherencia` y `previsibilidad`), y `capitulo_sha256`, que no escribe ningún agente —un modelo no calcula un hash— sino `novela validar` en `qa/NN-validacion.json`, también cuando el capítulo pasa (RF-31).
+`veredicto` es `aprobado | rechazado | aprobado_con_reservas` y `gravedad` es `alta | media | baja`. `tipo` es un vocabulario cerrado, uno por productor: `novela validar` (`frontmatter_invalido`, `longitud_fuera_de_rango`, `pista_ausente`, `hilo_cerrado_sin_abrir`, `id_inexistente`, `nombre_mal_escrito`, `termino_prohibido`), `novela checkpoint` (`esquema_invalido`, que no escribe en ningún informe: sale por stderr y `harness.log`), `continuista` (`contradiccion_hecho`, `contradiccion_temporal`, `contradiccion_personaje`, `contradiccion_canon`), `editor-estilo` (`prohibicion_estilo`, `desviacion_ritmo`, `voz_de_personaje`), `lector-suspense` (`tension_insuficiente`, `fair_play`, `previsibilidad`, `gancho_debil`) y `novela auditar` (`pista_huerfana`, `hilo_sin_cerrar`, `pista_falsa_sin_desmontar`, `revelacion_sin_pista`; `elemento_sin_cubrir` queda reservado para `vp_cobertura`, que necesita el brief de la spec 0005). Cada tipo de los gates programáticos pertenece a un solo validador del catálogo `dominio/validadores.py` (`docs/validators.md` §3.10). Dos campos opcionales más: `puntuaciones`, que solo rellena el `lector-suspense` (`tension` de 1 a 10, `fair_play`, `coherencia` y `previsibilidad`), y `capitulo_sha256`, que no escribe ningún agente —un modelo no calcula un hash— sino `novela validar` en `qa/NN-validacion.json`, también cuando el capítulo pasa (RF-31).
 
 **Gates de regeneración (spec 0007).** Solo con un cambio en curso y sobre un capítulo afectado; el modo normal no cambia. `novela validar` añade `regeneracion_altera_contrato` (gravedad `alta`, `referencia` el id que difiere) por cada pista plantada o pagada y cada hilo abierto o cerrado en que el frontmatter difiere del mismo capítulo en `versiones/vN/capitulos/NN.md` (RF-31). `aplicar-delta` rechaza con 1 y causa `regeneracion: …` el delta que, en el capítulo de origen, no trae el id reservado (`falta el hecho nuevo <id>`) o lo trae con otro texto (`texto del hecho nuevo distinto de la petición`); que referencia el hecho cambiado en cualquier colección (`referencia a <H> en <colección>`); al que le falta un requerido con su id y su texto (`falta el requerido <id>`); o que introduce —no está en la base vigente— un id de hecho u objeto de la base de `vN` que no es requerido (`id de la versión anterior: <id>`) (RF-32).
 
@@ -842,8 +871,8 @@ Slash commands, en `.claude/commands/`:
 Herramientas Bash, invocadas por los anteriores o por ti directamente:
 
 ```
-novela nueva <slug> --idea "..."   # árbol del workspace, config.yaml y estado.db
-novela nueva <slug> --brief        # lo mismo, desde brief/brief.json
+novela nueva <slug> --idea "..." [--capitulos N] [--palabras N] [--subgenero X] [--idioma X]   # árbol, config.yaml y estado.db
+novela nueva <slug> --brief [--idioma X]   # lo mismo, desde brief/brief.json
 novela estado <slug> --breve
 novela estado <slug> --json        # estado completo serializado, para inspección
 novela briefing <slug> <cap> <agente>
@@ -857,7 +886,7 @@ novela comprobar-entorno [--limpio]   # hooks, python, settings.local.json y .en
 novela cambio <slug> --hecho <hec-id> --texto "..." [--motivo "..."] [--simular]
 novela cambio <slug> --siguiente   # NN reaplicar | NN regenerar | completo | sin cambio
 novela versiones <slug> [--novedades [--desde vN]] [--verificar] [--diff vA vB|actual --capitulo N]
-novela producir <slug> [--idea "..."]   # la novela entera, una sesión de claude por paso; sin idea, reanuda
+novela producir <slug> [--idea "..." [--capitulos N] [--palabras N]]   # la novela entera, una sesión de claude por paso; sin idea, reanuda
 novela validar-plan <slug>         # escaleta y fichas; cada personaje del plan con su ficha de canon
 novela verificar-lean <slug>       # cronología en Lean 4 → qa/lean.json (docs/formal/lean.md)
 novela juicio <slug>               # valida qa/juicio.json y emite juez_<criterio>; 1 bajo el umbral
@@ -909,9 +938,9 @@ Dos límites distintos que conviene no mezclar: el techo de contexto por invocac
 
 Con la suscripción desaparece el coste por llamada, pero no el límite: hay topes de uso por ventana. La consecuencia operativa es idéntica a la anterior, y por eso el diseño no cambia — checkpoint por capítulo y reanudación limpia siguen siendo el mecanismo central.
 
-`novela budget` registra en `runs/quota.json` invocaciones y capítulos completados por ventana, para estimar cuánto queda antes del corte y decidir si merece la pena empezar otro capítulo o parar en un punto limpio.
+No hay contador de cuota en el CLI: lo único que se mide en código es el `presupuesto_tokens` de cada receta (§6.5). Estimar cuánto queda antes del corte, y decidir si merece la pena empezar otro capítulo o parar en un punto limpio, es trabajo del operador; `novela costes` da el consumo real de cada paso desde Langfuse.
 
-Política de degradación, si se acerca el límite:
+Política de degradación, si se acerca el límite, que aplica el operador:
 
 1. Normal: los cinco agentes del bucle por capítulo.
 2. `editor-estilo` en lote, cada 3 capítulos.
@@ -936,7 +965,7 @@ claude plugin install langfuse-observability@langfuse-observability
 
 El plugin está instalado en el ámbito de usuario y se habilita solo para el proyecto, en `.claude/settings.local.json` (`"enabledPlugins": {"langfuse-observability@langfuse-observability": true}`), que está en `.gitignore`: el opt-in es estar habilitado. Sus hooks son `Stop` y `SessionEnd`, y su log está en `~/.claude/state/langfuse_hook.log`. Necesita `uv` en el PATH, porque si no cae a `python3`, que en Windows puede ser el alias de la Microsoft Store. El bucle exporta `CC_LANGFUSE_TRACE_TAGS=<slug>`, que el plugin lee, para filtrar las trazas por novela. Con `--setting-sources project,local` el plugin carga, pero sus `pluginConfigs` solo se leen del ámbito de usuario, de `--settings` o de managed. Por eso la clave pública, y la URL si no es la de EU, van en el entorno de usuario de Windows (`LANGFUSE_PUBLIC_KEY`, `LANGFUSE_BASE_URL`); la secreta la sigue dando el llavero. En una organización de Langfuse creada desde el 2026-09-16, las APIs de lectura legadas (trazas, sesiones, scores) devuelven 410: las trazas se comprueban con `GET /api/public/v2/observations`, filtrando por `sessionId` y `tags`. `POST /api/public/scores`, el de §10.5, sí funciona.
 
-`TRACE_TO_LANGFUSE` ya no habilita el trazado. Lo sigue leyendo el `ScoreSink` de `novela checkpoint` (§10.5), junto con las claves, del entorno del proceso o de `.env` en la raíz del repo, que git ignora. El entorno manda, y el `.env` no se carga en `os.environ`: sus claves no llegan a ningún hijo del CLI ni a la sesión de Claude Code. Ningún fichero versionado lleva claves.
+`TRACE_TO_LANGFUSE` ya no habilita el trazado. Lo sigue leyendo el `ScoreSink` de `novela checkpoint` (§10.5), junto con las claves y `LANGFUSE_BASE_URL` (o `LANGFUSE_HOST`), del entorno del proceso o de `.env` en la raíz del repo, que git ignora. El entorno manda, y el `.env` no se carga en `os.environ`: sus claves no llegan a ningún hijo del CLI ni a la sesión de Claude Code. Ningún fichero versionado lleva claves.
 
 ### 10.2 Qué se traza realmente
 
@@ -989,14 +1018,14 @@ Python 3.12. Cuatro caras sobre el mismo código:
 
 - **CLI `novela`** (Typer): lo que invoca el orquestador. Es quien escribe en el workspace.
 - **Servidor LSP** (`backend/novela/lsp/`, `python -m novela.lsp` por stdio, `pygls`): diagnósticos de solo lectura sobre un `capitulos/NN.md` editado a mano, con los mismos gates de `validar`, el guardrail, la regla de citas de `aplicar-delta` y `lint-prosa` (`docs/lsp.md`).
-- **Servidor MCP** (`backend/api/mcp/`, FastMCP): montado en la API en `/mcp/` y por stdio (`python -m api.mcp`). Tools de solo lectura para listar novelas, leer capítulos y versiones, consultar la biblia y descargar el PDF, construido en memoria; y `request_change`, deshabilitada salvo con `STORY_MAKER_MCP_ESCRITURA=1`, solo desde loopback y con confirmación, que lanza `novela cambio` como proceso (`docs/mcp.md`).
+- **Servidor MCP** (`backend/api/mcp/`, FastMCP): montado en la API en `/mcp/` y por stdio (`python -m api.mcp`). Tools de solo lectura para listar novelas, leer capítulos y versiones, consultar la biblia y descargar el PDF, construido en memoria; y `request_change`, deshabilitada salvo con `STORY_MAKER_MCP_ESCRITURA=1`, solo desde loopback y con confirmación, que lanza `novela cambio` como proceso (`docs/mcp.md`). Con `TRACE_TO_LANGFUSE=true`, cada llamada deja una traza `mcp.<tool>` en Langfuse con nombre, argumentos, duración y error; nunca prosa ni PDF.
 - **API FastAPI** (`backend/api/`): lectura para el frontend, y el lanzamiento de novelas. Sirve el estado, los capítulos, los manifiestos y lo que el panel necesita de la configuración, del plan y de los checkpoints. Los capítulos y los manifiestos salen del disco tal cual; el estado se serializa desde `estado.db` con los mismos modelos Pydantic, abriendo la base en modo lectura.
 
-La API **no escribe en ningún workspace**. El PDF de regalo lo genera `novela exportar --formato pdf` y se entrega como fichero (ADR 0003); `GET …/libro` sirve lo mismo que su portada, índice y ficha como JSON para la lectura web (`docs/lectura-web.md`). Fuera de leer hace dos cosas, y en las dos escribe el CLI: `request_change` del MCP, descrita arriba, y `/lanzamientos`: arranca `python -m novela producir` en segundo plano (grupo de procesos propio, sin ventana), y es ese subcomando del CLI el que escribe. `producir` repite el bucle desatendido de `AGENTS.md` § Proceso: ejecución —`comprobar-entorno`, `/novela-nueva`, un `/novela-continuar <slug> --capitulos 1` por capítulo mientras `novela pendiente` salga con 0, y `/novela-auditar`—, cada paso en su `claude -p` con `--setting-sources project,local --permission-mode dontAsk --model opus`, un `NOVELA_SESSION_ID` nuevo y el prompt como argumento de `claude.exe`, sin shell. Para con un código distinto de 0, con una sesión que no avanza `checkpoints/latest.json`, con un `intervencion.md` sin `resuelto:` o si la auditoría no exporta; nunca insiste. Tras `/novela-nueva` pide la portada, y tras cada capítulo que avanza el checkpoint y tras la auditoría guarda `metricas.json`; si fallan (sin red, Langfuse sin claves), lo anota en el registro del lanzamiento y sigue (spec 0015, RF-05).
+La API **no escribe en ningún workspace**. El PDF de regalo lo genera `novela exportar --formato pdf` como fichero (ADR 0003); `GET …/pdf` y `download_novel` lo construyen en memoria con el mismo código (`api/pdf.py`), sin escribir; `GET …/libro` sirve lo mismo que su portada, índice y ficha como JSON para la lectura web (`docs/lectura-web.md`). Fuera de leer hace dos cosas, y en las dos escribe el CLI: `request_change` del MCP, descrita arriba, y `/lanzamientos`: arranca `python -m novela producir` en segundo plano (grupo de procesos propio, sin ventana), y es ese subcomando del CLI el que escribe. `producir` repite el bucle desatendido de `AGENTS.md` § Proceso: ejecución —`comprobar-entorno`, `/novela-nueva`, un `/novela-continuar <slug> --capitulos 1` por capítulo mientras `novela pendiente` salga con 0, y `/novela-auditar`—, cada paso en su `claude -p` con `--setting-sources project,local --permission-mode dontAsk --model opus`, un `NOVELA_SESSION_ID` nuevo y el prompt como argumento de `claude.exe`, sin shell. Para con un código distinto de 0, con una sesión que no avanza `checkpoints/latest.json`, con un `intervencion.md` sin `resuelto:` o si la auditoría no exporta; nunca insiste. Tras `/novela-nueva` pide la portada, y tras cada capítulo que avanza el checkpoint y tras la auditoría guarda `metricas.json`; si fallan (sin red, Langfuse sin claves), lo anota en el registro del lanzamiento y sigue (spec 0015, RF-05).
 
 Su estado vive en `novelas/.lanzador/`, fuera de todo workspace: `<slug>.json` (estado, paso, detalle), `<slug>.log` (la salida de las sesiones) y `<slug>.detener` (el panel pidió parar, y `producir` para antes del siguiente capítulo). `activo.lock` lo sostiene el proceso mientras vive: hay uno a la vez en la máquina, y un `en_marcha` sin cerrojo tomado se sirve como `interrumpido`. Como el directorio empieza por punto, ningún slug lo alcanza.
 
-Los `POST` pasan por cuatro guardas antes de leer el cuerpo: cliente de loopback, `Host` local (contra DNS rebinding), `Origin` del panel o ninguno (contra CSRF) y cuerpo JSON validado contra `PeticionDeLanzamiento` (slug con la regex del CLI, idea de hasta 4 000 caracteres sin controles, sin campos de más). Además responden 409 si hay un lanzamiento en marcha, si el slug ya existe o si la API no sirve `<repo>/novelas`, que es donde trabajan las sesiones.
+Los `POST` pasan por cuatro guardas antes de leer el cuerpo: cliente de loopback, `Host` local (contra DNS rebinding), `Origin` del panel o ninguno (contra CSRF) y cuerpo JSON validado contra `PeticionDeLanzamiento` (slug con la regex del CLI, idea de hasta 4 000 caracteres sin controles, `capitulos` de 1 a 999 y `palabras` de 1 a 2 000 000 opcionales, sin campos de más). Además responden 409 si hay un lanzamiento en marcha, si el slug ya existe o si la API no sirve `<repo>/novelas`, que es donde trabajan las sesiones.
 
 Los modelos de respuesta son los mismos Pydantic de `backend/novela/dominio/`. Una sola ontología, un solo sitio donde cambiarla.
 
@@ -1061,8 +1090,8 @@ Contrato de acoplamiento: el frontend consume lo que la API devuelve tal cual. S
 1. **Sin temperatura, la variación depende del prompt.** La restricción de apertura por capítulo (§2.2) es una mitigación no probada. Si tras seis o siete capítulos la prosa converge, la siguiente palanca es variar el modelo del `escritor` entre capítulos o inyectar una consigna de estilo rotatoria desde el plan.
 2. **Cerrado (spec 0003): el `session_id` se fija desde fuera.** `claude --session-id <uuid>` existe. El bucle genera un UUID por sesión, se lo pasa a `claude` y lo exporta como `NOVELA_SESSION_ID`, y `novela` añade `sesion=<uuid>` a cada línea de `harness.log`: cada paso enlaza con su traza. No va al manifiesto, porque un capítulo reanudado tiene varias sesiones y un solo manifiesto.
 3. **Contexto de la sesión orquestadora.** Las cuatro reglas de §2.4 y la aritmética de §6.5 son la hipótesis de que un capítulo por sesión basta. Si en la práctica el orquestador aguanta tres o cuatro, el modo desatendido se abarata; si no aguanta ni uno completo, hay que partir el bucle en dos comandos.
-4. **`indice_recuperable` no existe.** La rama 5 de `docs/definitions.md` lo nombra y nada lo materializa. La consulta puntual y retrospectiva —«¿en qué escena se vio por última vez `obj-011`?», «¿dónde se habló de una llave oxidada?»— solo se responde hoy cargando capítulos en el briefing, dejando que el agente explore por su cuenta (contra el principio 7) o conformándose con resúmenes que ya han perdido el detalle que la pregunta busca. Con 24 capítulos los resúmenes jerárquicos bastan y no hay presión de contexto medida: el índice se justificaría por **capacidad de consulta, no por ahorro de tokens**, y mal usado los aumenta. La dirección acordada, si se aborda, es híbrida sobre `estado.db` y por fases, porque esas preguntas no son la misma: exacta (tabla `menciones(entidad_id, escena_id, capitulo)` que el `cronista` emite en el delta), léxica (FTS5 sobre `memoria/resumenes/`) y semántica (un vector por escena con un modelo de embeddings **local** —la regla de «ningún proveedor ni SDK de modelos» se mantiene— y producto escalar en numpy, que sobre ~200 escenas no necesita índice vectorial). Las dos primeras no añaden dependencias; la tercera sí, y es la única que conviene medir antes de darla por buena. Los aciertos exactos van primero y sin fusionar; el resto se ordena con Reciprocal Rank Fusion, que suma rangos y no obliga a normalizar `bm25()` contra un coseno. Quien consulta es el orquestador, mediante un subcomando con tope de resultados y de tokens que deja rastro en `runs/`: dar a los agentes una herramienta de búsqueda libre rompe el techo de §6.5 y la regla de no explorar el workspace. **El orden es exacta y léxica primero, semántica solo después de medir** cuántas consultas reales se quedan sin responder: de las tres preguntas de ejemplo, la primera la cierra la exacta y la segunda la léxica, y solo la tercera necesita embeddings. Si esa medición la justifica, la elección acordada es `multilingual-e5-small` (384 dimensiones) servido por `fastembed` sobre `onnxruntime`, no por `sentence-transformers`: la vía habitual arrastra PyTorch, unos 2 GB, que sería con diferencia la dependencia más pesada del sistema y entraría para la capa más prescindible; ONNX deja el coste en unos 200 MB, en CPU y sin GPU. Dos detalles que no se ven hasta que fallan: los modelos E5 exigen el prefijo `query: ` al consultar y `passage: ` al indexar —omitirlos degrada la calidad sin dar ningún error— y el modelo va fijado por versión en el lockfile, porque un vector calculado con otra revisión no es comparable con los ya guardados; por eso `novela reindexar` existe desde el primer día. La elección concreta conviene revisarla en el momento de implementarla: lo que no cambia son los criterios —local, multilingüe, pequeño y sin torch—. La tabla `apariciones` de §7.1 no es esa capa exacta: va por capítulo y no por escena, solo cubre personajes y escenarios, la deriva `aplicar-delta` del plan y del delta, y solo la consulta la ficha del libro.
+4. **`indice_recuperable` no existe.** La ontología original lo incluía en la rama 5 y nada lo materializa. La consulta puntual y retrospectiva —«¿en qué escena se vio por última vez `obj-011`?», «¿dónde se habló de una llave oxidada?»— solo se responde hoy cargando capítulos en el briefing, dejando que el agente explore por su cuenta (contra el principio 7) o conformándose con resúmenes que ya han perdido el detalle que la pregunta busca. Con 24 capítulos los resúmenes jerárquicos bastan y no hay presión de contexto medida: el índice se justificaría por **capacidad de consulta, no por ahorro de tokens**, y mal usado los aumenta. La dirección acordada, si se aborda, es híbrida sobre `estado.db` y por fases, porque esas preguntas no son la misma: exacta (tabla `menciones(entidad_id, escena_id, capitulo)` que el `cronista` emite en el delta), léxica (FTS5 sobre `memoria/resumenes/`) y semántica (un vector por escena con un modelo de embeddings **local** —la regla de «ningún proveedor ni SDK de modelos» se mantiene— y producto escalar en numpy, que sobre ~200 escenas no necesita índice vectorial). Las dos primeras no añaden dependencias; la tercera sí, y es la única que conviene medir antes de darla por buena. Los aciertos exactos van primero y sin fusionar; el resto se ordena con Reciprocal Rank Fusion, que suma rangos y no obliga a normalizar `bm25()` contra un coseno. Quien consulta es el orquestador, mediante un subcomando con tope de resultados y de tokens que deja rastro en `runs/`: dar a los agentes una herramienta de búsqueda libre rompe el techo de §6.5 y la regla de no explorar el workspace. **El orden es exacta y léxica primero, semántica solo después de medir** cuántas consultas reales se quedan sin responder: de las tres preguntas de ejemplo, la primera la cierra la exacta y la segunda la léxica, y solo la tercera necesita embeddings. Si esa medición la justifica, la elección acordada es `multilingual-e5-small` (384 dimensiones) servido por `fastembed` sobre `onnxruntime`, no por `sentence-transformers`: la vía habitual arrastra PyTorch, unos 2 GB, que sería con diferencia la dependencia más pesada del sistema y entraría para la capa más prescindible; ONNX deja el coste en unos 200 MB, en CPU y sin GPU. Dos detalles que no se ven hasta que fallan: los modelos E5 exigen el prefijo `query: ` al consultar y `passage: ` al indexar —omitirlos degrada la calidad sin dar ningún error— y el modelo va fijado por versión en el lockfile, porque un vector calculado con otra revisión no es comparable con los ya guardados; por eso `novela reindexar` tendría que existir desde el primer día. La elección concreta conviene revisarla en el momento de implementarla: lo que no cambia son los criterios —local, multilingüe, pequeño y sin torch—. La tabla `apariciones` de §7.1 no es esa capa exacta: va por capítulo y no por escena, solo cubre personajes y escenarios, la deriva `aplicar-delta` del plan y del delta, y solo la consulta la ficha del libro.
 5. **El escritor no reescribe capítulos de una versión.** Si un gate detecta que un problema del capítulo 7 nace del 5, el harness para y pide intervención: la reescritura retroactiva en sitio invalidaría el estado y los resúmenes de todo lo intermedio. Cambiar un hecho de una novela terminada abre una versión nueva con `novela cambio`, que guarda la anterior intacta en `versiones/vN/` y reconstruye la base desde cero (ADR 0004).
 6. **Cerrado (spec 0004): el panel ve la actividad del bucle.** `estado.db` solo cambia en `aplicar-delta`, así que el estado no distingue un capítulo en curso de un bucle colgado. Lo distingue `runs/<run_id>/harness.log`, que el CLI vuelca línea a línea (spec 0001, RF-27): la API sirve `GET …/runs` y `GET …/runs/{run_id}/log?desde=<byte>` (§11.1), y el panel encadena tramos guardando el `hasta` devuelto. Leer así un fichero que crece no deja estado en el servidor ni suscripción que caducar; SSE o WebSocket serían un segundo transporte para el patrón que el panel ya usa en todo lo demás.
-7. **Cerrado (spec 0003): las tres barreras de contención están puestas.** Los siete `.claude/agents/*.md` con el `tools` de §7.4 y un test de contrato que falla si derivan; el `deny` de `Read` sobre `canon/misterio.md` en `.claude/settings.json`, viable porque `novela briefing` incrusta el misterio; y el hook `PreToolUse` de §7.1, que se dispara también para las llamadas de un subagente (experimento E-1 de la spec 0003). Los plugins de desarrollo viven en el ámbito de usuario. Lo que sigue es el razonamiento que llevó ahí. **Antes, enunciadas y no puestas.** `.claude/` contiene hoy un único fichero, `settings.json`, con plugins de desarrollo: no hay definiciones de agente, ni hooks, ni permisos. El invariante 3 se sostiene solo sobre el aborto de `novela briefing`, y el 1 solo sobre los triggers append-only de `estado.db`. La dificultad es que los permisos de Claude Code valen para la sesión entera y no por subagente, así que un `deny` sobre `canon/misterio.md` rompería a los tres agentes que sí lo necesitan —`trazador`, `continuista` y `lector-suspense`—; lo que lo hace viable es que `novela briefing` **incruste** el contenido del misterio en el briefing de esos tres, con lo que ningún agente necesita abrir el fichero y la regla pasa a ser una línea igual para los siete, con el coste de contexto contando además dentro del presupuesto que §6.5 verifica antes de invocar. El resto de la contención es material: los siete `.claude/agents/*.md` con el `tools` de §7.4, los dos hooks que `CLAUDE.md` da por existentes (`PreToolUse` de escritura, `Stop` de trazado), los plugins de desarrollo fuera del fichero versionado y un test de contrato que falle si un agente gana una herramienta prohibida. Queda por verificar si `PreToolUse` se dispara para las llamadas de herramienta de un subagente: si no lo hiciera, el invariante 1 se queda solo con los triggers. Mientras nada de esto exista, §6.3 y §7.4 describen el contrato de los agentes, no lo que hay en disco.
-8. **El arranque pasa por un humano.** El formulario del panel prepara la orden `/novela-nueva` para copiar en la sesión del harness, porque la API no escribe y FastAPI no puede invocar modelos (§2, «fuera del stack»); el `config.yaml` lo escribe `novela nueva` desde los flags, así que no hay dos fuentes de los mismos parámetros (spec 0004). Es la única costura manual del diseño y está en el primer paso que da cualquiera. La dirección acordada es una cola en disco fuera de los workspaces —`novelas/_cola/`, con `pendientes/`, `en-curso/` y `hechas/`, donde el prefijo `_` no es un slug válido y la separación se sostiene por construcción—: la API gana un `POST /cola` que valida y encola de forma atómica, su única escritura, con tope de pendientes porque cada solicitud aceptada acabará gastando cuota; el CLI gana `novela cola tomar` y `novela cola cerrar`; y el `config.yaml` lo escribe siempre el backend, venga de la cola o de los flags. Quien vacía la cola es un supervisor de quince líneas de shell, el bucle desatendido de §2.3 con una fuente de trabajo delante: se queda en shell porque solo decide **qué novela empieza**, no qué paso sigue a un gate, y meterlo en el CLI borraría esa frontera. Un `run.sh` levanta API y supervisor juntos, de modo que no exista el estado «panel en pie, nadie ejecutando» ni, con él, un segundo camino de arranque que mantener. Si se adopta, la frase «no hay verbo de escritura» de §11.1 pasa a «la API no muta una novela», y con ella la regla equivalente de `AGENTS.md`.
+7. **Cerrado (spec 0003): las tres barreras de contención están puestas.** Los `.claude/agents/*.md`, hoy nueve, con el `tools` de §7.4 y un test de contrato que falla si derivan; el `deny` de `Read` sobre `canon/misterio.md` en `.claude/settings.json`, viable porque `novela briefing` incrusta el misterio; y el hook `PreToolUse` de §7.1, que se dispara también para las llamadas de un subagente (experimento E-1 de la spec 0003). Los plugins de desarrollo viven en el ámbito de usuario. Lo que sigue es el razonamiento que llevó ahí. **Antes, enunciadas y no puestas.** `.claude/` contiene hoy un único fichero, `settings.json`, con plugins de desarrollo: no hay definiciones de agente, ni hooks, ni permisos. El invariante 3 se sostiene solo sobre el aborto de `novela briefing`, y el 1 solo sobre los triggers append-only de `estado.db`. La dificultad es que los permisos de Claude Code valen para la sesión entera y no por subagente, así que un `deny` sobre `canon/misterio.md` rompería a los tres agentes que sí lo necesitan —`trazador`, `continuista` y `lector-suspense`—; lo que lo hace viable es que `novela briefing` **incruste** el contenido del misterio en el briefing de esos tres, con lo que ningún agente necesita abrir el fichero y la regla pasa a ser una línea igual para los siete, con el coste de contexto contando además dentro del presupuesto que §6.5 verifica antes de invocar. El resto de la contención es material: los siete `.claude/agents/*.md` con el `tools` de §7.4, los dos hooks que `CLAUDE.md` da por existentes (`PreToolUse` de escritura, `Stop` de trazado), los plugins de desarrollo fuera del fichero versionado y un test de contrato que falle si un agente gana una herramienta prohibida. Queda por verificar si `PreToolUse` se dispara para las llamadas de herramienta de un subagente: si no lo hiciera, el invariante 1 se queda solo con los triggers. Mientras nada de esto exista, §6.3 y §7.4 describen el contrato de los agentes, no lo que hay en disco.
+8. **Cerrado: el arranque ya no pasa por un humano.** El panel lanza con `POST /lanzamientos`, que arranca `novela producir` (§11.1); el `config.yaml` lo sigue escribiendo `novela nueva` desde los flags, así que no hay dos fuentes de los mismos parámetros (spec 0004). Lo que sigue es la alternativa que se discutió y no se adoptó. Antes, el formulario del panel preparaba la orden `/novela-nueva` para copiar en la sesión del harness, y la dirección acordada era una cola en disco fuera de los workspaces —`novelas/_cola/`, con `pendientes/`, `en-curso/` y `hechas/`, donde el prefijo `_` no es un slug válido y la separación se sostiene por construcción—: la API gana un `POST /cola` que valida y encola de forma atómica, su única escritura, con tope de pendientes porque cada solicitud aceptada acabará gastando cuota; el CLI gana `novela cola tomar` y `novela cola cerrar`; y el `config.yaml` lo escribe siempre el backend, venga de la cola o de los flags. Quien vacía la cola es un supervisor de quince líneas de shell, el bucle desatendido de §2.3 con una fuente de trabajo delante: se queda en shell porque solo decide **qué novela empieza**, no qué paso sigue a un gate, y meterlo en el CLI borraría esa frontera. Un `run.sh` levanta API y supervisor juntos, de modo que no exista el estado «panel en pie, nadie ejecutando» ni, con él, un segundo camino de arranque que mantener.
